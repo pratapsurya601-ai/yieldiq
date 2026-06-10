@@ -36,12 +36,21 @@ import {
   CartesianGrid,
 } from "recharts"
 import { getFinancials, type FinancialYear, type FinancialsResponse } from "@/lib/api"
+import {
+  getDisplayRevenue,
+  getDisplayRevenueLabel,
+  getFCFNotApplicableNote,
+  isFinancialCohort,
+} from "@/lib/sectorFinancials"
 
 type Period = "annual" | "quarterly"
 
 interface Props {
   ticker: string
   currency?: string | null
+  /** Sector hint — when present, drives bank-cohort revenue
+   * fall-back (interest income) and hides the FCF series. */
+  sector?: string | null
 }
 
 interface ChartRow {
@@ -105,7 +114,7 @@ function pickRows(years: FinancialYear[]): ChartRow[] {
   }))
 }
 
-export default function FinancialsChartPanel({ ticker, currency }: Props) {
+export default function FinancialsChartPanel({ ticker, currency, sector }: Props) {
   // `userPeriod` is null until the user clicks a tab themselves. Once
   // set we honour that choice forever. Before that, the active tab is
   // derived from has_quarterly (auto-promote Quarterly when the
@@ -129,6 +138,14 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
 
   const period: Period = userPeriod ?? (data?.has_quarterly ? "quarterly" : "annual")
 
+  // Sector-aware bank-cohort gating. For banks the "revenue" bar is
+  // backfilled with interest_earned / net_interest_income / total_income
+  // via getDisplayRevenue(); the FCF bar is hidden entirely so the
+  // legend doesn't carry a series that's all nulls.
+  const isFin = isFinancialCohort(sector, ticker)
+  const revenueLabel = getDisplayRevenueLabel(sector, ticker)
+  const fcfNote = getFCFNotApplicableNote(sector, ticker)
+
   // The income payload carries revenue + net_income; cash flow carries
   // FCF. Merge by `year` so a name with mismatched coverage (e.g. FCF
   // missing for the latest period) still plots the rows it does have.
@@ -138,7 +155,11 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
     for (const y of incomeYears) {
       byYear.set(y.year, {
         year: y.year,
-        revenue: y.revenue,
+        // Bank fall-back: interest_earned / NII / total_income when
+        // the generic `revenue` field is null. This is the load-
+        // bearing line that turns flat-zero bars on HDFCBANK into
+        // populated bars.
+        revenue: getDisplayRevenue(y, sector, ticker),
         net_profit: y.net_income,
         fcf: null,
       })
@@ -146,18 +167,19 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
     for (const y of cashflowYears) {
       const existing = byYear.get(y.year)
       if (existing) {
-        existing.fcf = y.free_cash_flow
+        // Suppress FCF for the financial cohort — see fcfNote below.
+        existing.fcf = isFin ? null : y.free_cash_flow
       } else {
         byYear.set(y.year, {
           year: y.year,
           revenue: null,
           net_profit: null,
-          fcf: y.free_cash_flow,
+          fcf: isFin ? null : y.free_cash_flow,
         })
       }
     }
     return pickRows(Array.from(byYear.values()) as unknown as FinancialYear[])
-  }, [incomeYears, cashflowYears])
+  }, [incomeYears, cashflowYears, isFin, sector, ticker])
 
   if (isLoading) return <Skeleton />
 
@@ -267,12 +289,32 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
                   iconType="circle"
                   wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
                 />
-                <Bar dataKey="revenue" name="Revenue" fill={COLOR_REVENUE} radius={[3, 3, 0, 0]} />
+                <Bar
+                  dataKey="revenue"
+                  name={revenueLabel}
+                  fill={COLOR_REVENUE}
+                  radius={[3, 3, 0, 0]}
+                />
                 <Bar dataKey="net_profit" name="Net Profit" fill={COLOR_PROFIT} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="fcf" name="Free Cash Flow" fill={COLOR_FCF} radius={[3, 3, 0, 0]} />
+                {!isFin && (
+                  <Bar
+                    dataKey="fcf"
+                    name="Free Cash Flow"
+                    fill={COLOR_FCF}
+                    radius={[3, 3, 0, 0]}
+                  />
+                )}
               </BarChart>
             </ResponsiveContainer>
           </div>
+          {isFin && fcfNote && (
+            <p
+              className="text-[11px] text-caption mt-2"
+              data-testid="financials-chart-fcf-not-applicable"
+            >
+              {fcfNote}
+            </p>
+          )}
           <p className="text-[11px] text-caption mt-3">
             {rows.length} period{rows.length === 1 ? "" : "s"} shown
             {data?.data_source === "yfinance_fallback" ? " · source: yfinance" : ""}

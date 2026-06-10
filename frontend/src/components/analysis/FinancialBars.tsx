@@ -11,6 +11,11 @@ import {
 } from "recharts"
 import { formatCurrency } from "@/lib/utils"
 import CashflowStalenessBadge from "@/components/analysis/CashflowStalenessBadge"
+import {
+  getDisplayRevenueLabel,
+  getFCFNotApplicableNote,
+  isFinancialCohort,
+} from "@/lib/sectorFinancials"
 
 interface FinancialDataPoint {
   year: string
@@ -20,6 +25,14 @@ interface FinancialDataPoint {
 interface FinancialBarsProps {
   ticker: string
   currency?: string | null
+  /**
+   * Sector hint used to pick a bank-cohort label / FCF-not-applicable
+   * note. Optional for back-compat — callers that don't pass it fall
+   * through to the canonical pure-bank ticker list inside
+   * `sectorFinancials.ts`. Recommended: pass `company.sector` from
+   * the analyze response.
+   */
+  sector?: string | null
   revenue?: FinancialDataPoint[]
   fcf?: FinancialDataPoint[]
   /**
@@ -60,11 +73,22 @@ function formatUSD(value: number): string {
 export default function FinancialBars({
   ticker,
   currency,
+  sector,
   revenue: revenueProp,
   fcf: fcfProp,
   fcfDataSource,
   fcfTtmBasis,
 }: FinancialBarsProps) {
+  // Sector-aware labels and FCF gate. For banks / NBFCs / insurers
+  // the revenue bars are actually plotting Net Interest Income (the
+  // backend already falls back, but we re-label the chart header so
+  // the reader sees "Net Interest Income" rather than "Revenue").
+  // FCF is hidden entirely for the financial cohort — it is not a
+  // meaningful surface for deposit-funded businesses.
+  const isFin = isFinancialCohort(sector, ticker)
+  const revenueLabel = getDisplayRevenueLabel(sector, ticker)
+  const fcfNote = getFCFNotApplicableNote(sector, ticker)
+
   const data: YearlyData[] = useMemo(() => {
     // Merge revenue + FCF by year. No synthetic fallback — if the
     // backend returned nothing, we show an empty state below, never
@@ -90,7 +114,16 @@ export default function FinancialBars({
 
   const yFormatter = isForeignCurrency(currency, ticker) ? formatUSD : formatCrore
 
-  const hasData = data.length > 0 && data.some((d) => d.revenue !== 0 || d.fcf !== 0)
+  // For non-financial tickers we still want to require that AT LEAST
+  // one bar is non-zero before rendering — otherwise the empty state
+  // is the right answer. For financial tickers we no longer demand
+  // a non-zero FCF row to be present (FCF will always be zero / null
+  // for the cohort) — revenue alone is enough.
+  const hasData =
+    data.length > 0 &&
+    data.some((d) =>
+      isFin ? d.revenue !== 0 : d.revenue !== 0 || d.fcf !== 0,
+    )
 
   if (!hasData) {
     return (
@@ -101,10 +134,20 @@ export default function FinancialBars({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {/* Revenue chart */}
+    <div
+      className={isFin ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}
+      data-testid="financial-bars-grid"
+    >
+      {/* Revenue chart — header text adapts to the cohort: banks /
+          NBFCs render "Net Interest Income", insurers "Net Premium
+          Income", everything else "Revenue". */}
       <div className="rounded-xl bg-surface border border-border p-3 shadow-sm">
-        <p className="text-xs font-medium text-caption mb-2">Revenue</p>
+        <p
+          className="text-xs font-medium text-caption mb-2"
+          data-testid="financial-bars-revenue-label"
+        >
+          {revenueLabel}
+        </p>
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -139,48 +182,60 @@ export default function FinancialBars({
         </div>
       </div>
 
-      {/* FCF chart */}
-      <div className="rounded-xl bg-surface border border-border p-3 shadow-sm">
-        <div className="mb-2 flex items-center gap-2 flex-wrap">
-          <p className="text-xs font-medium text-caption">Free Cash Flow</p>
-          <CashflowStalenessBadge
-            basis={fcfTtmBasis}
-            dataSource={fcfDataSource}
-          />
+      {/* FCF chart — hidden for the financial cohort. We replace it
+          with a single-line "not meaningful for banks" caption rather
+          than stack a column of flat-zero bars. */}
+      {!isFin && (
+        <div className="rounded-xl bg-surface border border-border p-3 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 flex-wrap">
+            <p className="text-xs font-medium text-caption">Free Cash Flow</p>
+            <CashflowStalenessBadge
+              basis={fcfTtmBasis}
+              dataSource={fcfDataSource}
+            />
+          </div>
+          <div className="h-[180px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <XAxis
+                  dataKey="year"
+                  tick={{ fontSize: 9, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 9, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={yFormatter}
+                  width={48}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const value = payload[0].value as number
+                    return (
+                      <div className="rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg">
+                        <p className="text-gray-400">{label}</p>
+                        <p className="font-semibold">{formatCurrency(value, currency)}</p>
+                      </div>
+                    )
+                  }}
+                />
+                <Bar dataKey="fcf" fill="#06B6D4" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="h-[180px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-              <XAxis
-                dataKey="year"
-                tick={{ fontSize: 9, fill: "#9ca3af" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "#9ca3af" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={yFormatter}
-                width={48}
-              />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null
-                  const value = payload[0].value as number
-                  return (
-                    <div className="rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg">
-                      <p className="text-gray-400">{label}</p>
-                      <p className="font-semibold">{formatCurrency(value, currency)}</p>
-                    </div>
-                  )
-                }}
-              />
-              <Bar dataKey="fcf" fill="#06B6D4" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      )}
+      {isFin && fcfNote && (
+        <p
+          className="text-[11px] text-caption px-1"
+          data-testid="financial-bars-fcf-not-applicable"
+        >
+          {fcfNote}
+        </p>
+      )}
     </div>
   )
 }

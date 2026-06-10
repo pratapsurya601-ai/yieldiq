@@ -8,12 +8,21 @@ import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import Sparkline, { type SparklinePoint } from "@/components/analysis/Sparkline"
 import RatioTrendModal, { type RatioTrendSeriesPoint } from "@/components/analysis/RatioTrendModal"
+import type { BankKpisResponse } from "@/components/banks/BankKpiPanel"
 
 interface Props {
   quality: QualityOutput
   insights: InsightCardsType
   /** Optional 10-year ratio history; when absent, cards render without sparklines (graceful). */
   ratioHistory?: RatioHistoryResponse | null
+  /**
+   * Optional Phase-I bank-KPI payload — when present and the ticker
+   * is a bank, the panel surfaces GNPA / NNPA / PCR / CASA / CRAR /
+   * NIM alongside the existing ROA / ROE / Cost-to-Income trio.
+   * Without it, the bank cohort still renders, but only the
+   * QualityOutput-native fields (NIM / CASA / NNPA / CAR) light up.
+   */
+  bankKpis?: BankKpisResponse | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -236,6 +245,44 @@ function growthYoyTone(v: number | null | undefined): "green" | "amber" | "red" 
   return "red"
 }
 
+/* Bank deepening ratios — see backend Phase I (PR #837). Tone bands
+   tuned to the Indian bank cohort (top private banks vs PSU / SFB). */
+function nimTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Tone bands for Indian banks (top private vs mid-tier vs sub-2.5%).
+  if (v >= 3.5) return "green"
+  if (v >= 2.8) return "amber"
+  return "red"
+}
+function casaTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Top tier private 40-45%+; PSU ~35-40%; sub-30% deposit mix flagged.
+  if (v >= 40) return "green"
+  if (v >= 30) return "amber"
+  return "red"
+}
+function gnpaTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Lower is better — top private banks <1.5%; mid-tier 1.5-3%; >3% flagged.
+  if (v <= 1.5) return "green"
+  if (v <= 3) return "amber"
+  return "red"
+}
+function pcrTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Higher coverage band more comfortable — >70% solid, 50-70% adequate, <50% thin.
+  if (v >= 70) return "green"
+  if (v >= 50) return "amber"
+  return "red"
+}
+function crarTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // RBI minimum 11.5% (with CCB); 16%+ comfortable headroom; 13-16% adequate.
+  if (v >= 16) return "green"
+  if (v >= 13) return "amber"
+  return "red"
+}
+
 /* ------------------------------------------------------------------ */
 /* Shareholding stacked bar                                             */
 /* ------------------------------------------------------------------ */
@@ -341,7 +388,7 @@ function ShareholdingBar({
 /* ------------------------------------------------------------------ */
 /* Main component                                                       */
 /* ------------------------------------------------------------------ */
-export default function QualityRatios({ quality, insights, ratioHistory }: Props) {
+export default function QualityRatios({ quality, insights, ratioHistory, bankKpis }: Props) {
   const { roce, debt_ebitda, debt_ebitda_label, interest_coverage } = quality
   // Phase 2.1 additions — backend already emits these in QualityOutput but
   // they were previously dropped from the render list. Day-3 fix #12.
@@ -381,9 +428,31 @@ export default function QualityRatios({ quality, insights, ratioHistory }: Props
   // avoids showing an empty shell on tickers with no DB coverage. For
   // banks we include the bank-native metrics in the "anyRatio" check so
   // a bank page with ROA / C/I / YoY but no generic ratios still renders.
+  const bkLatest = bankKpis?.latest_annual ?? null
   const anyBankMetric =
-    [quality.roa, quality.cost_to_income, quality.advances_yoy, quality.deposits_yoy,
-     quality.pat_yoy_bank, quality.revenue_yoy_bank].some(v => v !== null && v !== undefined)
+    [
+      quality.roa,
+      quality.cost_to_income,
+      quality.advances_yoy,
+      quality.deposits_yoy,
+      quality.pat_yoy_bank,
+      quality.revenue_yoy_bank,
+      // Deepening fields (Phase I — PR #837). When the panel has
+      // ONLY these populated (a partial-coverage bank), the
+      // panel still renders. Without this guard the entire card
+      // would self-hide and the user would see nothing for a bank
+      // whose only available signal is the deepening trio.
+      quality.nim,
+      quality.casa,
+      quality.nnpa,
+      quality.car,
+      bkLatest?.gnpa_pct ?? null,
+      bkLatest?.nnpa_pct ?? null,
+      bkLatest?.pcr_pct ?? null,
+      bkLatest?.casa_pct ?? null,
+      bkLatest?.cost_to_income_pct ?? null,
+      bkLatest?.credit_deposit_pct ?? null,
+    ].some(v => v !== null && v !== undefined)
   const anyRatio =
     [roce, debt_ebitda, interest_coverage, evEbitda,
      currentRatio, assetTurnover, revenueCagr3y].some(v => v !== null && v !== undefined)
@@ -439,6 +508,110 @@ export default function QualityRatios({ quality, insights, ratioHistory }: Props
           DO apply to banks (e.g. capital adequacy → Safety axis). */}
       {isBank ? (
         <>
+          {/* Bank-deepening KPIs (Phase I \u2014 PR #837). NIM / CASA are
+              currently surfaced from QualityOutput; GNPA / NNPA / PCR
+              / CRAR / Cost-to-Income are pulled from the optional
+              bank-kpis payload (BankKpisResponse). Each row self-
+              hides when the underlying value is null, so banks with
+              partial coverage degrade gracefully rather than
+              rendering a column of em-dashes. The legacy ROA / ROE /
+              C-I / *-YoY trio still renders below for cohort
+              continuity. */}
+          {(() => {
+            const latest = bankKpis?.latest_annual ?? null
+            const nimVal = quality.nim ?? null
+            const casaVal = latest?.casa_pct ?? quality.casa ?? null
+            const nnpaVal = latest?.nnpa_pct ?? quality.nnpa ?? null
+            const gnpaVal = latest?.gnpa_pct ?? null
+            const pcrVal = latest?.pcr_pct ?? null
+            const crarVal = quality.car ?? null
+            const ctiVal = latest?.cost_to_income_pct ?? quality.cost_to_income ?? null
+            const cdrVal = latest?.credit_deposit_pct ?? null
+            const anyDeepening =
+              nimVal != null || casaVal != null || gnpaVal != null ||
+              nnpaVal != null || pcrVal != null || crarVal != null ||
+              cdrVal != null
+            if (!anyDeepening) return null
+            return (
+              <div
+                className="grid grid-cols-2 gap-2"
+                data-testid="bank-deepening-grid"
+              >
+                {nimVal != null && (
+                  <RatioCard
+                    label="NIM"
+                    value={fmtRatio(nimVal, "%")}
+                    subtitle="Net Interest Margin"
+                    tone={nimTone(nimVal)}
+                    metricKey="nim"
+                  />
+                )}
+                {casaVal != null && (
+                  <RatioCard
+                    label="CASA"
+                    value={fmtRatio(casaVal, "%")}
+                    subtitle="Low-cost deposit mix"
+                    tone={casaTone(casaVal)}
+                    metricKey="casa"
+                  />
+                )}
+                {gnpaVal != null && (
+                  <RatioCard
+                    label="GNPA"
+                    value={fmtRatio(gnpaVal, "%")}
+                    subtitle="Gross non-performing assets"
+                    tone={gnpaTone(gnpaVal)}
+                    metricKey="gnpa"
+                  />
+                )}
+                {nnpaVal != null && (
+                  <RatioCard
+                    label="NNPA"
+                    value={fmtRatio(nnpaVal, "%")}
+                    subtitle="Net of provisions"
+                    tone={gnpaTone(nnpaVal)}
+                    metricKey="nnpa"
+                  />
+                )}
+                {pcrVal != null && (
+                  <RatioCard
+                    label="PCR"
+                    value={fmtRatio(pcrVal, "%")}
+                    subtitle="Provision coverage"
+                    tone={pcrTone(pcrVal)}
+                    metricKey="pcr"
+                  />
+                )}
+                {crarVal != null && (
+                  <RatioCard
+                    label="CRAR"
+                    value={fmtRatio(crarVal, "%")}
+                    subtitle="Capital adequacy"
+                    tone={crarTone(crarVal)}
+                    metricKey="crar"
+                  />
+                )}
+                {ctiVal != null && (
+                  <RatioCard
+                    label="Cost / Income"
+                    value={fmtRatio(ctiVal, "%")}
+                    tone={costToIncomeTone(ctiVal)}
+                    metricKey="cost_to_income"
+                  />
+                )}
+                {cdrVal != null && (
+                  <RatioCard
+                    label="Credit / Deposits"
+                    value={fmtRatio(cdrVal, "%")}
+                    subtitle="Loan-to-deposit"
+                    tone="neutral"
+                    metricKey="credit_deposit"
+                  />
+                )}
+              </div>
+            )
+          })()}
+
           <div className="grid grid-cols-2 gap-2">
             <RatioCard
               label="ROA"
@@ -473,12 +646,6 @@ export default function QualityRatios({ quality, insights, ratioHistory }: Props
                   series: trends.roe, color: tone, threshold: 15,
                 })
               }}
-            />
-            <RatioCard
-              label="Cost / Income"
-              value={fmtRatio(quality.cost_to_income, "%")}
-              tone={costToIncomeTone(quality.cost_to_income)}
-              metricKey="cost_to_income"
             />
             <RatioCard
               label="Advances YoY"
