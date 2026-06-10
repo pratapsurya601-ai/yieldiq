@@ -2923,6 +2923,53 @@ MANIFEST: list[dict] = [
             "overlay sibling to regulated_utility_valuation_service."
         ),
     },
+    {
+        # T3.7 Phase A (2026-06-10) — auto-OEM cycle-adjusted valuation
+        # standalone service. Adds backend/services/auto_oem_cycle_service.py
+        # — a pure-function module that normalises volume to the geometric
+        # mean of peak/trough and applies a mid-cycle margin and segment-
+        # default EV/EBITDA multiple. Returns AutoOEMResult with fair
+        # value per share, intermediate components, and sanity warnings.
+        #
+        # Motivation: a generic two-stage DCF anchored on TTM volume +
+        # margin over-extrapolates at cycle peaks (TVSMOTOR / EICHERMOT
+        # late-2024 prints) and over-discounts at troughs (TATAMOTORS CV
+        # FY21). Mid-cycle EV/EBITDA is the standard sell-side framework
+        # for auto OEMs. This module ships the math + tests as a
+        # parallel estimator; Phase B (separate PR) will wire it into
+        # composite_iv_service as an additive weighted contributor for
+        # the 8 tickers in AUTO_OEM_TICKERS.
+        #
+        # Scope: explicit ticker list (NOT wildcard) so we record that
+        # the engine capability shipped for this cohort specifically.
+        # fields=[] because Phase A is additive only — no cached field
+        # shape changes; the result is not yet attached to the cached
+        # analysis payload. The manifest entry exists to anchor when
+        # the standalone math shipped so Phase B has a paper trail.
+        "version_id": "v_t3_7_auto_oem_cycle_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                # 4W passenger
+                "MARUTI", "TATAMOTORS", "M&M",
+                # 2W mass-market
+                "BAJAJ-AUTO", "HEROMOTOCO", "TVSMOTOR",
+                # 2W luxury / premium
+                "EICHERMOT",
+                # Commercial vehicles
+                "ASHOKLEY",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.7 Phase A — auto OEM mid-cycle normalization. "
+            "Standalone service computes fair value as "
+            "sqrt(peak × trough) × realization × mid_cycle_margin × "
+            "segment EV/EBITDA multiple, minus net debt. Existing DCF "
+            "path untouched; Phase B will wire as additive composite "
+            "contributor for the 8 listed auto-OEM tickers."
+        ),
+    },
 ]
 
 
