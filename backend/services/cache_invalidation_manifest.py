@@ -2896,6 +2896,33 @@ MANIFEST: list[dict] = [
             "PR."
         ),
     },
+    {
+        # T3.12 Phase A — Utilities maintenance-capex intensity
+        # overlay, sibling to regulated_utility_valuation_service. The
+        # new service computes Munger-style owner earnings and a
+        # per-segment maintenance-intensity label
+        # (underspending / normal / heavy / extreme) for the 9 Indian
+        # utilities tickers below. Phase A ships only the engine math
+        # + applicability gate + JSON-safe serializer; nothing is
+        # wired into the analysis route yet. scope.fields is empty by
+        # design — when Phase B flips tickers over to surface the
+        # intensity badge and the owner-earnings cross-check, the
+        # cache-version-check gate has an anchor and the manifest
+        # timeline records when the engine capability shipped.
+        "version_id": "v_t3_12_utilities_maintenance_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "POWERGRID", "NTPC", "NHPC", "SJVN", "ADANIPOWER",
+                "TATAPOWER", "TORNTPOWER", "JSWENERGY", "RELINFRA",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.12 Phase A — utilities maintenance capex intensity "
+            "overlay sibling to regulated_utility_valuation_service."
+        ),
+    },
 ]
 
 
