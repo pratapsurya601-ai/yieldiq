@@ -2856,6 +2856,46 @@ MANIFEST: list[dict] = [
             "for Phase B composite integration."
         ),
     },
+    {
+        # T3.13 Phase A — Consumer-durables WC intensity standalone
+        # service (backend/services/consumer_durables_wc_service.py).
+        # Brand-multiple EV anchor (28x EV/EBITDA mid-cycle) less a WC
+        # drag charged at cost-of-equity on excess working capital
+        # (current WC intensity − 5y median × revenue × ke). Operating
+        # cycle median surfaced as a franchise-quality tell. Phase A
+        # ships engine math only — no wiring into the analysis route.
+        # Phase B (separate PR) will branch CONSUMER_DURABLES_TICKERS
+        # through this service.
+        #
+        # Scope: 12 listed consumer-durables names (HAVELLS, VOLTAS,
+        # CROMPTON, WHIRLPOOL, BLUESTARCO, ORIENTELEC, BAJAJELEC,
+        # V-GUARD, KEI, AMBER, DIXON, POLYCAB). RAJESHEXPO intentionally
+        # excluded — jewellery / gold-inventory WC pattern does not map
+        # onto the white-goods seasonal-build frame. Empty scope.fields
+        # because no existing cached payload field is touched by Phase A
+        # — the manifest entry exists only to record the engine change
+        # date so the Phase B wiring PR can reference the standalone
+        # service landing event.
+        "version_id": "v_t3_13_consumer_durables_wc_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "HAVELLS", "VOLTAS", "CROMPTON", "WHIRLPOOL", "BLUESTARCO",
+                "ORIENTELEC", "BAJAJELEC", "V-GUARD", "KEI", "AMBER",
+                "DIXON", "POLYCAB",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.13 Phase A — consumer durables WC normalization "
+            "framework. 5-year median WC-intensity anchor, excess-WC "
+            "cost-of-equity drag, brand-premium EV/EBITDA multiple "
+            "(28x mid-cycle), operating-cycle median as franchise-"
+            "quality tell. RAJESHEXPO excluded (jewellery, not white "
+            "goods). Phase B wires into analysis route in a separate "
+            "PR."
+        ),
+    },
 ]
 
 
