@@ -197,6 +197,109 @@ CANONICAL_ESTIMATORS: tuple[EstimatorSlot, ...] = (
 # read from `composite_components.sector_specific_label`.
 SECTOR_SPECIFIC_NOMINAL_WEIGHT: float = 0.40
 
+
+# ─── sector-specific slot (P0 2026-06-11) ─────────────────────────
+# When a sector-primary engine (Bank Residual Income / NBFC ROA /
+# Insurance EV+VNB / Pharma rNPV / Telecom ARPU / Oil&Gas / Auto OEM
+# / Cement / Steel / RE developer / Consumer durables / Media / Logistics
+# / Holdco SOTP) produces a value, it appears as an EIGHTH row in the
+# composition table — above DCF — so the user can see the domain-math
+# estimator on its own line alongside the headline estimators.
+#
+# Why a separate row (not folded into DCF):
+#   * The sector engine and DCF are INDEPENDENT estimators with
+#     different inputs (DCF uses FCF / WACC / terminal growth; the
+#     sector engine uses NIM / CASA / PCR for banks, ARPU / churn for
+#     telecom, rNPV per molecule for pharma, etc.). Folding would
+#     hide the cross-engine consensus signal the user wants to see.
+#   * For banks the DCF row CORRECTLY fails (`base_year_fcf_non_positive`)
+#     and the sector engine becomes the primary estimator. The panel
+#     needs to render BOTH rows so the user understands DCF is
+#     skipped by design and Bank Residual Income is the replacement
+#     — not "DCF is broken".
+#
+# `default_reason` doesn't apply: a sector_specific row only appears
+# when `sector_specific_fv` is populated, never as an "inapplicable"
+# row for tickers that don't route to a sector engine.
+@dataclass(frozen=True)
+class SectorSpecificSlot:
+    key: str = "sector_specific"
+    label_default: str = "Sector-specific (domain engine)"
+    description_default: str = (
+        "Domain-specific model that encodes the cohort's intrinsic-"
+        "value math (Bank Residual Income, NBFC ROA tree, Insurance "
+        "EV+VNB, Pharma pipeline rNPV, etc.)"
+    )
+    nominal_weight: float = SECTOR_SPECIFIC_NOMINAL_WEIGHT
+
+
+SECTOR_SPECIFIC_SLOT = SectorSpecificSlot()
+
+
+# Per-sector label / description mapping for the sector_specific row.
+# Read from `composite_components.sector_specific_label` (the tag the
+# composite_iv_service emits) and rendered as the row's label. Keys
+# match the tags `composite_iv_service.compute_composite_iv` writes —
+# see DEFAULT_WEIGHT_SECTOR_SPECIFIC docstring there.
+SECTOR_SPECIFIC_LABEL_MAP: dict[str, tuple[str, str]] = {
+    "bank_residual_income": (
+        "Sector-specific (Bank Residual Income)",
+        "Bank residual-income model — NII, CASA, PCR, GNPA-aware",
+    ),
+    "nbfc_roa": (
+        "Sector-specific (NBFC ROA tree)",
+        "NBFC ROA-tree decomposition (yield, cost of funds, opex, credit cost)",
+    ),
+    "insurance_ev_vnb": (
+        "Sector-specific (Insurance EV + VNB)",
+        "Embedded Value + Value of New Business (appraisal-value method)",
+    ),
+    "pharma_pipeline": (
+        "Sector-specific (Pharma pipeline rNPV)",
+        "Risk-adjusted NPV per molecule across the development pipeline",
+    ),
+    "telecom_arpu": (
+        "Sector-specific (Telecom ARPU DCF)",
+        "ARPU-driven DCF with churn and subscriber-growth scenarios",
+    ),
+    "oil_gas": (
+        "Sector-specific (Oil & Gas reserves)",
+        "Proven + probable reserves NAV plus downstream SOTP",
+    ),
+    "auto_oem": (
+        "Sector-specific (Auto OEM mid-cycle)",
+        "Mid-cycle volume × ASP × margin normalised across the auto cycle",
+    ),
+    "cement_utilization": (
+        "Sector-specific (Cement mid-cycle)",
+        "Mid-cycle EBITDA / tonne × utilisation × capacity",
+    ),
+    "steel_cost_curve": (
+        "Sector-specific (Steel cost curve)",
+        "Cost-curve position × normalised spread × capacity",
+    ),
+    "re_developer": (
+        "Sector-specific (RE developer NAV)",
+        "Land bank + project NAV minus net debt",
+    ),
+    "consumer_durables_wc": (
+        "Sector-specific (Consumer durables WC)",
+        "Working-capital-adjusted DCF for durable-goods makers",
+    ),
+    "media_subscriber_ltv": (
+        "Sector-specific (Media subscriber LTV)",
+        "Subscriber-LTV × cohort growth × churn",
+    ),
+    "logistics_freight": (
+        "Sector-specific (Logistics freight)",
+        "Freight-rate cycle × volume × utilisation",
+    ),
+    "holdco_sotp": (
+        "Sector-specific (Holdco SOTP)",
+        "Sum-of-the-parts NAV across underlying stakes",
+    ),
+}
+
 # Outlier detection — >40% deviation from the median of available
 # estimators marks an estimator as an outlier. Documented in module
 # docstring. Threshold chosen to catch the "one estimator going
@@ -205,10 +308,17 @@ SECTOR_SPECIFIC_NOMINAL_WEIGHT: float = 0.40
 OUTLIER_THRESHOLD_PCT: float = 40.0
 
 # Confidence label thresholds — see module docstring.
-CONFIDENCE_HIGH_THRESHOLD: int = 6      # >= 6/7 -> HIGH
-CONFIDENCE_MODERATE_THRESHOLD: int = 4  # >= 4/7 -> MODERATE
-CONFIDENCE_LOW_THRESHOLD: int = 3       # >= 3/7 -> LOW
-# < 3/7 -> MINIMAL.
+# Thresholds are expressed as ABSOLUTE counts (not fractions) because
+# the panel's total denominator depends on whether a sector-specific
+# slot is present. 7 estimators is the headline canonical denominator;
+# 8 when the sector engine adds a row. Bank tickers use a tighter
+# denominator (4 applicable canonical slots: DCF skipped, EPV skipped,
+# DDM commonly skipped, broker coverage rare) so the thresholds map
+# meaningfully to the user's read of the coverage.
+CONFIDENCE_HIGH_THRESHOLD: int = 6      # >= 6 estimators applicable -> HIGH
+CONFIDENCE_MODERATE_THRESHOLD: int = 4  # >= 4 -> MODERATE
+CONFIDENCE_LOW_THRESHOLD: int = 3       # >= 3 -> LOW
+# < 3 -> MINIMAL.
 
 
 # ─── result dataclasses ───────────────────────────────────────────
@@ -268,6 +378,61 @@ def _coerce_pos_float(v: Any) -> Optional[float]:
     return f
 
 
+def _is_bank_payload(payload: dict) -> bool:
+    """Return True when the payload is for a bank / NBFC / insurer.
+
+    Reads `quality.is_bank` first (the canonical flag stamped by the
+    cohort classifier), then falls back to a sector-string match for
+    legacy payloads that don't carry the flag.
+
+    Used by `_pick_reason` to rewrite the EPV row's reason on the bank
+    cohort path. The upstream `_inject_epv_dict` reorder (sector check
+    BEFORE history check) handles fresh computes; this fallback covers
+    cached payloads where `epv_reason` is still "insufficient history
+    (0 years)" because they were stamped before the inject reorder
+    landed. Defensive overlay — the panel never reads "insufficient
+    history" on a name like HDFCBANK that has been listed for 30+ years.
+    """
+    if not isinstance(payload, dict):
+        return False
+    quality = payload.get("quality") or {}
+    if isinstance(quality, dict) and quality.get("is_bank"):
+        return True
+    company = payload.get("company") or {}
+    sector = ""
+    if isinstance(company, dict):
+        sector = str(company.get("sector") or "").strip().lower()
+    if sector in {
+        "banking",
+        "banks",
+        "bank",
+        "nbfc",
+        "insurance",
+        "financial services",
+        "private bank",
+        "public sector bank",
+        "psu bank",
+    }:
+        return True
+    return False
+
+
+# When the EPV slot is gated out on a bank cohort ticker BUT the
+# upstream cached payload still carries the stale "insufficient
+# history" string (because it was computed before the inject reorder),
+# rewrite the row to the right framework reason. Pure presentation
+# overlay — does not change any backend math.
+_EPV_BANK_COHORT_REASON: str = (
+    "Not applicable for banks — financial cohort uses Residual Income, "
+    "not EPV. Banks have NII not revenue, so the EPV adapter input is "
+    "empty by construction."
+)
+_EPV_INSUFFICIENT_HISTORY_TOKENS: tuple[str, ...] = (
+    "insufficient history",
+    "insufficient_history",
+)
+
+
 def _pick_reason(
     slot_key: str,
     *,
@@ -282,12 +447,30 @@ def _pick_reason(
     avoids the panel reading "DDM needs payout >= 30%" for a name that
     pays 60% but lacks the dividend streak — the per-ticker reason is
     more precise than the generic gate copy.
+
+    P0 overlay (2026-06-11): when the slot is EPV and the cached reason
+    is "insufficient history" BUT the ticker is a bank cohort member,
+    rewrite the reason to the bank-cohort framework copy. This catches
+    legacy cached payloads whose EPV inject ran the old gate order
+    (history check before sector check) and stamped the wrong reason —
+    the right copy is "banks use Residual Income, not EPV".
     """
     reason_key = f"{slot_key}_reason"
     raw = payload.get(reason_key)
+    reason: str
     if isinstance(raw, str) and raw.strip():
-        return raw.strip()
-    return default
+        reason = raw.strip()
+    else:
+        reason = default
+    # EPV bank-cohort overlay: legacy stale-reason rewrite.
+    if slot_key == "epv":
+        lowered = reason.lower()
+        is_bank_cohort = _is_bank_payload(payload)
+        if is_bank_cohort and any(
+            token in lowered for token in _EPV_INSUFFICIENT_HISTORY_TOKENS
+        ):
+            return _EPV_BANK_COHORT_REASON
+    return reason
 
 
 def _confidence_label_for(available: int, total: int) -> str:
@@ -426,6 +609,26 @@ def build_composite_composition(
     ddm_fv = _coerce_pos_float(payload.get("ddm_fv"))
     epv_fv = _coerce_pos_float(payload.get("epv_per_share"))
     prob_weighted_fv = _coerce_pos_float(payload.get("probability_weighted_fv"))
+    # Phase B mega-wiring — sector-specific FV (Bank Residual Income /
+    # NBFC ROA / Insurance EV+VNB / Pharma rNPV / etc.). When populated,
+    # surfaced as an 8th row above DCF so the user sees the domain
+    # engine and the headline estimators side-by-side. None for tickers
+    # that don't route to any sector engine.
+    sector_specific_fv = _coerce_pos_float(payload.get("sector_specific_fv"))
+    sector_specific_label_raw = payload.get("sector_specific_label")
+    if not isinstance(sector_specific_label_raw, str) or not sector_specific_label_raw.strip():
+        # Cached payloads may carry the label inside composite_components
+        # instead of the top-level slot. Be defensive.
+        cc = payload.get("composite_components")
+        if isinstance(cc, dict):
+            inner = cc.get("sector_specific_label")
+            if isinstance(inner, str) and inner.strip():
+                sector_specific_label_raw = inner
+    sector_specific_tag: Optional[str] = (
+        sector_specific_label_raw.strip().lower()
+        if isinstance(sector_specific_label_raw, str)
+        else None
+    )
 
     raw_values: dict[str, Optional[float]] = {
         "dcf": dcf_fv,
@@ -459,15 +662,79 @@ def build_composite_composition(
     # -> effective fallback when the composite_components dict didn't
     # carry the slot (e.g. legacy cached payload). We re-do the pro-rata
     # math against CANONICAL_ESTIMATORS exactly so the panel never
-    # disagrees with composite_iv_service on the renorm posture.
+    # disagrees with composite_iv_service on the renorm posture. When a
+    # sector-specific FV is present, its nominal weight enters the
+    # denominator so the canonical slots' effective weights shrink
+    # proportionally — matching composite_iv_service's with-sector scheme.
     available_nominal_sum = sum(
         slot.nominal_weight
         for slot in CANONICAL_ESTIMATORS
         if raw_values.get(slot.key) is not None
     )
+    if sector_specific_fv is not None:
+        available_nominal_sum += SECTOR_SPECIFIC_SLOT.nominal_weight
 
     # ── Step 4: build per-slot rows.
     rows: list[CompositionEstimatorRow] = []
+
+    # Step 4a: sector-specific row (when populated) — appears ABOVE DCF
+    # in the rendered panel because for the financial cohort the sector
+    # engine is the PRIMARY estimator and DCF is the secondary sanity
+    # check (often skipped entirely with reason `base_year_fcf_non_positive`).
+    # The label / description come from the sector tag (Bank Residual
+    # Income / NBFC ROA tree / etc.) so the row reads as the right
+    # domain engine rather than a generic "Sector-specific" pill.
+    sector_specific_row: Optional[CompositionEstimatorRow] = None
+    if sector_specific_fv is not None:
+        # Pick the label / description from the per-sector map; fall back
+        # to a generic copy when the tag is unknown to the map.
+        if sector_specific_tag and sector_specific_tag in SECTOR_SPECIFIC_LABEL_MAP:
+            label_text, desc_text = SECTOR_SPECIFIC_LABEL_MAP[sector_specific_tag]
+        else:
+            label_text = SECTOR_SPECIFIC_SLOT.label_default
+            desc_text = SECTOR_SPECIFIC_SLOT.description_default
+        # Effective weight pulled from composite_components when present,
+        # else pro-rata from the with-sector default.
+        ss_weight_effective = 0.0
+        ss_eff = eff_components.get("sector_specific")
+        if isinstance(ss_eff, dict) and "weight" in ss_eff:
+            try:
+                ss_weight_effective = float(ss_eff["weight"])
+            except (TypeError, ValueError):
+                ss_weight_effective = 0.0
+        elif available_nominal_sum > 0:
+            ss_weight_effective = round(
+                SECTOR_SPECIFIC_SLOT.nominal_weight / available_nominal_sum,
+                4,
+            )
+        # Value — prefer composite_components value (already 2dp-rounded).
+        ss_comp_value: Optional[float] = sector_specific_fv
+        if isinstance(ss_eff, dict) and "value" in ss_eff:
+            try:
+                ss_comp_value = float(ss_eff["value"])
+            except (TypeError, ValueError):
+                ss_comp_value = sector_specific_fv
+        ss_contribution = (
+            round(ss_comp_value * ss_weight_effective, 2)
+            if (ss_comp_value is not None and ss_weight_effective > 0)
+            else None
+        )
+        sector_specific_row = CompositionEstimatorRow(
+            key=SECTOR_SPECIFIC_SLOT.key,
+            label=label_text,
+            value=ss_comp_value,
+            weight_nominal=SECTOR_SPECIFIC_SLOT.nominal_weight,
+            weight_effective=ss_weight_effective,
+            contribution=ss_contribution,
+            applicable=True,
+            reason=None,
+            is_outlier=False,
+            description=desc_text,
+        )
+        rows.append(sector_specific_row)
+
+    # Step 4b: canonical 7 rows (DCF, Multiples, Three-stage, Wall St,
+    # DDM, EPV, Probability-weighted) in canonical display order.
     for slot in CANONICAL_ESTIMATORS:
         raw = raw_values.get(slot.key)
         applicable = raw is not None
@@ -527,8 +794,11 @@ def build_composite_composition(
     outlier_keys = _detect_outliers(rows)
 
     # ── Step 6: confidence labelling.
+    # Total denominator includes the sector-specific slot when present
+    # so the user reads "5 of 8 estimators" rather than "5 of 7" —
+    # honest to the actual estimator count surfaced.
     available = sum(1 for r in rows if r.applicable)
-    total = len(CANONICAL_ESTIMATORS)
+    total = len(CANONICAL_ESTIMATORS) + (1 if sector_specific_row is not None else 0)
     label = _confidence_label_for(available, total)
     caption = _confidence_caption_for(available, total, label)
 

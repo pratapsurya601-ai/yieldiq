@@ -370,6 +370,59 @@ def test_is_applicable_hdfcbank_rejects_banks():
     assert "bank" in reason.lower()
 
 
+def test_is_applicable_bank_with_empty_history_uses_sector_reason():
+    """P0 2026-06-11 — bank cohort short-circuits on the sector check
+    even when revenue_history_years=0. Previously the history check
+    fired first ("insufficient history (0 years; need at least 5)")
+    which was misleading on HDFCBANK / ICICIBANK / SBIN — they are
+    30+ year listed banks; the bank cohort just doesn't feed EPV
+    because banks have NII not revenue.
+    """
+    from backend.services.epv_service import is_epv_applicable
+
+    # Empty history (revenue_history_years=0) — bank cohort path
+    # produces an empty `computation_inputs.epv.revenue_history` array.
+    ok, reason = is_epv_applicable(
+        ticker="HDFCBANK", sector="Bank", revenue_history_years=0,
+        has_negative_earnings=False,
+    )
+    assert ok is False
+    # Sector check fires first → reason mentions the bank framework,
+    # not history.
+    assert "bank" in reason.lower()
+    assert "history" not in reason.lower()
+
+
+def test_is_applicable_insurer_with_empty_history_uses_sector_reason():
+    """Mirror of the bank test for insurance cohort tickers."""
+    from backend.services.epv_service import is_epv_applicable
+
+    ok, reason = is_epv_applicable(
+        ticker="HDFCLIFE", sector="Life Insurance", revenue_history_years=0,
+        has_negative_earnings=False,
+    )
+    assert ok is False
+    assert (
+        "insurer" in reason.lower()
+        or "appraisal" in reason.lower()
+        or "embedded" in reason.lower()
+    )
+    assert "history" not in reason.lower()
+
+
+def test_is_applicable_reit_with_empty_history_uses_sector_reason():
+    """Mirror of the bank test for REIT cohort tickers."""
+    from backend.services.epv_service import is_epv_applicable
+
+    ok, reason = is_epv_applicable(
+        ticker="EMBASSY", sector="REIT", revenue_history_years=0,
+        has_negative_earnings=False,
+    )
+    assert ok is False
+    assert "regulated" in reason.lower() or "reit" in reason.lower() or "understate" in reason.lower()
+    assert "history" not in reason.lower()
+
+
 def test_is_applicable_insurer_rejected():
     from backend.services.epv_service import is_epv_applicable
 

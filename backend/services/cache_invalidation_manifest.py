@@ -502,6 +502,55 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # P0 ENGINE BUG (2026-06-11) — Composite Composition panel for
+        # banks (HDFCBANK et al.) was reading "2 of 7 estimators
+        # populated · MINIMAL confidence" because:
+        #   (1) the Phase-B sector-specific FV (Bank Residual Income)
+        #       was emitted on the response but never rendered as a
+        #       row in the composition table (canonical estimators was
+        #       a fixed tuple of 7); and
+        #   (2) the EPV inject's applicability gate checked
+        #       `revenue_history_years < 5` BEFORE the bank-sector
+        #       check, so HDFCBANK with an empty EPV adapter input
+        #       array surfaced "insufficient history (0 years; need at
+        #       least 5)" — a misleading reason for a 30+ year listed
+        #       bank that simply uses the residual-income framework
+        #       instead of EPV.
+        #
+        # This entry covers the additive panel changes (sector_specific
+        # row + EPV reason rewrite on bank cohort) and the EPV gate
+        # reorder. The composite_intrinsic_value math is byte-identical
+        # — only the panel READOUT changes (8 rows instead of 7 for
+        # banks; correct EPV reason).
+        "version_id": "v_composite_bank_cohort_coverage_2026_06_11",
+        "title_public": (
+            "Composite panel adds Multiples + Bank Residual Income rows "
+            "for banks; EPV correctly marked not applicable"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "composite_composition",
+            ],
+        },
+        "rationale": (
+            "P0 fix for the bank-cohort Composite Composition panel. "
+            "Adds the sector-specific Bank Residual Income row as the "
+            "8th estimator above DCF when sector_specific_fv is "
+            "populated, with per-sector labelling (Bank Residual "
+            "Income / NBFC ROA tree / Insurance EV+VNB / etc.). "
+            "Reorders the EPV applicability gate so the sector check "
+            "fires BEFORE the history check — HDFCBANK et al. now "
+            "surface 'banks use the financial-cohort path, not EPV' "
+            "instead of the misleading 'insufficient history (0 "
+            "years)'. Cached payloads with the stale 'insufficient "
+            "history' reason are rewritten on the panel read. "
+            "Composite intrinsic value math is byte-identical "
+            "pre/post — only the panel readout changes."
+        ),
+    },
+    {
         # M&A-aware context (ROOT CAUSE #2 + #8, 2026-06-11) — surfaces
         # a structural-event explainer on the Quality tab and suppresses
         # the quarterly-surprise heuristic when the YoY baseline
