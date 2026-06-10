@@ -5254,6 +5254,55 @@ class AnalysisService(NarrativeMixin):
                 _cf_base_inputs = None
                 _cf_base_verdict = None
 
+            # T1.6 (2026-06-10): 5th composite-agreement pillar reads
+            # the composite_components dict from composite_iv_service.
+            # The composite itself is injected onto the response at the
+            # router boundary (_inject_composite_iv_model), which runs
+            # AFTER this service.py compute returns — so the composite
+            # isn't in scope here. We rebuild it locally from the same
+            # inputs (cheap pure-Python derivation, no I/O) so the 5th
+            # pillar is populated on the cold path. Best-effort — when
+            # the composite path can't fire (missing DCF FV, single-
+            # estimator branch, etc.) the score returns None and the
+            # response stays valid.
+            _cf_composite_components = None
+            try:
+                from backend.services.composite_iv_service import (
+                    compute_composite_iv as _cf_compute_composite,
+                    composite_to_dict as _cf_comp_to_dict,
+                )
+                _cf_stock_kind = None
+                if bool(locals().get("_holdco_skip", False)):
+                    _cf_stock_kind = "holdco"
+                elif bool(is_financial):
+                    _cf_stock_kind = "bank"
+                _cf_analyst_avg = None
+                _cf_consensus = (
+                    enriched.get("analyst_consensus")
+                    if isinstance(enriched, dict) else None
+                )
+                if isinstance(_cf_consensus, dict):
+                    _cf_pt = _cf_consensus.get("price_target") or {}
+                    _cf_analyst_avg = _cf_pt.get("mean") or _cf_pt.get("median")
+                if _cf_analyst_avg is None and isinstance(enriched, dict):
+                    _cf_analyst_avg = enriched.get("wall_street_avg_target")
+                _cf_multiples_fv = (
+                    enriched.get("multiples_based_fv")
+                    if isinstance(enriched, dict) else None
+                )
+                _cf_composite_obj = _cf_compute_composite(
+                    iv,
+                    _cf_multiples_fv,
+                    _cf_analyst_avg,
+                    _cf_stock_kind,
+                    _cf_sector,
+                    ticker,
+                )
+                if _cf_composite_obj is not None:
+                    _cf_composite_components = _cf_comp_to_dict(_cf_composite_obj)
+            except Exception:
+                _cf_composite_components = None
+
             _cf_scores = _cf_all(
                 ticker,
                 enriched=enriched,
@@ -5265,15 +5314,17 @@ class AnalysisService(NarrativeMixin):
                 extra_flags=_cf_flags,
                 base_inputs=_cf_base_inputs,
                 base_verdict=_cf_base_verdict,
+                composite_components=_cf_composite_components,
             )
             import logging as _cf_log
             _cf_log.getLogger("yieldiq.confidence").info(
-                "[%s] confidence_scores dq=%d mc=%d vs=%d sens=%s (method=%s sector=%s)",
+                "[%s] confidence_scores dq=%d mc=%d vs=%d sens=%s agree=%s (method=%s sector=%s)",
                 ticker,
                 _cf_scores["data_quality"],
                 _cf_scores["model_confidence"],
                 _cf_scores["valuation_stability"],
                 _cf_scores.get("sensitivity"),
+                _cf_scores.get("composite_agreement"),
                 _cf_method, _cf_sector,
             )
         except Exception as _cf_exc:  # pragma: no cover — defensive
@@ -5287,6 +5338,7 @@ class AnalysisService(NarrativeMixin):
                 "model_confidence": None,
                 "valuation_stability": None,
                 "sensitivity": None,
+                "composite_agreement": None,
             }
             _cf_method = locals().get("_cf_method") or "dcf"
 
@@ -5512,6 +5564,10 @@ class AnalysisService(NarrativeMixin):
                 # T2.7 (2026-06-09): 4th confidence pillar. None for
                 # holdcos / banks / missing-base-inputs by design.
                 confidence_sensitivity=_cf_scores.get("sensitivity"),
+                # T1.6 (2026-06-10): 5th confidence pillar — agreement
+                # among composite IV constituent estimators. None when
+                # composite has <2 components (single-estimator path).
+                confidence_composite_agreement=_cf_scores.get("composite_agreement"),
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),
