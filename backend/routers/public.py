@@ -5142,6 +5142,221 @@ async def get_block_deals(
     return _cached_json(payload, s_maxage=3600, swr=7200)
 
 
+# ─────────────────────────────────────────────────────────────────
+# Insider + bulk + block UNIFIED timeline
+#
+# Reads both ``insider_trading`` (SEBI PIT Reg 7 disclosures) and
+# ``bulk_block_deals`` (NSE/BSE bulk + block reports) for the last 90
+# days and merges them into a single chronologically-sorted timeline.
+# The frontend renders a vertical timeline (InsiderDealsTimeline.tsx)
+# so users see ALL governance-significant trades on one surface
+# instead of toggling between two separate panels.
+#
+# Schema (per-row):
+#   {
+#     "transaction_date": "YYYY-MM-DD",
+#     "type": "insider" | "bulk" | "block",
+#     "direction": "acquired" | "reduced" | null,
+#     "quantity": int | null,
+#     "value_cr": float | null,
+#     "party": str | null,
+#   }
+#
+# SEBI vocabulary: we emit "acquired"/"reduced" instead of buy/sell
+# verbs at the API edge (matches the Phase J copy-lint contract used
+# elsewhere). Frontend renders arrows + colors locally.
+#
+# If neither table is populated yet (Phase B ingestion still pending)
+# the endpoint returns count=0 with available=false so the frontend
+# can render its "Coming soon — ingestion in progress" empty state
+# without a 5xx.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _direction_from_buy_sell(buy_sell: Optional[str]) -> Optional[str]:
+    """Map NSE/SEBI 'B'/'S' codes to SEBI-vocab direction strings."""
+    if not buy_sell:
+        return None
+    code = str(buy_sell).strip().upper()
+    if code == "B":
+        return "acquired"
+    if code == "S":
+        return "reduced"
+    return None
+
+
+def _direction_from_insider_qty(buy_qty: int, sell_qty: int) -> Optional[str]:
+    """The insider_trading table carries separate buy_qty / sell_qty
+    columns rather than a single side code. Whichever is larger wins;
+    ties (both zero, or equal nonzero — rare correction filings) get
+    None and the frontend hides the arrow."""
+    b = int(buy_qty or 0)
+    s = int(sell_qty or 0)
+    if b > s:
+        return "acquired"
+    if s > b:
+        return "reduced"
+    return None
+
+
+def _load_insider_deals_unified(ticker: str, days: int) -> list[dict]:
+    """Read both tables and merge into a single timeline list.
+
+    Returns rows sorted by transaction_date DESC. Empty list on any
+    DB failure (caller surfaces 'available=false' rather than 5xx).
+    """
+    db = _get_db_session()
+    if not db:
+        return []
+
+    rows: list[dict] = []
+    cutoff = date.today() - timedelta(days=max(1, int(days)))
+
+    try:
+        from sqlalchemy import text as _t
+
+        # ── Insider transactions (SEBI PIT Reg 7) ───────────────
+        # `insider_trading` is the live table (populated by
+        # scripts/data_pipelines/backfill_insider_trading.py). The
+        # newer canonical `insider_transactions` table (migration 016)
+        # is not yet wired into ingest — see open question #1 in
+        # docs/insider_activity_design.md. We read from the live one
+        # so this endpoint is non-empty whenever the legacy ingest
+        # has data; once Phase B migrates ingest to the canonical
+        # table this query swaps over without changing the response
+        # shape.
+        try:
+            insider_rows = db.execute(
+                _t(
+                    """
+                    SELECT filing_date, acquirer_name, acquirer_category,
+                           buy_qty, sell_qty, transaction_value_cr
+                    FROM insider_trading
+                    WHERE ticker = :tk
+                      AND filing_date >= :cutoff
+                    ORDER BY filing_date DESC
+                    """
+                ),
+                {"tk": ticker, "cutoff": cutoff},
+            ).fetchall()
+        except Exception as exc:
+            logger.info(
+                "insider-deals: insider_trading query failed for %s: %s",
+                ticker, exc,
+            )
+            insider_rows = []
+
+        for r in insider_rows:
+            buy_q = int(r[3] or 0)
+            sell_q = int(r[4] or 0)
+            qty = buy_q if buy_q >= sell_q else sell_q
+            party = r[1] or None
+            if r[2]:
+                party = f"{party} ({r[2]})" if party else str(r[2])
+            rows.append({
+                "transaction_date": r[0].isoformat() if r[0] else None,
+                "type": "insider",
+                "direction": _direction_from_insider_qty(buy_q, sell_q),
+                "quantity": qty if qty > 0 else None,
+                "value_cr": float(r[5]) if r[5] is not None else None,
+                "party": party,
+            })
+
+        # ── Bulk + block deals (NSE/BSE) ────────────────────────
+        try:
+            bb_rows = db.execute(
+                _t(
+                    """
+                    SELECT deal_date, deal_type, client_name,
+                           buy_sell, quantity, price
+                    FROM bulk_block_deals
+                    WHERE ticker = :tk
+                      AND deal_date >= :cutoff
+                    ORDER BY deal_date DESC
+                    """
+                ),
+                {"tk": ticker, "cutoff": cutoff},
+            ).fetchall()
+        except Exception as exc:
+            logger.info(
+                "insider-deals: bulk_block_deals query failed for %s: %s",
+                ticker, exc,
+            )
+            bb_rows = []
+
+        for r in bb_rows:
+            qty = int(r[4]) if r[4] is not None else None
+            price = float(r[5]) if r[5] is not None else None
+            # value_cr := qty * price / 1e7 (rupees → Cr). Both nullable.
+            value_cr: Optional[float] = None
+            if qty is not None and price is not None and qty > 0 and price > 0:
+                value_cr = round((qty * price) / 1e7, 4)
+            deal_type = str(r[1] or "").strip().lower()
+            if deal_type not in ("bulk", "block"):
+                continue
+            rows.append({
+                "transaction_date": r[0].isoformat() if r[0] else None,
+                "type": deal_type,
+                "direction": _direction_from_buy_sell(r[3]),
+                "quantity": qty,
+                "value_cr": value_cr,
+                "party": r[2] or None,
+            })
+    except Exception as exc:
+        logger.warning(
+            "insider-deals merge failed for %s: %s", ticker, exc, exc_info=True,
+        )
+    finally:
+        _safe_close(db)
+
+    # Sort by transaction_date DESC (most recent first). Rows with a
+    # null date sink to the bottom — they're unsorted-among-themselves
+    # but deterministic via the SQL ORDER BY above.
+    rows.sort(
+        key=lambda r: r.get("transaction_date") or "",
+        reverse=True,
+    )
+    return rows
+
+
+@router.get("/insider-deals/{ticker}")
+async def get_insider_deals_timeline(
+    ticker: str,
+    days: int = Query(default=90, ge=7, le=365),
+):
+    """Unified insider + bulk + block deals timeline for the last N days.
+
+    Merges SEBI PIT insider disclosures with NSE/BSE bulk + block deals
+    into a single chronological list. Public, no auth. 1h CDN cache.
+
+    When neither underlying table has rows for this ticker (or ingest
+    has not landed yet) the endpoint returns ``available=false`` with
+    an empty ``deals`` list. The frontend renders a "Coming soon —
+    ingestion in progress" empty state in that case rather than
+    showing a hard error.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+    n_days = max(7, min(int(days), 365))
+
+    cache_key = f"public:insider-deals:{clean}:{n_days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    deals = _load_insider_deals_unified(clean, n_days)
+
+    payload = {
+        "ticker": full_ticker,
+        "days": n_days,
+        "count": len(deals),
+        "available": len(deals) > 0,
+        "deals": deals,
+    }
+    cache.set(cache_key, payload, ttl=3600, version_keyed=False)
+    return _cached_json(payload, s_maxage=3600, swr=7200)
+
+
 @router.get("/indices")
 async def get_public_indices():
     """Public market indices snapshot (NIFTY 50, SENSEX, NIFTY Bank, etc.).
