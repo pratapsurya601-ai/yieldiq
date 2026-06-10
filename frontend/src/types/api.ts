@@ -800,6 +800,15 @@ export interface WatchlistItemResponse {
   alert_mos_threshold: number
   notes: string
   added_at: string
+  // T6.5 — inline valuation slice already surfaced by the backend
+  // GET /api/v1/watchlist/ endpoint (bulk JOIN against
+  // analysis_cache). The fields are nullable because a missing
+  // cache row is the dominant case for freshly-watchlisted tickers.
+  fair_value?: number | null
+  mos_pct?: number | null
+  buffett_mos_pct?: number | null
+  verdict?: string | null
+  as_of?: string | null
 }
 
 export interface AlertResponse {
