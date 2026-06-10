@@ -41,6 +41,17 @@ const MosAlertChip = dynamic(
   () => import("@/components/analysis/MosAlertChip"),
   { ssr: false },
 )
+// Task #131: live MoS recompute + band-alert modal. Lazy-loaded
+// for the same reason as MosAlertChip — both are interactive
+// surfaces below the LCP, no need to ship in the initial JS.
+const LiveMosDisplay = dynamic(
+  () => import("@/components/analysis/LiveMosDisplay"),
+  { ssr: false },
+)
+const MosBandAlertModal = dynamic(
+  () => import("@/components/analysis/MosBandAlertModal"),
+  { ssr: false },
+)
 import { verdictColor } from "@/lib/prism"
 import { timeAgo } from "@/lib/dataFreshness"
 import {
@@ -233,6 +244,11 @@ export default function EditorialHero({
   // (which is narrator-driven glow) so users can tap without the
   // narrator fighting for control.
   const [explainerAxis, setExplainerAxis] = useState<PillarKey | null>(null)
+  // Task #131: band-alert modal open/close state. Lifted to the hero
+  // so MosAlertChip (single-shot legacy alert) and the new "Set MoS
+  // alert…" button (multi-threshold band alerts) live side by side
+  // without one closing the other.
+  const [bandModalOpen, setBandModalOpen] = useState<boolean>(false)
 
   // Value-trap indicator — fires when the backend insights pipeline has
   // tagged this stock with the ``value_trap`` red flag. We intentionally
@@ -551,6 +567,46 @@ export default function EditorialHero({
                 currentMos={marginOfSafety}
               />
             )}
+
+          {/* Task #131: live MoS recompute strip + "Set MoS alert"
+              CTA. The live strip polls /api/v1/public/quote and
+              recomputes (fv - price)/fv every 60s so the MoS
+              shown stays current with the live tape between
+              backend recomputes. The CTA opens MosBandAlertModal
+              for multi-threshold band-alert subscriptions —
+              distinct from the single-shot MosAlertChip above. */}
+          {!dataLimited && fairValue > 0 && currentPrice > 0 && (
+            <div
+              data-testid="live-mos-row"
+              className="mt-3 flex flex-wrap items-center gap-2"
+            >
+              <LiveMosDisplay
+                ticker={data.ticker}
+                fairValue={fairValue}
+                fallbackPrice={currentPrice}
+              />
+              <button
+                type="button"
+                onClick={() => setBandModalOpen(true)}
+                data-testid="open-band-alert-modal"
+                className={
+                  "text-[11px] font-semibold underline " +
+                  "text-caption hover:text-brand"
+                }
+              >
+                Set MoS alert…
+              </button>
+            </div>
+          )}
+          <MosBandAlertModal
+            open={bandModalOpen}
+            onClose={() => setBandModalOpen(false)}
+            ticker={data.ticker}
+            currentMos={
+              Number.isFinite(marginOfSafety) ? marginOfSafety : null
+            }
+          />
+
 
           <p className="text-[11px] text-caption leading-relaxed mt-2">
             {data.disclaimer}

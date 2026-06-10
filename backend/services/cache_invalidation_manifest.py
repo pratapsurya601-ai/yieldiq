@@ -3325,6 +3325,34 @@ MANIFEST: list[dict] = [
             "to composite. `fair_value` field byte-identical (DCF-only)."
         ),
     },
+    {
+        # Task #131 (2026-06-10) — MoS-band alert subscriptions +
+        # client-side live FV recompute. Wires the previously-stubbed
+        # "Coming in next release" band-alerts toggle to actually fire
+        # PWA push notifications, and adds a new live-MoS display on
+        # the analysis hero that recomputes (fv - price)/fv every 60s
+        # from /api/v1/public/quote/{ticker} without re-running the
+        # backend DCF. scope.fields=[] documents that no cached field
+        # changes its output — the engine itself is unchanged, this is
+        # a retention surface (alerts + freshness chip) layered on
+        # top. scope.tickers=[] because no per-ticker recompute is
+        # required; readers can keep their cached payloads byte-
+        # identical and the new endpoints simply expose additional
+        # surfaces. Documented here so the audit trail records the
+        # retention engine ship date.
+        "version_id": "v_mos_band_alerts_live_mos_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [],
+            "fields": [],
+        },
+        "rationale": (
+            "MoS-band alerts + live FV recompute. Retention/"
+            "outperformance play — wires the stubbed band-alerts "
+            "toggle to fire PWA push, and adds live MoS chip on the "
+            "analysis hero."
+        ),
+    },
 ]
 
 
