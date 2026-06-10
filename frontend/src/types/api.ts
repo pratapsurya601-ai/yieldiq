@@ -569,6 +569,48 @@ export interface AnalysisResponse {
    */
   headline_fair_value?: number | null
   headline_fair_value_method?: "composite" | "dcf" | null
+  /**
+   * Composite Composition transparency payload
+   * (v_composite_composition_transparency_2026_06_10). Renders the
+   * per-estimator breakdown the `CompositeCompositionPanel` shows
+   * just below the hero. Pure derivation off the *_fv slots and the
+   * `composite_components` dict — same source-of-truth as the
+   * composite weighted average itself.
+   *
+   * Confidence label thresholds:
+   *   >= 6/7 estimators -> HIGH
+   *   >= 4/7 estimators -> MODERATE
+   *   >= 3/7 estimators -> LOW
+   *   <= 2/7 estimators -> MINIMAL
+   *
+   * `outliers` lists estimator slot keys whose value sat more than
+   * 40% from the median of the available estimators. Informational —
+   * the composite still includes them; the frontend renders an
+   * "Outlier" badge so the user can judge whether the composite is a
+   * consensus signal or an outlier-driven number.
+   *
+   * Null on legacy cached payloads — the panel self-hides.
+   */
+  composite_composition?: {
+    estimators: ReadonlyArray<{
+      key: string
+      label: string
+      value: number | null
+      weight_nominal: number
+      weight_effective: number
+      contribution: number | null
+      applicable: boolean
+      reason: string | null
+      is_outlier: boolean
+      description: string
+    }>
+    estimators_available: number
+    estimators_total: number
+    confidence_label: "HIGH" | "MODERATE" | "LOW" | "MINIMAL"
+    confidence_caption: string
+    outliers: string[]
+    composite_value: number | null
+  } | null
   three_stage_fv?: number | null
   three_stage_method?: string | null
   three_stage_reason?: string | null

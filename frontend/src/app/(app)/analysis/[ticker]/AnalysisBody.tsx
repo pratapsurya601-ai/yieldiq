@@ -82,6 +82,9 @@ import SaveNotePanel from "@/components/analysis/SaveNotePanel"
 import HonestHero from "@/components/analysis/HonestHero"
 import MultiCurrencyFVDisplay from "@/components/analysis/MultiCurrencyFVDisplay"
 import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
+import CompositeCompositionPanel, {
+  type CompositeComposition as CompositeCompositionShape,
+} from "@/components/analysis/CompositeCompositionPanel"
 import TaxEfficiencyCalculator from "@/components/analysis/TaxEfficiencyCalculator"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
 import SectorHeatmapMini from "@/components/analysis/SectorHeatmapMini"
@@ -2158,6 +2161,28 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             (data.cross_engine_consensus as ConsensusSignalShape | null)
             ?? null
           }
+        />
+
+        {/* Composite Composition transparency panel (2026-06-10) —
+            v_composite_composition_transparency_2026_06_10. Renders
+            the per-estimator breakdown of composite_intrinsic_value:
+            which estimators contributed, their nominal vs effective
+            weights after pro-rata renormalization, contribution to
+            composite, applicability badges, and outlier flags. Sits
+            between the hero and the ValuationMethodsPanel so the
+            "Composite from N of 7 estimators · CONFIDENCE" answer
+            reads inline with the headline number. Self-hides on
+            legacy cached payloads where composite_composition is
+            null. Backend lives in
+            backend/services/composite_composition_service.py. */}
+        <CompositeCompositionPanel
+          composition={
+            (data.composite_composition as CompositeCompositionShape | null)
+            ?? null
+          }
+          ticker={data.ticker}
+          currency={company.currency}
+          className="mt-3"
         />
 
         {/* Per-ticker model caveat banner — surfaced for conglomerates,

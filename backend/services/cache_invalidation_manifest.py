@@ -3724,6 +3724,60 @@ MANIFEST: list[dict] = [
             "bank-kpis endpoint. Display-only — no cached field shifts."
         ),
     },
+    {
+        # Composite Composition transparency panel (2026-06-10).
+        #
+        # Adds the additive `composite_composition` payload to every
+        # AnalysisResponse so the frontend can render the new
+        # `CompositeCompositionPanel` between the hero and the
+        # ValuationMethodsPanel. The panel exposes, for each of the
+        # seven canonical estimator slots (DCF / Multiples / Three-
+        # stage DCF / Wall St / DDM / EPV / Probability-weighted):
+        # value, nominal weight, effective weight after pro-rata
+        # renormalization, contribution to the composite headline,
+        # applicability badge, per-row "why not applicable" reason
+        # when inapplicable, and an outlier flag fired when the row's
+        # value sits more than 40% from the median of the available
+        # estimators. The headline carries the N-of-7 confidence band
+        # so the user can see at a glance whether the composite is
+        # consensus or sparse.
+        #
+        # Why this exists: after Phase C, the HDFCBANK composite
+        # sits within 0.5% of the DCF value (₹1,147.77 vs ₹1,141.82)
+        # with no on-page explanation of WHY. The "Only 2 estimators
+        # available; headline carries low confidence" chip is too
+        # small to read. This panel makes the math legible: nominal
+        # vs effective weights, per-row contribution, total
+        # reconciliation. AXISBANK +60% extreme composite likewise
+        # becomes answerable from the page — outlier flag fires on
+        # the row whose value drives the headline away from
+        # consensus.
+        #
+        # Composite headline (`composite_intrinsic_value`) is
+        # byte-identical pre/post. The new field is the only output
+        # that changes. scope.tickers="*" because the inject chain
+        # runs on every payload; scope.fields scoped tightly to the
+        # one new field.
+        "version_id": "v_composite_composition_transparency_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "composite_composition",
+            ],
+        },
+        "rationale": (
+            "Composite Composition transparency panel — adds the "
+            "additive `composite_composition` payload that exposes "
+            "per-estimator value, nominal vs effective weight, "
+            "contribution to the composite headline, applicability "
+            "badges with reasons, and >40%-from-median outlier flags. "
+            "Renders the new CompositeCompositionPanel between hero "
+            "and ValuationMethodsPanel. composite_intrinsic_value "
+            "itself is byte-identical pre/post — only the "
+            "transparency surface is new."
+        ),
+    },
 ]
 
 
