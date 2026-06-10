@@ -4,15 +4,32 @@
  * analysis page. Sprint B.2 (2026-06-10).
  *
  * Behaviour:
- *   - Desktop (>= 1280px): right-rail vertical list of every major
- *     section. A thin vertical guide line on the left edge marks the
- *     active item with a brand-colored dot + bolder label.
- *   - Desktop (768-1279px): hidden — the existing horizontal sticky
- *     pill nav still owns navigation in this range.
- *   - Mobile (< 768px): hidden by default. A floating "≡ Sections"
- *     button sits bottom-right; tapping it opens a slide-in panel
- *     listing every section. Tapping a section closes the panel and
- *     scrolls to the target.
+ *   - Desktop (>= 1536px / 2xl): right-rail vertical list of every
+ *     major section, positioned OUTSIDE the centered max-w-6xl
+ *     content container so it cannot overlap HonestHero's sticky
+ *     side rail. A thin vertical guide line on the left edge marks
+ *     the active item with a brand-colored dot + bolder label.
+ *   - Desktop (768-1535px): the desktop right-rail is suppressed
+ *     because the HonestHero side rail (lg:w-[320px], visible at
+ *     >= 1024px) already occupies the right edge of the centered
+ *     content container. The existing horizontal sticky pill nav
+ *     still owns navigation here. To keep the navigator reachable
+ *     without overlap, the floating "Sections" button (mobile
+ *     pattern) is shown in this range too.
+ *   - Mobile (< 768px): floating "≡ Sections" button bottom-right;
+ *     tapping it opens a slide-in panel listing every section.
+ *     Tapping a section closes the panel and scrolls to the target.
+ *
+ *   - 2026-06-11 fix/sticky-toc-overlap-with-side-rail: the previous
+ *     `xl:block fixed right-6` placement put the rail inside the
+ *     viewport's right edge AT THE SAME x-range as the HonestHero
+ *     side rail (Score / Grade / Moat / Red flags / Worry). On a
+ *     1280-1535px viewport the 1152px container has only ~64px of
+ *     right gutter — nowhere near enough for a 208px-wide TOC. The
+ *     rail now only mounts at 2xl (>= 1536px) where the gutter
+ *     widens to ~192px, and uses `right: max(16px, calc(50vw - 796px))`
+ *     so it sits past the container's right edge (container half-
+ *     width 576px + TOC width ~208px + 12px breathing).
  *
  *   - Active-section tracking: a single IntersectionObserver with a
  *     thin "activation band" (top:-30%, bottom:-65%) marks whichever
@@ -162,13 +179,20 @@ export default function StickyTableOfContents({
 
   return (
     <>
-      {/* ── Desktop right rail (>= xl/1280px) ────────────────────── */}
+      {/* ── Desktop right rail (>= 2xl/1536px) ──────────────────────
+            Positioned OUTSIDE the centered max-w-6xl content
+            container so it cannot overlap the HonestHero sticky
+            side rail (Score / Grade / Moat / Red flags / Worry).
+            See file-level comment for the right-offset derivation.
+            z-index kept at z-10 so it sits below page-level toasts
+            (z-30+) and the standard sticky pill nav. */}
       <aside
         data-testid="sticky-toc-desktop"
         aria-label="Page sections"
+        style={{ right: "max(16px, calc(50vw - 796px))" }}
         className={cn(
-          "hidden xl:block",
-          "fixed top-32 right-6 z-20",
+          "hidden 2xl:block",
+          "fixed top-32 z-10",
           "w-52 max-h-[70vh] overflow-y-auto",
           // Thin vertical line on the left edge of the rail. No card
           // chrome — blends with the page.
@@ -215,7 +239,15 @@ export default function StickyTableOfContents({
         </ul>
       </aside>
 
-      {/* ── Mobile floating button (< md/768px) ──────────────────── */}
+      {/* ── Floating button (< 2xl/1536px) ───────────────────────────
+            Mounted everywhere the desktop right-rail is suppressed.
+            That includes the lg/xl range (1024-1535px) where the
+            HonestHero sticky side rail occupies the right edge of
+            the centered content container — a desktop TOC rail
+            cannot fit alongside it without overlap. The floating
+            button preserves the navigator UX in that range with no
+            spatial conflict. Below 768px this is the only access
+            point to the TOC (no horizontal pill nav on phones). */}
       <button
         type="button"
         data-testid="sticky-toc-mobile-button"
@@ -223,7 +255,7 @@ export default function StickyTableOfContents({
         aria-expanded={mobileOpen}
         onClick={() => setMobileOpen((v) => !v)}
         className={cn(
-          "md:hidden fixed bottom-20 right-4 z-30",
+          "2xl:hidden fixed bottom-20 right-4 z-30",
           "inline-flex items-center justify-center gap-1.5",
           "h-11 px-3.5 rounded-full",
           "bg-ink text-bg shadow-lg",
@@ -248,14 +280,14 @@ export default function StickyTableOfContents({
         Sections
       </button>
 
-      {/* ── Mobile slide-in panel ────────────────────────────────── */}
+      {/* ── Slide-in panel (toggled by the floating button) ──────── */}
       {mobileOpen && (
         <div
           data-testid="sticky-toc-mobile-panel"
           role="dialog"
           aria-modal="true"
           aria-label="Page sections"
-          className="md:hidden fixed inset-0 z-40"
+          className="2xl:hidden fixed inset-0 z-40"
         >
           <div
             aria-hidden

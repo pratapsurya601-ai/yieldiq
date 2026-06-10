@@ -2507,11 +2507,18 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             below tells the nav when to attach the glass background.
 
             Sprint B.2 (2026-06-10): the StickyTableOfContents below
-            adds a right-rail navigator on >= xl (1280px) viewports and
-            a mobile floating "Sections" button below 768px. The
-            existing horizontal pill nav still owns 768-1279px and
-            stays visible on every viewport (it cross-deck-links to the
-            6 tabs; the right-rail TOC focuses on Summary-tab sections). */}
+            adds a right-rail navigator on >= 2xl (1536px) viewports
+            and a floating "Sections" button below 2xl (down to phone
+            sizes). The desktop right-rail is suppressed at 1280-1535px
+            because the HonestHero sticky side rail (Score / Grade /
+            Moat / Red flags / Worry) already occupies the right edge
+            of the centered max-w-6xl content container in that range;
+            the floating button keeps the navigator reachable without
+            overlap. The existing horizontal pill nav still owns
+            navigation at 768-1535px and stays visible on every viewport
+            (it cross-deck-links to the 6 tabs; the right-rail TOC
+            focuses on Summary-tab sections).
+            See fix/sticky-toc-overlap-with-side-rail (2026-06-11). */}
         <div id="section-hero-anchor" data-hero-anchor aria-hidden />
         <StickyAnalysisNav
           sections={[
