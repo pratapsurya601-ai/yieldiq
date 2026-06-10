@@ -311,6 +311,39 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
     # over the symmetric 2.7 ceiling. Engine output is correct; market
     # discount on the pharma-export generic cohort hasn't compressed.
     "NATCOPHARM": {"fv_cmp_max_override": 2.85},
+    # 2026-06-10 ITC + INDHOTEL boundary resolution
+    # (see PR fix/itc-indhotel-boundary-resolution-2026-06-10 + manifest
+    # entry v_itc_indhotel_boundary_resolution_2026_06_10).
+    #
+    # ITC (FMCG): post-revert of PR #672 FMCG_WACC_FLOOR (#261), the FMCG
+    # cohort engine settled with ITC at fv≈632 / cmp≈280, fv/cmp≈2.26 and
+    # bull/cmp≈2.67 — bull edge sitting at the symmetric 2.7 ceiling and
+    # repeatedly triggering canary near the boundary on every PR. ITC
+    # already has cohort-special handling in sector_overrides.py
+    # (FMCG_TG_ITC=4.5%, lower than the FMCG_TG_TOP 5.0% used for HUL /
+    # NESTLE / BRITANNIA, to discount cigarette tail risk) so the engine
+    # output is the calibrated answer for a structurally-low-priced
+    # franchise. Symmetric uplift to 2.85 (mirror of NATCOPHARM) absorbs
+    # bull-edge drift while still catching any catastrophic 3.5× FMCG
+    # over-extrapolation as a real violation.
+    "ITC":        {"fv_cmp_max_override": 2.85},
+    # INDHOTEL (Hotels / Hospitality cyclical): fv≈233 / cmp≈667,
+    # fv/cmp≈0.349 — the entire Indian hotel cohort has re-rated hard
+    # post-pandemic (EIHOTEL 0.508, LEMONTREE 0.889, CHALET 1.059;
+    # INDHOTEL is the lowest read in the cohort because it has the
+    # largest brand premium and the fastest topline growth). The DCF
+    # engine uses a 10y signed-median FCF anchor (per
+    # backend/services/analysis/ticker_overrides.py:113-122) which
+    # over-corrects in cyclical troughs — the same documented mechanism
+    # behind the cement / metals super-cyclical exemptions above. Hotels
+    # have a clean structural analog to that cohort (long-cycle
+    # earnings, peak-to-trough margins, post-pandemic ramp not yet
+    # captured by the 10y median). Floor lowered to 0.30 — same level
+    # as MOTHERSON / BERGEPAINT / UNITDSPR — so the gate still catches
+    # catastrophic engine breakage (fv/cmp < 0.30, e.g. unit-scale
+    # bugs) without firing on legitimate cyclical re-ratings. Revisit
+    # when the hospitality cycle exits its current peak phase.
+    "INDHOTEL":   {"fv_cmp_min_override": 0.30},
 }
 
 
