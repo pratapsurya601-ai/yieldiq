@@ -508,6 +508,39 @@ def _safe_payload_section(payload: dict, key: str) -> dict:
     return section
 
 
+def _log_phase_b_inject_failure(
+    estimator: str,
+    ticker: "str | None",
+    err: BaseException,
+) -> None:
+    """Structured-log a Phase-B inject helper exception.
+
+    v_fix_phase_b_estimator_coverage_2026_06_10 — before this fix the
+    five `_inject_*_dict` helpers swallowed every exception silently,
+    which is why the HDFCBANK valuation-methods panel showed only 3 of
+    9 estimators in prod. The helpers continue to never break the
+    response — but they now emit one diagnosable structured line per
+    failure so the next divergence is caught at the log layer rather
+    than via a UI audit.
+
+    Defensive — the logger itself is wrapped in try/except so a logger
+    failure cannot escape and break the response either.
+    """
+    try:
+        from backend.services.structured_logging import log_event
+        log_event(
+            "phase_b.inject_failed",
+            level="WARN",
+            estimator=estimator,
+            ticker=ticker,
+            error=str(err),
+            error_type=type(err).__name__,
+        )
+    except Exception:  # noqa: BLE001 — defensive
+        # Logging is best-effort. A logger failure must not propagate.
+        pass
+
+
 def _inject_ddm_dict(payload: dict) -> dict:
     """Populate ``ddm_fv`` + ``ddm_method`` on a dict payload.
 
@@ -565,6 +598,7 @@ def _inject_ddm_dict(payload: dict) -> dict:
         if not applicable:
             payload["ddm_fv"] = None
             payload["ddm_method"] = None
+            payload["ddm_reason"] = _reason
             return payload
         # ── Build DDM inputs ──
         # `current_dividend` is annual ₹/share — prefer the explicit
@@ -592,9 +626,18 @@ def _inject_ddm_dict(payload: dict) -> dict:
         )
         payload["ddm_fv"] = result.fair_value
         payload["ddm_method"] = result.method
-    except Exception:
-        # Defensive — never break the response on a single estimator.
-        pass
+        if result.fair_value is None:
+            payload["ddm_reason"] = (
+                f"DDM compute returned method={result.method}; inputs "
+                f"insufficient for a usable estimate"
+            )
+    except Exception as e:
+        # Defensive — never break the response on a single estimator,
+        # but emit a structured log so the failure mode is diagnosable
+        # rather than vanishing into `pass`. v_fix_phase_b_estimator_
+        # coverage_2026_06_10.
+        _log_phase_b_inject_failure("ddm", payload.get("ticker"), e)
+        payload["ddm_reason"] = "compute_failed"
     return payload
 
 
@@ -615,8 +658,9 @@ def _inject_ddm_model(result: "AnalysisResponse") -> "AnalysisResponse":
         _inject_ddm_dict(_payload)
         result.ddm_fv = _payload.get("ddm_fv")
         result.ddm_method = _payload.get("ddm_method")
-    except Exception:
-        pass
+        result.ddm_reason = _payload.get("ddm_reason")
+    except Exception as e:
+        _log_phase_b_inject_failure("ddm_model", result.ticker, e)
     return result
 
 
@@ -678,6 +722,7 @@ def _inject_epv_dict(payload: dict) -> dict:
         if not applicable:
             payload["epv_per_share"] = None
             payload["epv_growth_value_gap"] = None
+            payload["epv_reason"] = _reason
             return payload
         current_revenue = epv_block.get("current_revenue") or 0.0
         cost_of_capital = valuation.get("discount_rate") or valuation.get("wacc") or 0.115
@@ -704,8 +749,14 @@ def _inject_epv_dict(payload: dict) -> dict:
         result = compute_epv(epv_inputs, dcf_fv=dcf_fv)
         payload["epv_per_share"] = result.epv_per_share
         payload["epv_growth_value_gap"] = result.growth_value_gap
-    except Exception:
-        pass
+        if result.epv_per_share is None:
+            payload["epv_reason"] = (
+                f"EPV compute returned method={getattr(result, 'method', 'unavailable')}; "
+                "inputs insufficient for a meaningful estimate"
+            )
+    except Exception as e:
+        _log_phase_b_inject_failure("epv", payload.get("ticker"), e)
+        payload["epv_reason"] = "compute_failed"
     return payload
 
 
@@ -722,8 +773,9 @@ def _inject_epv_model(result: "AnalysisResponse") -> "AnalysisResponse":
         _inject_epv_dict(_payload)
         result.epv_per_share = _payload.get("epv_per_share")
         result.epv_growth_value_gap = _payload.get("epv_growth_value_gap")
-    except Exception:
-        pass
+        result.epv_reason = _payload.get("epv_reason")
+    except Exception as e:
+        _log_phase_b_inject_failure("epv_model", result.ticker, e)
     return result
 
 
@@ -779,6 +831,7 @@ def _inject_three_stage_dict(payload: dict) -> dict:
         if not applicable:
             payload["three_stage_fv"] = None
             payload["three_stage_method"] = None
+            payload["three_stage_reason"] = _reason
             return payload
         # ── Build inputs ──
         n1, n2 = select_three_stage_default_horizons(sector, is_recent_ipo=False)
@@ -811,8 +864,14 @@ def _inject_three_stage_dict(payload: dict) -> dict:
         )
         payload["three_stage_fv"] = result.fair_value_per_share
         payload["three_stage_method"] = result.method
-    except Exception:
-        pass
+        if result.fair_value_per_share is None:
+            payload["three_stage_reason"] = (
+                f"Three-stage DCF compute returned method={result.method}; "
+                "inputs insufficient for a meaningful estimate"
+            )
+    except Exception as e:
+        _log_phase_b_inject_failure("three_stage", payload.get("ticker"), e)
+        payload["three_stage_reason"] = "compute_failed"
     return payload
 
 
@@ -829,8 +888,9 @@ def _inject_three_stage_model(result: "AnalysisResponse") -> "AnalysisResponse":
         _inject_three_stage_dict(_payload)
         result.three_stage_fv = _payload.get("three_stage_fv")
         result.three_stage_method = _payload.get("three_stage_method")
-    except Exception:
-        pass
+        result.three_stage_reason = _payload.get("three_stage_reason")
+    except Exception as e:
+        _log_phase_b_inject_failure("three_stage_model", result.ticker, e)
     return result
 
 
@@ -872,12 +932,18 @@ def _inject_liquidation_dict(payload: dict) -> dict:
         if not meaningful:
             payload["liquidation_per_share"] = None
             payload["liquidation_floor_safety_margin"] = None
+            payload["liquidation_reason"] = _reason
             return payload
         # Bank flag is a hard skip — even if the sector string doesn't
         # carry "bank", quality.is_bank is the canonical source.
         if quality.get("is_bank"):
             payload["liquidation_per_share"] = None
             payload["liquidation_floor_safety_margin"] = None
+            payload["liquidation_reason"] = (
+                "Not applicable for banks — regulatory capital ratios "
+                "(CET1, Tier-1) are the canonical floor, not asset "
+                "recovery"
+            )
             return payload
         # ── Pull balance sheet ──
         ci = payload.get("computation_inputs") if isinstance(payload.get("computation_inputs"), dict) else {}
@@ -887,6 +953,10 @@ def _inject_liquidation_dict(payload: dict) -> dict:
         if not bs:
             payload["liquidation_per_share"] = None
             payload["liquidation_floor_safety_margin"] = None
+            payload["liquidation_reason"] = (
+                "Balance-sheet line items required for the Graham "
+                "liquidation floor are not captured on this snapshot"
+            )
             return payload
         liq_inputs = LiquidationInputs(
             cash_and_equivalents=float(bs.get("cash_and_equivalents") or 0.0),
@@ -913,8 +983,14 @@ def _inject_liquidation_dict(payload: dict) -> dict:
         result = compute_liquidation_value(liq_inputs, current_price=current_price)
         payload["liquidation_per_share"] = result.liquidation_per_share
         payload["liquidation_floor_safety_margin"] = result.floor_safety_margin
-    except Exception:
-        pass
+        if result.liquidation_per_share is None:
+            payload["liquidation_reason"] = (
+                "Liquidation compute returned no per-share floor — "
+                "balance-sheet line items insufficient"
+            )
+    except Exception as e:
+        _log_phase_b_inject_failure("liquidation", payload.get("ticker"), e)
+        payload["liquidation_reason"] = "compute_failed"
     return payload
 
 
@@ -933,8 +1009,9 @@ def _inject_liquidation_model(result: "AnalysisResponse") -> "AnalysisResponse":
         result.liquidation_floor_safety_margin = _payload.get(
             "liquidation_floor_safety_margin"
         )
-    except Exception:
-        pass
+        result.liquidation_reason = _payload.get("liquidation_reason")
+    except Exception as e:
+        _log_phase_b_inject_failure("liquidation_model", result.ticker, e)
     return result
 
 
@@ -976,10 +1053,17 @@ def _inject_probability_weighted_dict(payload: dict) -> dict:
         except (TypeError, ValueError):
             payload["probability_weighted_fv"] = None
             payload["probability_weighted_method"] = None
+            payload["probability_weighted_reason"] = (
+                "bull/base/bear scenarios not numeric"
+            )
             return payload
         if _b1 <= 0 or _b2 <= 0 or _b3 <= 0:
             payload["probability_weighted_fv"] = None
             payload["probability_weighted_method"] = None
+            payload["probability_weighted_reason"] = (
+                "At least one of bull/base/bear scenarios is non-positive; "
+                "weighted mix requires three credible scenario FVs"
+            )
             return payload
         scenario_inputs = ScenarioInputs(
             bull_fv=_b1,
@@ -991,8 +1075,16 @@ def _inject_probability_weighted_dict(payload: dict) -> dict:
         result = compute_probability_weighted_fv(scenario_inputs)
         payload["probability_weighted_fv"] = result.weighted_fv
         payload["probability_weighted_method"] = result.method
-    except Exception:
-        pass
+        if result.weighted_fv is None:
+            payload["probability_weighted_reason"] = (
+                f"Probability-weighted compute returned method={result.method}; "
+                "scenarios insufficient for a defensible mix"
+            )
+    except Exception as e:
+        _log_phase_b_inject_failure(
+            "probability_weighted", payload.get("ticker"), e,
+        )
+        payload["probability_weighted_reason"] = "compute_failed"
     return payload
 
 
@@ -1009,8 +1101,179 @@ def _inject_probability_weighted_model(result: "AnalysisResponse") -> "AnalysisR
         result.probability_weighted_method = _payload.get(
             "probability_weighted_method"
         )
-    except Exception:
-        pass
+        result.probability_weighted_reason = _payload.get(
+            "probability_weighted_reason"
+        )
+    except Exception as e:
+        _log_phase_b_inject_failure(
+            "probability_weighted_model", result.ticker, e,
+        )
+    return result
+
+
+#: Sector keywords where the Tobin-Q-style replacement-value frame
+#: distorts more than it informs. Banks / NBFCs / insurers value
+#: the franchise (deposit base, capital, embedded value), not the
+#: replaceable asset base. AMCs and IT services are asset-light —
+#: replacement understates them. v_fix_phase_b_estimator_coverage_2026_06_10.
+_REPLACEMENT_SECTOR_SKIP_KEYWORDS: tuple[str, ...] = (
+    "bank",
+    "banking",
+    "nbfc",
+    "insurance",
+    "insurer",
+    "life insurance",
+    "general insurance",
+    "amc",
+    "asset management",
+    "broker",
+    "exchange",
+    "financial services",
+    "diversified financials",
+)
+
+
+def _inject_replacement_dict(payload: dict) -> dict:
+    """Populate ``replacement_per_share`` + ``replacement_method``.
+
+    T2.3 Phase B wiring (v_fix_phase_b_estimator_coverage_2026_06_10).
+    Wraps ``backend.services.replacement_value_service`` so the
+    Valuation Methods Panel can render the Tobin-Q-style rebuild cost
+    alongside the Graham liquidation floor. Defensive — never raises.
+
+    Applicability — skipped for the financial cohort (banks, NBFCs,
+    insurers, AMCs, brokers, exchanges): for those names the asset
+    base does NOT carry franchise value and the rebuild-cost frame
+    misleads. The ``replacement_reason`` carries the "Not applicable
+    for ..." explanation so the frontend can surface a clean
+    descriptor instead of a hidden field.
+
+    Balance-sheet inputs come from ``computation_inputs.replacement``
+    when the snapshot captured them; absent leaves ``method``
+    unavailable with a reason tag.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    payload.setdefault("replacement_per_share", None)
+    payload.setdefault("replacement_method", None)
+    payload.setdefault("replacement_reason", None)
+    try:
+        from backend.services.replacement_value_service import (
+            ReplacementValueInputs,
+            compute_replacement_value,
+        )
+        quality = _safe_payload_section(payload, "quality")
+        valuation = _safe_payload_section(payload, "valuation")
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        # ── Applicability gate ──
+        # Bank flag is the canonical source (matches the liquidation
+        # path). After that, the sector keyword set covers the rest of
+        # the financial / asset-light cohort.
+        if quality.get("is_bank"):
+            payload["replacement_reason"] = (
+                "Not applicable for banks — the franchise is the "
+                "deposit base + capital, not the rebuildable asset "
+                "base"
+            )
+            return payload
+        if sector:
+            sector_lower = str(sector).strip().lower()
+            for kw in _REPLACEMENT_SECTOR_SKIP_KEYWORDS:
+                if kw in sector_lower:
+                    payload["replacement_reason"] = (
+                        f"Not applicable for {sector} — replacement "
+                        "value distorts for financial / asset-light "
+                        "businesses where the asset base does not "
+                        "carry the franchise"
+                    )
+                    return payload
+        # ── Pull balance sheet ──
+        ci = payload.get("computation_inputs") if isinstance(
+            payload.get("computation_inputs"), dict
+        ) else {}
+        rep_block = ci.get("replacement") if isinstance(ci.get("replacement"), dict) else {}
+        # Without PP&E we cannot compute a defensible rebuild cost.
+        # Try the liquidation block as a fallback — it carries
+        # ppe_gross and is captured by the same balance-sheet
+        # snapshot.
+        if not rep_block:
+            rep_block = ci.get("liquidation") if isinstance(ci.get("liquidation"), dict) else {}
+        ppe_gross = rep_block.get("ppe_gross") if rep_block else None
+        if ppe_gross is None or float(ppe_gross or 0.0) <= 0.0:
+            payload["replacement_reason"] = (
+                "Balance-sheet PP&E required for the replacement-cost "
+                "estimate is not captured on this snapshot"
+            )
+            return payload
+        rep_inputs = ReplacementValueInputs(
+            ppe_gross=float(ppe_gross or 0.0),
+            intangibles_book=float(rep_block.get("intangibles") or 0.0),
+            goodwill=float(rep_block.get("goodwill") or 0.0),
+            working_capital_required=float(
+                rep_block.get("working_capital_required")
+                or rep_block.get("working_capital")
+                or 0.0
+            ),
+            cash_required_for_ops=float(
+                rep_block.get("cash_required_for_ops")
+                or rep_block.get("cash_and_equivalents")
+                or 0.0
+            ),
+            total_debt=float(
+                rep_block.get("total_debt")
+                or (
+                    (rep_block.get("short_term_debt") or 0.0)
+                    + (rep_block.get("long_term_debt") or 0.0)
+                )
+            ),
+            shares_outstanding=float(
+                rep_block.get("shares_outstanding")
+                or quality.get("shares_outstanding")
+                or 0.0
+            ),
+            sector=sector,
+        )
+        market_cap = valuation.get("market_cap_inr_cr") or quality.get(
+            "market_cap_inr_cr"
+        )
+        result = compute_replacement_value(
+            rep_inputs,
+            market_cap_inr_cr=(
+                float(market_cap) if market_cap is not None else None
+            ),
+        )
+        payload["replacement_per_share"] = result.replacement_value_per_share
+        payload["replacement_method"] = result.method
+        if result.replacement_value_per_share is None:
+            payload["replacement_reason"] = (
+                f"Replacement compute returned method={result.method} — "
+                "inputs insufficient for a defensible per-share rebuild "
+                "cost"
+            )
+    except Exception as e:
+        _log_phase_b_inject_failure("replacement", payload.get("ticker"), e)
+        payload["replacement_reason"] = "compute_failed"
+    return payload
+
+
+def _inject_replacement_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_replacement_dict`."""
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "company": result.company.model_dump() if result.company else {},
+            "computation_inputs": result.computation_inputs,
+        }
+        _inject_replacement_dict(_payload)
+        result.replacement_per_share = _payload.get("replacement_per_share")
+        result.replacement_method = _payload.get("replacement_method")
+        result.replacement_reason = _payload.get("replacement_reason")
+    except Exception as e:
+        _log_phase_b_inject_failure("replacement_model", result.ticker, e)
     return result
 
 
@@ -1185,6 +1448,38 @@ def _resolve_sector_primary_fv(
             # If applicable but FV failed, still no fallback to
             # NBFC/other sector engines — holdcos are a hard route.
             return None, None
+    except Exception:
+        pass
+
+    # ── 1b. Bank deepened residual income (T3.1 Phase A).
+    # Wired in v_fix_phase_b_estimator_coverage_2026_06_10. When the
+    # ticker / sector is in the bank/NBFC/insurance cohort AND we have
+    # NIM data on the snapshot, the deepened engine is the primary FV
+    # — surfaces as `sector_specific_fv` with label
+    # "bank_residual_income_deepened" so the composite weighting + the
+    # frontend valuation panel both see it as a sector-specific signal
+    # (distinct from the headline DCF row which uses pb_residual_income).
+    try:
+        from backend.services.financial_valuation_service import (
+            is_bank_deepening_meaningful,
+        )
+        bank_ci = ci.get("bank_deepened") if isinstance(ci.get("bank_deepened"), dict) else {}
+        has_nim_data = bool(bank_ci.get("nim_pct"))
+        meaningful, _ = is_bank_deepening_meaningful(
+            ticker=ticker,
+            sector=sector,
+            has_nim_data=has_nim_data,
+        )
+        if meaningful:
+            fv = _compute_bank_deepened_fv(ticker, ci, quality, valuation)
+            if fv is not None:
+                return fv, "bank_residual_income_deepened"
+            # When NIM data exists but the compute returns None
+            # (degenerate inputs), still no fallthrough to NBFC — the
+            # bank route is the canonical home and the composite
+            # tolerates None sector_specific.
+            if quality.get("is_bank"):
+                return None, None
     except Exception:
         pass
 
@@ -1443,6 +1738,99 @@ def _coerce_pos(value) -> "float | None":
     if f != f or f in (float("inf"), float("-inf")) or f <= 0:
         return None
     return f
+
+
+def _compute_bank_deepened_fv(
+    ticker: str,
+    ci: dict,
+    quality: dict,
+    valuation: dict,
+) -> "float | None":
+    """Compute bank deepened residual-income FV per share.
+
+    v_fix_phase_b_estimator_coverage_2026_06_10 — wires the T3.1 Phase A
+    deepened-bank service (NIM + CASA + PCR + DuPont attribution) into
+    ``_resolve_sector_primary_fv`` so HDFCBANK and the rest of the
+    private + PSU bank + HFC + life-insurance cohort emit a
+    ``sector_specific_fv`` distinct from the headline DCF row.
+
+    Inputs come from the ``computation_inputs.bank_deepened`` block
+    when the snapshot captured them. Without NIM data the upstream
+    gate has already rejected the route, so this helper only runs
+    with a meaningful block.
+
+    Returns ``None`` on any failure — the dispatcher then surfaces
+    None for ``sector_specific_fv`` and the composite weights pro-rata
+    redistribute among the engines that DID compute.
+    """
+    try:
+        from backend.services.financial_valuation_service import (
+            BankDeepenedInputs,
+            compute_deepened_bank_valuation,
+        )
+        block = _ci_block(ci, "bank_deepened")
+        # Book value + ROE + COE + g + payout are the always-required
+        # five P/B residual-income anchors. Fall back to quality fields
+        # for the items mirrored there.
+        bvps = _coerce_pos(
+            block.get("book_value_per_share")
+            or quality.get("book_value_per_share")
+        )
+        roe = block.get("roe_pct")
+        if roe is None:
+            roe_pct = quality.get("roe_pct")
+            if roe_pct is not None:
+                try:
+                    roe = float(roe_pct) / 100.0
+                except (TypeError, ValueError):
+                    roe = None
+        if bvps is None or roe is None:
+            return None
+        coe = float(
+            block.get("cost_of_equity")
+            or valuation.get("discount_rate")
+            or valuation.get("wacc")
+            or 0.125
+        )
+        g = float(
+            block.get("sustainable_growth")
+            or valuation.get("terminal_growth")
+            or 0.10
+        )
+        payout = block.get("payout_ratio")
+        if payout is None:
+            payout = quality.get("payout_ratio")
+            if payout is None:
+                payout_pct = quality.get("payout_ratio_pct")
+                if payout_pct is not None:
+                    try:
+                        payout = float(payout_pct) / 100.0
+                    except (TypeError, ValueError):
+                        payout = None
+        inputs = BankDeepenedInputs(
+            book_value_per_share=float(bvps),
+            roe_pct=float(roe),
+            cost_of_equity=float(coe),
+            sustainable_growth=float(g),
+            payout_ratio=float(payout) if payout is not None else 0.25,
+            nim_pct=block.get("nim_pct"),
+            yield_on_advances_pct=block.get("yield_on_advances_pct"),
+            cost_of_funds_pct=block.get("cost_of_funds_pct"),
+            casa_mix_pct=block.get("casa_mix_pct"),
+            provision_coverage_pct=block.get("provision_coverage_pct"),
+            gnpa_pct=block.get("gnpa_pct"),
+            loan_growth_pct=block.get("loan_growth_pct"),
+            fee_income_pct_of_revenue=block.get("fee_income_pct_of_revenue"),
+            cost_to_income_pct=block.get("cost_to_income_pct"),
+            tax_rate_pct=block.get("tax_rate_pct"),
+            credit_cost_pct=block.get("credit_cost_pct"),
+            equity_to_assets_pct=block.get("equity_to_assets_pct"),
+        )
+        result = compute_deepened_bank_valuation(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception as e:
+        _log_phase_b_inject_failure("bank_deepened_fv", ticker, e)
+        return None
 
 
 def _compute_holdco_sotp_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
@@ -2046,6 +2434,7 @@ def _inject_phase_b_estimators_dict(payload: dict) -> dict:
     _inject_epv_dict(payload)
     _inject_three_stage_dict(payload)
     _inject_liquidation_dict(payload)
+    _inject_replacement_dict(payload)
     _inject_probability_weighted_dict(payload)
     _inject_sector_specific_dict(payload)
     _inject_overlay_dict(payload)
@@ -2061,6 +2450,7 @@ def _inject_phase_b_estimators_model(result: "AnalysisResponse") -> "AnalysisRes
     _inject_epv_model(result)
     _inject_three_stage_model(result)
     _inject_liquidation_model(result)
+    _inject_replacement_model(result)
     _inject_probability_weighted_model(result)
     _inject_sector_specific_model(result)
     _inject_overlay_model(result)

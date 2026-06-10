@@ -546,12 +546,38 @@ export interface AnalysisResponse {
   } | null
   three_stage_fv?: number | null
   three_stage_method?: string | null
+  three_stage_reason?: string | null
   ddm_fv?: number | null
   ddm_method?: string | null
+  ddm_reason?: string | null
   epv_per_share?: number | null
+  epv_reason?: string | null
   liquidation_per_share?: number | null
+  liquidation_reason?: string | null
   probability_weighted_fv?: number | null
   probability_weighted_method?: string | null
+  probability_weighted_reason?: string | null
+  /**
+   * T2.3 — Replacement value (Tobin-Q-style rebuild cost). Phase B
+   * companion to the liquidation floor. Null for banks / NBFCs /
+   * insurers / asset-light cohorts where the asset base does not
+   * carry franchise value; `replacement_reason` carries the
+   * explanation for the panel.
+   */
+  replacement_per_share?: number | null
+  replacement_method?: string | null
+  replacement_reason?: string | null
+  /**
+   * Sector-specific FV — set on tickers in the 14 routed cohorts
+   * (bank deepened residual income, NBFC ROA tree, insurance EV+VNB,
+   * pharma pipeline rNPV, telecom ARPU DCF, holdco SOTP, oil & gas
+   * SOTP, auto OEM cycle, cement utilization, steel cost curve,
+   * RE developer NAV, consumer durables WC, media subscriber LTV,
+   * logistics freight). `sector_specific_label` identifies which
+   * engine produced the figure.
+   */
+  sector_specific_fv?: number | null
+  sector_specific_label?: string | null
   /**
    * T5.3 (2026-06-10): 4 derived insights synthesized at the router
    * layer from the rich payload (composite IV + 5-pillar confidence

@@ -859,6 +859,31 @@ class AnalysisResponse(BaseModel):
     sector_overlay_multiplier: Optional[float] = None
     sector_overlay_label: Optional[str] = None
 
+    # ── Phase-B estimator coverage (v_fix_phase_b_estimator_coverage_2026_06_10) ──
+    # For each of the 5 standalone Phase-B estimators (DDM, EPV,
+    # three-stage DCF, liquidation, probability-weighted) the engine
+    # now ALSO writes a `_reason` string when the corresponding `_fv`
+    # field is None. The reason carries either the gate-returned
+    # explanation (e.g. "banks use the financial-cohort path, not
+    # EPV") or a short generic tag on exception ("compute_failed").
+    # All optional + None on legacy cached payloads — the frontend
+    # treats absent reason + None FV as the legacy "method still
+    # computing" state.
+    #
+    # T2.3 — Replacement value (Tobin-Q-style rebuild cost). Same
+    # pair contract: `replacement_per_share` carries the FV (None
+    # for banks / NBFCs / insurers — capital is the franchise, not
+    # the asset base) and `replacement_reason` carries the
+    # explanation when None.
+    ddm_reason: Optional[str] = None
+    epv_reason: Optional[str] = None
+    three_stage_reason: Optional[str] = None
+    liquidation_reason: Optional[str] = None
+    probability_weighted_reason: Optional[str] = None
+    replacement_per_share: Optional[float] = None
+    replacement_method: Optional[str] = None
+    replacement_reason: Optional[str] = None
+
     # T5.3 (2026-06-10): 4 derived insights — synthesize composite +
     # confidence + floor/ceiling + sector calibration into clear
     # human-readable callouts. Populated by the router after the
