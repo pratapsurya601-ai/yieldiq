@@ -65,7 +65,7 @@ export interface ValuationTrajectoryChartProps {
   /**
    * When provided, skips the network fetch and renders supplied
    * points directly. Test-only escape hatch — production callers
-   * should leave undefined and let the component fetch.
+   * leave this undefined and let the component fetch.
    */
   historyOverride?: FVHistoryPoint[]
   className?: string
