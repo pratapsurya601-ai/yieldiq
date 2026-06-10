@@ -146,9 +146,19 @@ jobs:
                           if isinstance(t, str) and t.strip():
                               tickers.append(t.strip())
               elif isinstance(data, dict):
-                  for t in (data.get("tickers") or data.get("universe") or []):
-                      if isinstance(t, str) and t.strip():
-                          tickers.append(t.strip())
+                  rows = (
+                      data.get("tickers")
+                      or data.get("universe")
+                      or data.get("stocks")
+                      or []
+                  )
+                  for r in rows:
+                      if isinstance(r, str) and r.strip():
+                          tickers.append(r.strip())
+                      elif isinstance(r, dict):
+                          t = r.get("ticker") or r.get("symbol") or ""
+                          if isinstance(t, str) and t.strip():
+                              tickers.append(t.strip())
           else:
               if not ticker_csv:
                   raise SystemExit("universe=custom but ticker_csv is empty")
