@@ -3031,6 +3031,52 @@ MANIFEST: list[dict] = [
             "tickers through this engine."
         ),
     },
+    {
+        # T4 batch part 2 (2026-06-10) — the five normalizations
+        # deferred from PR #818, shipped now to close out the T4
+        # accounting-normalization batch. Same pattern as part-1:
+        # additive per-period fields on HistoricalFinancialPeriod,
+        # reported fields stay byte-identical, helpers only READ row
+        # data. Phase B (separate PR) can selectively wire each
+        # adjusted value into DCF / EV inputs for tickers whose
+        # intensity_label is 'material' or 'heavy'.
+        #
+        # In-scope normalizations:
+        #   T4.5  NCI / minority interest        — name-specific structures
+        #   T4.6  Working capital normalization  — cyclicals
+        #   T4.7  Effective tax rate clamp       — all sectors
+        #   T4.8  Pension obligations            — PSU defense / legacy IT
+        #   T4.10 FX translation adjustment      — IT services / pharma
+        "version_id": "v_t4_normalizations_part_2_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "nci_adjusted_ev",
+                "nci_intensity_label",
+                "wc_normalized_value",
+                "wc_intensity_label",
+                "etr_normalized_pat",
+                "etr_intensity_label",
+                "pension_adjusted_debt",
+                "pension_intensity_label",
+                "fx_normalized_revenue",
+                "fx_intensity_label",
+            ],
+        },
+        "rationale": (
+            "T4.5 + T4.6 + T4.7 + T4.8 + T4.10 — five accounting "
+            "normalizations added as additive financials fields "
+            "(NCI / minority interest, working capital 5y-median "
+            "smoothing, effective tax rate 5y-median clamp [10%, "
+            "35%], unfunded pension as debt, FX translation at 3y "
+            "median USD/INR). Reported fields stay byte-identical. "
+            "Phase B can selectively wire these into DCF inputs for "
+            "tickers where their intensity_label is 'material' or "
+            "'heavy'. This closes out the T4 batch deferred from "
+            "PR #818."
+        ),
+    },
 ]
 
 
