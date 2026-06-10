@@ -2941,6 +2941,55 @@ def _inject_score_verdict_divergence_model(
     return result
 
 
+def _inject_ma_event_dict(payload: dict, ticker: str) -> dict:
+    """Populate ``ma_event`` on a dict payload (warm cache + DB cache paths).
+
+    Reads `corporate_actions` for ``ticker`` via
+    `backend.services.ma_event_detector.detect_ma_event`. The detector
+    is a thin read over the existing structural-overlay seed rows
+    (042_seed_structural_mergers.sql) so this inject has no schema
+    dependency beyond what the structural CAGR overlay already needs.
+
+    The field is additive — leaving it absent on a cached payload is
+    fine; the frontend ``PostMergerRatioCaption`` self-hides when the
+    field is missing or `is_within_normalization_window` is False.
+    Never raises (M&A context is descriptive, not load-bearing).
+
+    ROOT CAUSE #2 + #8 (2026-06-11) — manifest entry
+    ``v_ma_event_context_2026_06_11``.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.ma_event_detector import detect_ma_event
+        event = detect_ma_event(ticker)
+        if event is not None:
+            payload["ma_event"] = event
+    except Exception:
+        # Additive only — never break the response.
+        pass
+    return payload
+
+
+def _inject_ma_event_model(
+    result: "AnalysisResponse", ticker: str,
+) -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_ma_event_dict`.
+
+    Used on the cold-compute return path where the response is still
+    a typed `AnalysisResponse` instance. The new `ma_event` field is
+    Optional + additive so no validation re-run is required.
+    """
+    try:
+        from backend.services.ma_event_detector import detect_ma_event
+        event = detect_ma_event(ticker)
+        if event is not None:
+            result.ma_event = event
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -3115,6 +3164,11 @@ async def get_analysis(
             # additive transparency surface. Pure on quality + valuation;
             # safe at any point after both are present on the dict.
             _inject_score_verdict_divergence_dict(_out)
+            # ROOT CAUSE #2 + #8 (2026-06-11): M&A-aware context —
+            # additive surface for the post-merger ratio caption + the
+            # quarterly-surprise suppression. Pure read over
+            # `corporate_actions`; safe on every warm path.
+            _inject_ma_event_dict(_out, ticker)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
@@ -3130,6 +3184,7 @@ async def get_analysis(
         _inject_consensus_signal_dict(_out)
         _inject_headline_fair_value_dict(_out)
         _inject_score_verdict_divergence_dict(_out)
+        _inject_ma_event_dict(_out, ticker)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -3166,6 +3221,8 @@ async def get_analysis(
         _inject_consensus_signal_dict(_enc)
         _inject_headline_fair_value_dict(_enc)
         _inject_score_verdict_divergence_dict(_enc)
+        # ROOT CAUSE #2 + #8 (2026-06-11): M&A-aware context.
+        _inject_ma_event_dict(_enc, ticker)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -3216,6 +3273,8 @@ async def get_analysis(
             _inject_consensus_signal_dict(_out)
             _inject_headline_fair_value_dict(_out)
             _inject_score_verdict_divergence_dict(_out)
+            # ROOT CAUSE #2 + #8 (2026-06-11): M&A-aware context.
+            _inject_ma_event_dict(_out, ticker)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -3438,6 +3497,11 @@ async def get_analysis(
         # ROOT CAUSE #6 (2026-06-10): score-vs-verdict divergence —
         # additive transparency surface. Pure on quality + valuation.
         _inject_score_verdict_divergence_model(result)
+        # ROOT CAUSE #2 + #8 (2026-06-11): M&A-aware context —
+        # additive surface for the post-merger ratio caption + the
+        # quarterly-surprise suppression. Pure read over
+        # `corporate_actions`; safe on every compute path.
+        _inject_ma_event_model(result, ticker)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

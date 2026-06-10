@@ -502,6 +502,54 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # M&A-aware context (ROOT CAUSE #2 + #8, 2026-06-11) — surfaces
+        # a structural-event explainer on the Quality tab and suppresses
+        # the quarterly-surprise heuristic when the YoY baseline
+        # straddles a material M&A event. Backend stamps a new top-level
+        # ``AnalysisResponse.ma_event`` dict
+        # ``{event_date, event_type, magnitude_pct, multiplier,
+        #    normalization_window_quarters, quarters_since_event,
+        #    description, source_url, source_doc,
+        #    is_within_normalization_window}``
+        # — pure read over the existing structural-overlay seed rows
+        # (data_pipeline/migrations/042_seed_structural_mergers.sql,
+        # already maintained for the CAGR truncation overlay). The
+        # frontend `PostMergerRatioCaption` renders the explainer above
+        # ROE/ROA cards and self-hides when the field is absent or
+        # outside the 8-quarter normalisation window. The earnings-
+        # impact endpoint adds `ma_distortion_flag` + `suppression_copy`
+        # to its payload so the EarningsImpactPanel swaps in
+        # "Baseline distorted by M&A; YoY comparison resumes in Q…"
+        # instead of a misleading surprise number.
+        #
+        # No engine math changes: the new field is a pure post-compute
+        # derivation. Existing cached fields are byte-identical.
+        # scope.fields=[] documents the additive-only nature;
+        # scope.tickers="*" marks the surface as universal (any ticker
+        # could land on a structural event).
+        "version_id": "v_ma_event_context_2026_06_11",
+        "title_public": (
+            "M&A-aware context for post-merger tickers — captions "
+            "explain when ratios reflect one-time balance sheet "
+            "expansion"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "M&A-aware context for post-merger tickers (ROOT CAUSE "
+            "#2 + #8). Adds a `ma_event` field to AnalysisResponse "
+            "that the frontend reads to render an explainer above "
+            "ROE/ROA on the Quality tab (HDFCBANK et al.) and to "
+            "suppress the quarterly-surprise heuristic when the YoY "
+            "comp straddles the merger. Pure read over the existing "
+            "structural-overlay seed rows; no engine math, no cached "
+            "field invalidated."
+        ),
+    },
+    {
         # Score-vs-verdict divergence caption (ROOT CAUSE #6,
         # 2026-06-10) — additive transparency surface that explains
         # when the side-rail YIQ Score (business-quality blend) and
