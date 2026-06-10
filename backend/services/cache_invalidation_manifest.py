@@ -1733,6 +1733,39 @@ MANIFEST: list[dict] = [
             "for traceability — no cache invalidation required."
         ),
     },
+    {
+        # T2.1 Phase A (2026-06-10): standalone Dividend Discount Model
+        # service module added at backend/services/
+        # dividend_discount_model_service.py. Three variants (Gordon
+        # single-stage, two-stage, H-model) + sector-based auto-router
+        # + applicability gate (>=30% payout AND >=5y streak AND
+        # sector not in {recent-IPO, biotech, deep cyclical, holdco}).
+        #
+        # Phase A scope: SERVICE MODULE + TESTS ONLY. The DDM is NOT
+        # yet wired into composite_iv_service.py and NOT yet added to
+        # AnalysisResponse as a ddm_fv field. No cached payload field
+        # changes; no cache invalidation needed. Phase B (separate PR)
+        # will do the composite wiring + response surface, at which
+        # point a scoped manifest entry will follow with
+        # fields=["ddm_fv", "composite_iv"] or similar.
+        #
+        # Entry exists to satisfy the cache-version-bump CI gate which
+        # is mechanical on backend/services/ changes. Empty scope
+        # documents the no-op intent (same pattern as the
+        # v_phase1_fv_history_contract_2026_05_29 entry above).
+        "version_id": "v_t2_1_ddm_phase_a_2026_06_10",
+        "applied_at": datetime(2026, 6, 9, 18, 54, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["*"],
+            "fields": [],
+        },
+        "rationale": (
+            "T2.1 Phase A — standalone Dividend Discount Model service "
+            "module added (Gordon + Two-stage + H-model). Phase B "
+            "wires into composite_iv_service when applicable "
+            "(separate PR)."
+        ),
+    },
 ]
 
 
