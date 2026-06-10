@@ -5231,6 +5231,29 @@ class AnalysisService(NarrativeMixin):
                 _cf_fv_hist = _cf_fvh(ticker, limit=4)  # type: ignore[misc]
             except Exception:
                 _cf_fv_hist = None
+            # T2.7 (2026-06-09): assemble base_inputs/base_verdict for
+            # the 4th sensitivity pillar. Best-effort — if any DCF
+            # variable isn't in scope (financial / regulated / ETF /
+            # holdco paths), the sensitivity function returns None and
+            # the response stays valid. tax_rate is not maintained as
+            # a local in this scope; default to 0.25 (standard Indian
+            # corporate rate) so the perturbation still bites.
+            _cf_base_inputs = None
+            _cf_base_verdict = None
+            try:
+                _cf_base_inputs = {
+                    "wacc": float(wacc),
+                    "fcf_growth": float(enriched.get("fcf_growth", 0.0) or 0.0),
+                    "terminal_growth": float(terminal_g),
+                    "tax_rate": 0.25,
+                    "current_fv": float(iv or 0.0),
+                    "current_price": float(price or 0.0),
+                }
+                _cf_base_verdict = verdict if isinstance(verdict, str) else None
+            except Exception:
+                _cf_base_inputs = None
+                _cf_base_verdict = None
+
             _cf_scores = _cf_all(
                 ticker,
                 enriched=enriched,
@@ -5240,14 +5263,17 @@ class AnalysisService(NarrativeMixin):
                 is_recent_ipo=bool(locals().get("_is_recent_ipo", False)),
                 fv_history=_cf_fv_hist,
                 extra_flags=_cf_flags,
+                base_inputs=_cf_base_inputs,
+                base_verdict=_cf_base_verdict,
             )
             import logging as _cf_log
             _cf_log.getLogger("yieldiq.confidence").info(
-                "[%s] confidence_scores dq=%d mc=%d vs=%d (method=%s sector=%s)",
+                "[%s] confidence_scores dq=%d mc=%d vs=%d sens=%s (method=%s sector=%s)",
                 ticker,
                 _cf_scores["data_quality"],
                 _cf_scores["model_confidence"],
                 _cf_scores["valuation_stability"],
+                _cf_scores.get("sensitivity"),
                 _cf_method, _cf_sector,
             )
         except Exception as _cf_exc:  # pragma: no cover — defensive
@@ -5256,7 +5282,12 @@ class AnalysisService(NarrativeMixin):
                 "[%s] confidence-scores compute failed: %s: %s",
                 ticker, type(_cf_exc).__name__, _cf_exc,
             )
-            _cf_scores = {"data_quality": None, "model_confidence": None, "valuation_stability": None}
+            _cf_scores = {
+                "data_quality": None,
+                "model_confidence": None,
+                "valuation_stability": None,
+                "sensitivity": None,
+            }
             _cf_method = locals().get("_cf_method") or "dcf"
 
         # ── Layer C — Confidence verdict gate (PR #376 wiring) ───
@@ -5478,6 +5509,9 @@ class AnalysisService(NarrativeMixin):
                 data_quality_score=_cf_scores.get("data_quality"),
                 model_confidence_score=_cf_scores.get("model_confidence"),
                 valuation_stability_score=_cf_scores.get("valuation_stability"),
+                # T2.7 (2026-06-09): 4th confidence pillar. None for
+                # holdcos / banks / missing-base-inputs by design.
+                confidence_sensitivity=_cf_scores.get("sensitivity"),
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),

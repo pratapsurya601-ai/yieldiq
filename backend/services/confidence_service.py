@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
+import random as _random
 from typing import Any, Iterable, Mapping, Optional
 
 _log = logging.getLogger("yieldiq.confidence")
@@ -73,6 +74,17 @@ _CYCLICAL_SECTORS: frozenset[str] = frozenset({
     "oil & gas", "oil and gas", "energy",
     "realty", "real estate", "construction",
     "shipping", "airlines",
+})
+
+
+# Sectors that route through residual-income / P-B / Appraisal-Value
+# engines instead of FCF DCF. The sensitivity score (T2.7) is a
+# DCF-input-perturbation exercise — banks/NBFCs/insurance/AMCs have
+# a different mathematical shape, so perturbing WACC/FCF/TG/tax has
+# no meaningful interpretation for them. Mirrors the lowercase posture
+# of `composite_iv_service._is_bank()` from PR #786 branch.
+_BANK_LIKE_SECTORS: frozenset[str] = frozenset({
+    "banking", "banks", "nbfc", "insurance", "financial services",
 })
 
 
@@ -311,7 +323,156 @@ def compute_valuation_stability_score(
 
 
 # ───────────────────────────────────────────────────────────────────
-# Convenience: compute all three at once.
+# 4. sensitivity_score (T2.7, 2026-06-09)
+# ───────────────────────────────────────────────────────────────────
+# Independent 4th confidence pillar. Quantifies verdict stability
+# under plausible DCF-input perturbations (Monte Carlo over WACC /
+# FCF growth / terminal growth / tax rate). High score = the
+# verdict survives reasonable input noise. Low score = the verdict
+# sits on a knife-edge (e.g. MoS is just barely above the
+# undervalued threshold) and a 50bp WACC bump flips it.
+#
+# Returns None (not 0) for shapes where the score is structurally
+# meaningless:
+#   - HOLDING_COMPANIES — SOTP-shaped, no single DCF to perturb.
+#     The proper sensitivity exercise here is per-subsidiary
+#     stake-value perturbation (deferred to T1.4).
+#   - banks / NBFCs / insurance — residual-income / P-B / Appraisal-
+#     Value engines; perturbing FCF/WACC has no interpretation.
+#   - Missing base_inputs or base_verdict — no signal to compute on.
+#
+# The 4 perturbation magnitudes (WACC ±50bp, FCF growth ±2pp,
+# terminal growth ±50bp, tax ±2pp) bracket realistic year-over-year
+# drift in the underlying drivers. Wider bands would make every
+# verdict look unstable; tighter would make even bad fits look firm.
+#
+# The FV recomputation is a deliberate LINEAR approximation rather
+# than re-running the full DCF engine. Rationale: (a) the goal is
+# verdict stability under perturbation, not high-fidelity revaluation;
+# (b) calling back into service.py's DCF would create an import cycle
+# and add seconds to the hot path; (c) the response surface is locally
+# linear within the perturbation bands we use.
+# ───────────────────────────────────────────────────────────────────
+def compute_sensitivity_score(
+    ticker: str,
+    base_inputs: Optional[Mapping[str, Any]] = None,
+    base_verdict: Optional[str] = None,
+    sector: Optional[str] = None,
+    seed: Optional[int] = None,
+    n_runs: int = 200,
+) -> Optional[int]:
+    """Monte Carlo verdict-stability score (0-100) or None.
+
+    ``base_inputs`` must contain (at minimum) numeric values for
+    ``wacc`` (decimal, e.g. 0.115), ``fcf_growth`` (decimal),
+    ``terminal_growth`` (decimal), ``tax_rate`` (decimal),
+    ``current_fv`` (the DCF fair value at base inputs), and
+    ``current_price``. Any missing/invalid input → return None.
+
+    Returns:
+        int in [0, 100] = % of perturbed runs preserving the verdict.
+        None if the score is structurally meaningless for this shape
+        (holdco, bank-like sector, missing inputs/verdict).
+    """
+    bare = _bare_ticker(ticker)
+
+    # Holdco precedence — SOTP-shaped, sensitivity is meaningless
+    # until per-subsidiary perturbation lands in T1.4. Imported
+    # lazily to avoid a top-of-module cycle with analysis.constants.
+    try:
+        from backend.services.analysis.constants import HOLDING_COMPANIES
+        if bare in HOLDING_COMPANIES:
+            return None
+    except Exception:  # pragma: no cover — defensive
+        _log.exception("[%s] holdco lookup failed in sensitivity", ticker)
+
+    # Bank-like engines (residual-income / P-B / Appraisal-Value)
+    # have a different mathematical shape; perturbing FCF/WACC has
+    # no interpretation. The sensitivity exercise for banks is a
+    # separate task (perturbing ROE assumption + dividend payout).
+    if sector and str(sector).strip().lower() in _BANK_LIKE_SECTORS:
+        return None
+
+    if not isinstance(base_inputs, Mapping) or not isinstance(base_verdict, str):
+        return None
+    if not base_verdict:
+        return None
+
+    # Pull the 6 required scalars; bail to None on any malformed input.
+    try:
+        wacc = float(base_inputs.get("wacc"))
+        fcf_growth = float(base_inputs.get("fcf_growth"))
+        terminal_growth = float(base_inputs.get("terminal_growth"))
+        tax_rate = float(base_inputs.get("tax_rate"))
+        base_fv = float(base_inputs.get("current_fv"))
+        price = float(base_inputs.get("current_price"))
+    except (TypeError, ValueError):
+        return None
+    if base_fv <= 0 or price <= 0:
+        return None
+
+    # Seeded RNG — deterministic per ticker so repeated reads emit
+    # the same score (cache-friendly). Per-instance Random, never
+    # touches module-level random.
+    seed_value = seed if seed is not None else (hash(bare) & 0xFFFFFFFF)
+    rng = _random.Random(seed_value)
+
+    # Verdict thresholds — must match the MoS bands used elsewhere
+    # in this module (see Layer-3 cap + bull/bear bypass).
+    def _verdict_from_mos(m: float) -> str:
+        if m >= 0.40:
+            return "notably_undervalued"
+        if m >= 0.10:
+            return "undervalued"
+        if m <= -0.40:
+            return "notably_overvalued"
+        if m <= -0.10:
+            return "overvalued"
+        return "fairly_valued"
+
+    n = max(1, int(n_runs))
+    agree = 0
+    for _ in range(n):
+        wacc_delta = rng.uniform(-0.005, 0.005)
+        fcf_delta = rng.uniform(-0.02, 0.02)
+        tg_delta = rng.uniform(-0.005, 0.005)
+        tax_delta = rng.uniform(-0.02, 0.02)
+        # Clamp tax to [0, 0.40] — caller passes a decimal.
+        new_tax = max(0.0, min(0.40, tax_rate + tax_delta))
+        effective_tax_delta = new_tax - tax_rate
+
+        # Linear sensitivity approximation around the base FV.
+        # Coefficient on tax (0.3) reflects the partial offset
+        # between corporate-tax changes and reinvestment / interest
+        # shield in a stylized FCFF model.
+        perturbed_fv = base_fv * (
+            1.0
+            + fcf_delta
+            + tg_delta
+            - wacc_delta
+            - effective_tax_delta * 0.3
+        )
+        if perturbed_fv <= 0:
+            # A perturbation that flips FV negative implies a
+            # different verdict (unavailable / under_review shape);
+            # count as disagreement.
+            continue
+
+        perturbed_mos = (perturbed_fv - price) / price
+        if _verdict_from_mos(perturbed_mos) == base_verdict:
+            agree += 1
+        # Suppress unused-var lint for wacc/fcf_growth/terminal_growth
+        # — they're inputs to the perturbation, not the linearization
+        # itself. Keep them in the signature so callers can pass the
+        # full base-input dict without filtering.
+        _ = (wacc, fcf_growth, terminal_growth)
+
+    score = int(round(100.0 * agree / n))
+    return _clamp(score)
+
+
+# ───────────────────────────────────────────────────────────────────
+# Convenience: compute all four at once.
 # ───────────────────────────────────────────────────────────────────
 def compute_all_scores(
     ticker: str,
@@ -322,12 +483,20 @@ def compute_all_scores(
     is_recent_ipo: bool = False,
     fv_history: Optional[Iterable[float]] = None,
     extra_flags: Optional[Mapping[str, bool]] = None,
-) -> dict[str, int]:
-    """Compute all three confidence scores in one call.
+    base_inputs: Optional[Mapping[str, Any]] = None,
+    base_verdict: Optional[str] = None,
+) -> dict[str, Optional[int]]:
+    """Compute all four confidence scores in one call.
 
     Returns a dict with keys ``data_quality``, ``model_confidence``,
-    ``valuation_stability``. Never raises; defensive against every
-    input being ``None`` (would just return three zeros / neutrals).
+    ``valuation_stability``, ``sensitivity``. Never raises; defensive
+    against every input being ``None`` (would just return three
+    zeros/neutrals + sensitivity=None).
+
+    T2.7 (2026-06-09) added the 4th key ``sensitivity`` as an
+    additive pillar. It is ``None`` for holdcos, banks, and any call
+    where ``base_inputs`` / ``base_verdict`` are missing; the
+    existing three pillars are byte-identical to PR 1.
     """
     try:
         dq = compute_data_quality_score(enriched, raw)
@@ -352,10 +521,21 @@ def compute_all_scores(
     except Exception:  # pragma: no cover
         _log.exception("[%s] valuation_stability_score failed", ticker)
         vs = 0
+    try:
+        sens = compute_sensitivity_score(
+            ticker,
+            base_inputs=base_inputs,
+            base_verdict=base_verdict,
+            sector=sector,
+        )
+    except Exception:  # pragma: no cover
+        _log.exception("[%s] sensitivity_score failed", ticker)
+        sens = None
     return {
         "data_quality": dq,
         "model_confidence": mc,
         "valuation_stability": vs,
+        "sensitivity": sens,
     }
 
 

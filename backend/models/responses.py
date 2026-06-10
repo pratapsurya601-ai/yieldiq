@@ -193,6 +193,15 @@ class ValuationOutput(BaseModel):
     model_confidence_score: Optional[int] = None
     valuation_stability_score: Optional[int] = None
 
+    # T2.7 (2026-06-09): Monte Carlo sensitivity as 4th confidence pillar.
+    # 200 runs perturbing WACC plus/minus 0.5pp, FCF plus/minus 2pp,
+    # TG plus/minus 0.5pp, tax plus/minus 2pp; stability_score =
+    # fraction preserving base verdict. None for holdcos (SOTP-shaped;
+    # sensitivity meaningless until T1.4) and banks (residual-income
+    # shaped; sensitivity is a separate exercise). ADDITIVE — the
+    # existing 3-pillar scores are byte-identical; this is a new field.
+    confidence_sensitivity: Optional[int] = None
+
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
     # endpoint (returns this Pydantic model directly) matches the
