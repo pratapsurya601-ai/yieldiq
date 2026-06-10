@@ -350,6 +350,35 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Concall sentence-level sentiment (2026-06-10) — novel
+        # surface added at backend/services/concall_sentiment_service.py
+        # plus public endpoint /api/v1/public/concall-sentiment/{ticker}
+        # and a new ConcallSentimentPanel on the analysis page.
+        # Splits the most recent concall transcript into sentences,
+        # scores each one in [-1, +1], clusters by topic
+        # (growth_outlook / margin_pressure / capex / demand /
+        # competition / regulation / other), and computes a
+        # management-tone shift signal versus the previous quarter.
+        # Purely additive — no cached field changes its output as a
+        # result of this PR (the existing concall_service summary +
+        # concall_signals extracts are untouched). scope.fields=[]
+        # so canary_diff / cache_version_check / fair_value_history
+        # gates do not need to invalidate anything.
+        "version_id": "v_concall_sentence_sentiment_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Concall sentence-level sentiment — novel surface, "
+            "additive only. Splits transcript into sentences, scores "
+            "polarity per-sentence, clusters by topic, and emits a "
+            "management-tone shift versus the previous quarter. "
+            "No FV / scoring / verdict impact."
+        ),
+    },
+    {
         # Implied-Assumptions extension (2026-06-10) — AlphaSpread-style
         # "what does the market expect at the current price?" framing
         # added on top of backend/services/reverse_dcf_service.py via

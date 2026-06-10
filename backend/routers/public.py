@@ -2359,6 +2359,158 @@ async def get_ticker_concalls(
         )
 
 
+# ─────────────────────────────────────────────────────────────────
+# Concall sentence-level sentiment (novel surface, 2026-06-10).
+#
+# Reads the latest two transcripts for the ticker from
+# `concall_transcripts`, runs `analyze_concall_sentiment` over the
+# most recent one, and uses the second-most-recent's overall
+# sentiment as the previous-quarter anchor for the tone-shift
+# signal.
+#
+# The endpoint is intentionally separate from /concalls/{ticker} so
+# callers that only need the summary library don't pay the per-
+# sentence scoring cost (LLM/regex). It is cached for 24h since
+# the underlying transcripts only refresh quarterly.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/concall-sentiment/{ticker}")
+async def get_concall_sentiment(ticker: str):
+    """Per-sentence sentiment + topic clustering + tone-shift signal
+    for the most recent concall transcript on file. No auth.
+
+    Returns ``{ticker, sentiment, period, previous_period}`` with
+    ``sentiment`` being the to_dict() of ConcallSentimentResult, or
+    ``{ticker, sentiment: null, reason}`` when no transcript is
+    available yet for the ticker (the panel renders a neutral
+    "coming soon" affordance in that case).
+    """
+    raw = (ticker or "").strip().upper()
+    if not raw:
+        raise HTTPException(status_code=400, detail="ticker required")
+    cache_key = f"public:concall-sentiment:{raw}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    try:
+        from backend.services.concall_service import (
+            _normalise_library_ticker,
+            _get_library_session,
+        )
+        from backend.services.concall_sentiment_service import (
+            analyze_concall_sentiment, to_dict,
+        )
+        from backend.models.concalls import ConcallTranscript
+    except Exception as exc:
+        logger.warning("concall-sentiment imports failed: %s", exc)
+        return _cached_json(
+            {"ticker": raw, "sentiment": None, "reason": "service_unavailable"},
+            s_maxage=300, swr=600,
+        )
+
+    full = _normalise_library_ticker(raw)
+    session = _get_library_session()
+    if not full or session is None:
+        return _cached_json(
+            {"ticker": raw, "sentiment": None, "reason": "no_db"},
+            s_maxage=300, swr=600,
+        )
+    try:
+        rows = (
+            session.query(ConcallTranscript)
+            .filter(ConcallTranscript.ticker == full)
+            .order_by(
+                ConcallTranscript.filing_date.desc(),
+                ConcallTranscript.id.desc(),
+            )
+            .limit(2)
+            .all()
+        )
+    except Exception as exc:
+        logger.warning("concall-sentiment fetch failed for %s: %s", full, exc)
+        try:
+            session.close()
+        except Exception:
+            pass
+        return _cached_json(
+            {"ticker": raw, "sentiment": None, "reason": "fetch_failed"},
+            s_maxage=300, swr=600,
+        )
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
+
+    if not rows:
+        # Stay 200 with an empty payload — the panel renders a
+        # friendly "no transcript yet" state. Cache briefly so a
+        # ticker with no coverage doesn't hammer the DB.
+        return _cached_json(
+            {"ticker": raw, "sentiment": None, "reason": "no_transcript"},
+            s_maxage=600, swr=1800,
+        )
+
+    # The transcripts table stores PDF URLs, not raw transcript
+    # text — but the `subject` field carries enough management-
+    # commentary signal to seed the sentence analyser when a full
+    # transcript hasn't been fetched yet. Callers passing real
+    # transcript text via the AnalyzeRequest path get the full
+    # signal. We try transcript-text fields in order of preference.
+    def _text_of(row) -> str:
+        for attr in ("transcript_text", "full_text", "subject"):
+            v = getattr(row, attr, None) or ""
+            if isinstance(v, str) and v.strip():
+                return v
+        return ""
+
+    current_row = rows[0]
+    previous_row = rows[1] if len(rows) > 1 else None
+    previous_overall: Optional[float] = None
+    previous_period: Optional[str] = None
+    if previous_row is not None:
+        try:
+            prev_text = _text_of(previous_row)
+            if prev_text:
+                prev_result = analyze_concall_sentiment(prev_text)
+                previous_overall = prev_result.overall_sentiment
+                previous_period = (
+                    previous_row.filing_date.isoformat()
+                    if getattr(previous_row, "filing_date", None) else None
+                )
+        except Exception as exc:
+            logger.debug("previous-quarter scoring skipped: %s", exc)
+
+    text = _text_of(current_row)
+    if not text:
+        return _cached_json(
+            {"ticker": raw, "sentiment": None, "reason": "transcript_text_missing"},
+            s_maxage=600, swr=1800,
+        )
+
+    try:
+        result = analyze_concall_sentiment(text, previous_overall_sentiment=previous_overall)
+    except Exception as exc:
+        logger.warning("analyze_concall_sentiment failed for %s: %s", full, exc)
+        return _cached_json(
+            {"ticker": raw, "sentiment": None, "reason": "analysis_failed"},
+            s_maxage=300, swr=600,
+        )
+
+    payload = {
+        "ticker": raw,
+        "period": (
+            current_row.filing_date.isoformat()
+            if getattr(current_row, "filing_date", None) else None
+        ),
+        "previous_period": previous_period,
+        "sentiment": to_dict(result),
+    }
+    # Cache 24h — transcripts refresh quarterly.
+    cache.set(cache_key, payload, ttl=86400)
+    return _cached_json(payload, s_maxage=3600, swr=7200)
+
+
 @router.get("/news")
 async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = Query(default=50, le=100)):
     """
