@@ -22,7 +22,7 @@ import HoldingsTrendMiniChart from "@/components/analysis/HoldingsTrendMiniChart
 import MutualFundHoldersPanel from "@/components/analysis/MutualFundHoldersPanel"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
 import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
-import BankKpiPanel from "@/components/banks/BankKpiPanel"
+import BankKpiPanel, { type BankKpisResponse } from "@/components/banks/BankKpiPanel"
 import { isPureBank } from "@/lib/bankTickers"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
@@ -724,6 +724,29 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     staleTime: 15 * 60 * 1000,
     retry: 1,
   })
+  // Bank deepening KPIs (Phase I — PR #837). Fetched lazily once the
+  // user lands on a bank-cohort ticker AND opens a tab that surfaces
+  // the data (Quality / Valuation tabs both render QualityRatios,
+  // and the Summary tab renders BankKpiPanel). The 6h server cache
+  // keeps the round-trip lightweight; we additionally cache 6h client-side
+  // so tab switches don't re-fire.
+  const bankKpisQuery = useQuery<BankKpisResponse | null>({
+    queryKey: ["bank-kpis", ticker],
+    queryFn: async () => {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const res = await fetch(
+        `${API_BASE}/api/v1/banks/${encodeURIComponent(ticker)}/kpis`,
+      )
+      if (!res.ok) return null
+      return res.json()
+    },
+    enabled:
+      !!ticker && isPureBank(ticker) &&
+      (openedTabs.has("valuation") || openedTabs.has("quality") ||
+       openedTabs.has("overview")),
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: 1,
+  })
 
   useEffect(() => {
     if (data) {
@@ -1257,7 +1280,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       </>
     ),
     financials_chart: (
-      <FinancialsChartPanel ticker={ticker} currency={company.currency} />
+      <FinancialsChartPanel
+        ticker={ticker}
+        currency={company.currency}
+        sector={company.sector}
+      />
     ),
     reverse_dcf: !dataLimited ? <ReverseDcfPanel ticker={ticker} /> : null,
     dividends: (
@@ -1520,6 +1547,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             quality={quality}
             insights={insights}
             ratioHistory={ratiosHistoryQuery.data ?? null}
+            bankKpis={bankKpisQuery.data ?? null}
           />
         </div>
       ),
@@ -1552,6 +1580,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 Slider runs from 5th to 95th peer percentile. Tick = peer
                 median. Dot = this company.
               </p>
+              {/* ROE applies to every cohort. */}
               {data.peer_context.roe_pct && (
                 <MetricWithContext
                   label="ROE"
@@ -1563,7 +1592,54 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                   direction="higher_is_better"
                 />
               )}
-              {data.peer_context.pe_ratio && (
+              {/* Bank-specific peer rows. The backend may emit
+                  `nim_pct`, `casa_pct`, `gnpa_pct` keys on
+                  peer_context for bank tickers; each row self-hides
+                  when the key isn't present, so the panel degrades
+                  gracefully on banks whose backend cohort has not
+                  yet been backfilled with the deepening metrics. */}
+              {isPureBank(ticker) && data.peer_context.nim_pct && (
+                <MetricWithContext
+                  label="NIM"
+                  value={data.peer_context.nim_pct.value}
+                  format={(n) => `${n.toFixed(2)}%`}
+                  peerMedian={data.peer_context.nim_pct.median}
+                  peerP5={data.peer_context.nim_pct.p5}
+                  peerP95={data.peer_context.nim_pct.p95}
+                  direction="higher_is_better"
+                />
+              )}
+              {isPureBank(ticker) && data.peer_context.casa_pct && (
+                <MetricWithContext
+                  label="CASA"
+                  value={data.peer_context.casa_pct.value}
+                  format={(n) => `${n.toFixed(1)}%`}
+                  peerMedian={data.peer_context.casa_pct.median}
+                  peerP5={data.peer_context.casa_pct.p5}
+                  peerP95={data.peer_context.casa_pct.p95}
+                  direction="higher_is_better"
+                />
+              )}
+              {isPureBank(ticker) && data.peer_context.gnpa_pct && (
+                <MetricWithContext
+                  label="GNPA"
+                  value={data.peer_context.gnpa_pct.value}
+                  format={(n) => `${n.toFixed(2)}%`}
+                  peerMedian={data.peer_context.gnpa_pct.median}
+                  peerP5={data.peer_context.gnpa_pct.p5}
+                  peerP95={data.peer_context.gnpa_pct.p95}
+                  direction="lower_is_better"
+                />
+              )}
+              {/* Non-bank fundamental rows. We deliberately hide PE
+                  / D/E / Net margin for bank tickers because their
+                  cohort interpretation differs (a bank's PE is read
+                  vs other banks; D/E includes deposits — and the
+                  bank-specific rows above are the right read).
+                  Without this gate, the user saw three confusing
+                  rows side-by-side with the bank-specific rows
+                  above. */}
+              {!isPureBank(ticker) && data.peer_context.pe_ratio && (
                 <MetricWithContext
                   label="PE"
                   value={data.peer_context.pe_ratio.value}
@@ -1574,7 +1650,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                   direction="lower_is_better"
                 />
               )}
-              {data.peer_context.debt_to_equity && (
+              {!isPureBank(ticker) && data.peer_context.debt_to_equity && (
                 <MetricWithContext
                   label="D/E"
                   value={data.peer_context.debt_to_equity.value}
@@ -1585,7 +1661,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                   direction="lower_is_better"
                 />
               )}
-              {data.peer_context.net_margin_pct && (
+              {!isPureBank(ticker) && data.peer_context.net_margin_pct && (
                 <MetricWithContext
                   label="Net margin"
                   value={data.peer_context.net_margin_pct.value}
@@ -1602,6 +1678,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             quality={quality}
             insights={insights}
             ratioHistory={ratiosHistoryQuery.data ?? null}
+            bankKpis={bankKpisQuery.data ?? null}
           />
           <PromoterPledgePanel ticker={ticker} />
           {/* Holdings trend (2026-06-10): 8-quarter promoter/FII/DII/public
@@ -1640,7 +1717,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               PURE_BANK_TICKERS_FOR_DE; non-banks skip the fetch entirely
               via the isPureBank() guard. The panel itself also self-
               hides if the backend returns is_bank=false. */}
-          {isPureBank(ticker) && <BankKpiPanel ticker={ticker} />}
+          {isPureBank(ticker) && (
+            <BankKpiPanel
+              ticker={ticker}
+              initialData={bankKpisQuery.data ?? undefined}
+            />
+          )}
           <InsiderTradingPanel ticker={ticker} />
           <BulkBlockDealsPanel ticker={ticker} />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
@@ -1717,7 +1799,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 caption="Last eight quarters of revenue, EBITDA and PAT, with year-on-year growth overlaid."
               />
               <ChartDrawIn>
-                <EarningsWaterfallChart ticker={ticker} currency={company.currency} />
+                <EarningsWaterfallChart
+                  ticker={ticker}
+                  currency={company.currency}
+                  sector={company.sector}
+                />
               </ChartDrawIn>
             </section>
           </RevealOnScroll>
@@ -1752,6 +1838,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <FinancialBars
               ticker={ticker}
               currency={company.currency}
+              sector={company.sector}
               revenue={chartData?.financials?.revenue}
               fcf={chartData?.financials?.fcf}
               fcfDataSource={valuation.fcf_data_source}

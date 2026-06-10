@@ -4685,7 +4685,24 @@ async def get_chart_data(
             if not year_str:
                 # fall back to formatted period (e.g. FY2025)
                 year_str = str(row.get("year") or "")
+            # Sector-aware revenue fall-back (2026-06-10). For banks
+            # / NBFCs the generic `revenue` field is null — the
+            # statement carries `interest_earned`, `net_interest_income`,
+            # and `total_income` instead. Without this fall-back the
+            # FinancialBars surface for bank tickers renders flat-zero
+            # bars even though the data exists. The frontend
+            # sectorFinancials helper also applies the same waterfall
+            # when reading row-level FinancialYear values directly;
+            # keeping the backend consistent means BOTH ingestion
+            # paths agree about what "the revenue series" is for a
+            # bank ticker.
             rev_v = _num(row.get("revenue"))
+            if rev_v is None:
+                rev_v = _num(row.get("interest_earned"))
+            if rev_v is None:
+                rev_v = _num(row.get("net_interest_income"))
+            if rev_v is None:
+                rev_v = _num(row.get("total_income"))
             if rev_v is not None and year_str:
                 revenue_list.append({
                     "year": year_str,

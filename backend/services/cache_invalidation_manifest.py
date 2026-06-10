@@ -3684,6 +3684,46 @@ MANIFEST: list[dict] = [
             "life-insurance cohort."
         ),
     },
+    {
+        # Sector-aware display resolvers (2026-06-10) — front-end-led
+        # change with a single backend touch-point in /chart-data.
+        # Before this PR every chart and KPI panel on the analysis
+        # page read the generic `revenue` / `free_cash_flow` /
+        # `roa` / `roe` fields directly. Those fields are null for
+        # banks because banks file under a different income /
+        # balance-sheet schema — interest_earned + net_interest_income
+        # + total_income, not revenue. The result was flat-zero bars
+        # on every HDFCBANK / ICICIBANK / SBIN page even though the
+        # data was already in the payload.
+        #
+        # The fix introduces `frontend/src/lib/sectorFinancials.ts`
+        # as the single source of truth for sector-aware revenue /
+        # FCF resolution; FinancialBars, FinancialsChartPanel,
+        # EarningsWaterfallChart and QualityRatios all route through
+        # it. /chart-data mirrors the same waterfall server-side so
+        # the legacy fixed-shape consumer also gets populated bars.
+        # QualityRatios now surfaces NIM / CASA / GNPA / NNPA / PCR
+        # / CRAR for the bank cohort via the existing bank-kpis
+        # endpoint (no new endpoint, no recompute).
+        #
+        # scope.fields=[] — no cached field shifts. The change is
+        # display-only: same payloads, different reads.
+        "version_id": "v_sector_aware_display_resolvers_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Sector-aware display resolvers — front-end helpers and a "
+            "minimal /chart-data fall-back so bank tickers render NII "
+            "(net interest income) on the Revenue axis and skip FCF "
+            "with a not-applicable note. Quality tab surfaces the "
+            "deepened bank KPIs (NIM / CASA / GNPA / NNPA / PCR / "
+            "CRAR / Cost-to-Income / Credit-Deposit) from the Phase-I "
+            "bank-kpis endpoint. Display-only — no cached field shifts."
+        ),
+    },
 ]
 
 

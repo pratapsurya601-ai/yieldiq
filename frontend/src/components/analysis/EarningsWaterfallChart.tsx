@@ -41,6 +41,7 @@ import {
   ReferenceLine,
 } from "recharts"
 import { getFinancials, type FinancialYear, type FinancialsResponse } from "@/lib/api"
+import { getDisplayRevenue, getDisplayRevenueLabel } from "@/lib/sectorFinancials"
 
 interface EarningsWaterfallChartProps {
   ticker: string
@@ -49,6 +50,8 @@ interface EarningsWaterfallChartProps {
    *  React Query cache via initialData later). */
   annual?: FinancialsResponse | null
   currency?: string | null
+  /** Sector hint for bank-cohort revenue fall-back (NII / interest_earned). */
+  sector?: string | null
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -145,6 +148,7 @@ export interface ChartRow {
 export function buildChartRows(
   rows: (FinancialYear & RawConsensus)[] | null | undefined,
   visibleCount = 8,
+  cohortHint?: { sector?: string | null; ticker?: string | null },
 ): ChartRow[] {
   if (!rows || rows.length === 0) return []
   const out: ChartRow[] = []
@@ -152,13 +156,22 @@ export function buildChartRows(
   for (let i = 0; i < limit; i++) {
     const row = rows[i]
     const yoyRef = rows[i + 4] ?? null
+    // Sector-aware revenue resolution. For banks `row.revenue` is
+    // typically null; getDisplayRevenue falls back to interest_earned
+    // / net_interest_income / total_income before giving up. This is
+    // the change that turns "Revenue: —" on every quarter of HDFCBANK
+    // into the NII series the user actually wants to read.
+    const rowRevenue = getDisplayRevenue(row, cohortHint?.sector, cohortHint?.ticker)
+    const refRevenue = yoyRef
+      ? getDisplayRevenue(yoyRef, cohortHint?.sector, cohortHint?.ticker)
+      : null
     const yoyRevenuePct =
-      row.revenue != null &&
-      yoyRef?.revenue != null &&
-      Number.isFinite(row.revenue) &&
-      Number.isFinite(yoyRef.revenue) &&
-      yoyRef.revenue !== 0
-        ? ((row.revenue - yoyRef.revenue) / Math.abs(yoyRef.revenue)) * 100
+      rowRevenue != null &&
+      refRevenue != null &&
+      Number.isFinite(rowRevenue) &&
+      Number.isFinite(refRevenue) &&
+      refRevenue !== 0
+        ? ((rowRevenue - refRevenue) / Math.abs(refRevenue)) * 100
         : null
     const yoyPatPct =
       row.net_income != null &&
@@ -172,12 +185,18 @@ export function buildChartRows(
       key: row.period_end ?? row.year,
       label: labelQuarter(row),
       period_end: row.period_end ?? "",
-      revenue: Number.isFinite(row.revenue as number) ? (row.revenue as number) : null,
+      revenue: rowRevenue,
       ebitda: Number.isFinite(row.ebitda as number) ? (row.ebitda as number) : null,
       pat: Number.isFinite(row.net_income as number) ? (row.net_income as number) : null,
       yoy_revenue_pct: yoyRevenuePct,
       yoy_pat_pct: yoyPatPct,
-      beat_miss: classifyBeatMiss(row.revenue, row.consensus_revenue ?? null),
+      // Beat / miss is meaningful only when both the reported and
+      // consensus values refer to the SAME concept. Skip it on the
+      // bank cohort because consensus_revenue on a bank row is the
+      // NII consensus, not gross revenue, and the comparison can
+      // otherwise misfire when buildChartRows pulls revenue from a
+      // different field.
+      beat_miss: classifyBeatMiss(rowRevenue, row.consensus_revenue ?? null),
       consensus_revenue:
         row.consensus_revenue != null && Number.isFinite(row.consensus_revenue)
           ? row.consensus_revenue
@@ -335,7 +354,9 @@ function QuarterChipStrip({
 export default function EarningsWaterfallChart({
   ticker,
   currency,
+  sector,
 }: EarningsWaterfallChartProps) {
+  const revenueLabel = getDisplayRevenueLabel(sector, ticker)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -363,8 +384,13 @@ export default function EarningsWaterfallChart({
   }, [])
 
   const rows = useMemo(
-    () => buildChartRows(quarterlyQuery.data?.income as (FinancialYear & RawConsensus)[] | undefined, 8),
-    [quarterlyQuery.data],
+    () =>
+      buildChartRows(
+        quarterlyQuery.data?.income as (FinancialYear & RawConsensus)[] | undefined,
+        8,
+        { sector, ticker },
+      ),
+    [quarterlyQuery.data, sector, ticker],
   )
 
   const visibleRows = useMemo(
@@ -488,7 +514,7 @@ export default function EarningsWaterfallChart({
             <Bar
               yAxisId="left"
               dataKey="revenue"
-              name="Revenue"
+              name={revenueLabel}
               fill={COLORS.revenue}
               radius={[3, 3, 0, 0]}
               maxBarSize={32}
