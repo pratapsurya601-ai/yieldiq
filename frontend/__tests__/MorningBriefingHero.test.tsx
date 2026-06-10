@@ -174,8 +174,8 @@ describe("MorningBriefingHero", () => {
     const fallback = screen.getByTestId("morning-briefing-fallback")
     // P0 home-greeting bug — even the fallback must not personalize.
     expect((fallback.textContent || "").toLowerCase()).not.toContain("surya")
-    // It should still be a recognisable greeting (Good morning / Good
-    // afternoon / Good evening / Welcome back).
+    // The remaining copy must be a recognisable time-of-day greeting
+    // (Good morning / Good afternoon / Good evening / Welcome back).
     expect(fallback.textContent || "").toMatch(
       /(Good (morning|afternoon|evening)|Welcome back)/,
     )
