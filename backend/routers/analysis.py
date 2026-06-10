@@ -233,14 +233,22 @@ def _inject_multiples_fv_model(result: "AnalysisResponse") -> "AnalysisResponse"
     return result
 
 
-def _composite_inputs_from_dict(payload: dict) -> tuple:
-    """Extract (dcf_fv, multiples_fv, analyst_avg, stock_kind, sector, ticker)
-    from a dict payload for composite_iv_service.compute_composite_iv.
+def _composite_inputs_from_dict(payload: dict) -> dict:
+    """Extract the composite-IV input set from a dict payload.
 
-    Pulled out so the cold and warm paths share the exact same
-    extraction logic. The analyst slot prefers the full Finnhub
-    consensus block's price_target.mean (most precise); falls back to
-    the legacy wall_street_avg_target slot for older cached payloads.
+    Returns a kwargs dict for ``composite_iv_service.compute_composite_iv``
+    so the four Phase-C estimator slots can be added without changing the
+    call-site signature. Pulled out so the cold and warm paths share the
+    exact same extraction logic.
+
+    The analyst slot prefers the full Finnhub consensus block's
+    ``price_target.mean`` (most precise); falls back to the legacy
+    ``wall_street_avg_target`` slot for older cached payloads. The four
+    Phase-C estimator slots (three_stage_fv / ddm_fv / epv_per_share /
+    probability_weighted_fv) are read from the additive fields written
+    by the Phase-B inject helpers — caller MUST run those injects
+    BEFORE composite. None on any slot is honest: the composite service
+    pro-rata redistributes the surviving weights.
     """
     valuation = payload.get("valuation") or {}
     insights = payload.get("insights") or {}
@@ -258,6 +266,14 @@ def _composite_inputs_from_dict(payload: dict) -> tuple:
         analyst_avg = pt.get("mean") or pt.get("median")
     if analyst_avg is None:
         analyst_avg = insights.get("wall_street_avg_target")
+    # Phase-C estimator slots — populated by the Phase-B inject helpers.
+    # Read straight off the payload; None when the helper's applicability
+    # gate trimmed the estimator (correct posture: composite_iv_service
+    # redistributes the surviving weights).
+    three_stage_fv = payload.get("three_stage_fv")
+    ddm_fv = payload.get("ddm_fv")
+    epv_fv = payload.get("epv_per_share")
+    probability_weighted_fv = payload.get("probability_weighted_fv")
     # Stock kind / sector / ticker — used by the composite branch logic.
     stock_kind: str | None = None
     if quality.get("is_holdco"):
@@ -266,7 +282,18 @@ def _composite_inputs_from_dict(payload: dict) -> tuple:
         stock_kind = "bank"
     sector = company.get("sector")
     ticker = payload.get("ticker") or company.get("ticker")
-    return (dcf_fv, multiples_fv, analyst_avg, stock_kind, sector, ticker)
+    return {
+        "dcf_fv": dcf_fv,
+        "multiples_fv": multiples_fv,
+        "analyst_avg": analyst_avg,
+        "three_stage_fv": three_stage_fv,
+        "ddm_fv": ddm_fv,
+        "epv_fv": epv_fv,
+        "probability_weighted_fv": probability_weighted_fv,
+        "stock_kind": stock_kind,
+        "sector": sector,
+        "ticker": ticker,
+    }
 
 
 def _inject_composite_iv_dict(payload: dict) -> dict:
@@ -274,9 +301,17 @@ def _inject_composite_iv_dict(payload: dict) -> dict:
     dict payload.
 
     T1.1 engine refinement (2026-06-09) — weighted average of DCF +
-    Multiples + Wall St. MUST run AFTER `_inject_multiples_fv_dict`
-    because it reads `payload["multiples_based_fv"]`. Pure derivation,
-    no DB / cache I/O, safe on every warm-path return.
+    Multiples + Wall St.
+
+    Phase C (2026-06-10) extends the average with the four additive
+    Phase-B estimators (Three-stage DCF, DDM, EPV, Probability-
+    weighted). Composite MUST therefore run AFTER both
+    ``_inject_multiples_fv_dict`` AND the full Phase-B inject chain
+    so the new estimator slots on the payload are populated when
+    ``_composite_inputs_from_dict`` reads them. The call-chain
+    orchestrator (`_inject_phase_b_estimators_dict` + this helper)
+    is sequenced in the cache-path call sites accordingly. Pure
+    derivation, no DB / cache I/O, safe on every warm-path return.
 
     Never raises — composite failure leaves both fields absent (the
     frontend falls back to the DCF-only "Fair Value" headline).
@@ -289,7 +324,7 @@ def _inject_composite_iv_dict(payload: dict) -> dict:
             composite_to_dict,
         )
         inputs = _composite_inputs_from_dict(payload)
-        result = compute_composite_iv(*inputs)
+        result = compute_composite_iv(**inputs)
         as_dict = composite_to_dict(result)
         payload["composite_intrinsic_value"] = as_dict["value"]
         # composite_components carries both the per-estimator values
@@ -313,9 +348,11 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
     """Pydantic-model variant of `_inject_composite_iv_dict`.
 
     Used on the cold-compute return path. MUST run AFTER
-    `_inject_multiples_fv_model` so the multiples slot is populated.
-    Mutates in place — both fields are Optional, no re-validation
-    required.
+    `_inject_multiples_fv_model` AND the full Phase-B inject chain so
+    the four Phase-C estimator slots (three_stage_fv / ddm_fv /
+    epv_per_share / probability_weighted_fv) are populated on the
+    AnalysisResponse model when this helper reads them. Mutates in
+    place — both fields are Optional, no re-validation required.
     """
     try:
         from backend.services.composite_iv_service import (
@@ -323,7 +360,9 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
             composite_to_dict,
         )
         # Build a focused dict so we re-use the same extractor as the
-        # warm path. Mirrors the multiples_fv_model contract.
+        # warm path. Mirrors the multiples_fv_model contract. The four
+        # Phase-C estimator fields are mirrored straight off the model
+        # (populated by `_inject_phase_b_estimators_model` upstream).
         _qual = result.quality.model_dump() if result.quality else {}
         _val = result.valuation.model_dump() if result.valuation else {}
         _ins = result.insights.model_dump() if result.insights else {}
@@ -334,10 +373,16 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
             "insights": _ins,
             "company": _co,
             "multiples_based_fv": result.multiples_based_fv,
+            "three_stage_fv": getattr(result, "three_stage_fv", None),
+            "ddm_fv": getattr(result, "ddm_fv", None),
+            "epv_per_share": getattr(result, "epv_per_share", None),
+            "probability_weighted_fv": getattr(
+                result, "probability_weighted_fv", None
+            ),
             "ticker": result.ticker,
         }
         inputs = _composite_inputs_from_dict(_payload)
-        composite = compute_composite_iv(*inputs)
+        composite = compute_composite_iv(**inputs)
         as_dict = composite_to_dict(composite)
         result.composite_intrinsic_value = as_dict["value"]
         if as_dict["value"] is not None:
@@ -367,14 +412,22 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
 #   3. Defensive — wrapped in try/except so a single ticker that
 #      trips the estimator never breaks the wider response. Failure
 #      leaves the field None and the frontend hides the chip.
-#   4. MUST run AFTER the composite chain (sector_medians ->
-#      multiples_fv -> composite_iv) so the per-payload extraction
-#      sees the freshly-injected multiples / composite values.
+#   4. Phase-B injects run AFTER the sector-medians + multiples
+#      chain so the per-payload extraction sees the freshly-injected
+#      multiples values. Phase C (2026-06-10) added an additional
+#      ordering constraint: Phase-B injects MUST run BEFORE the
+#      composite inject so the composite extractor can read the four
+#      new estimator slots (three_stage_fv / ddm_fv / epv_per_share /
+#      probability_weighted_fv) populated by the Phase-B helpers.
+#      Canonical chain order (all five cache paths):
+#          sector_medians -> multiples_fv -> phase_b -> composite
 #
-# Phase B does NOT change composite_iv_service.py weights — the
-# composite_intrinsic_value field remains DCF + Multiples + Wall St
-# only. The weighting change (Phase C) ships in a separate PR once
-# the canary baseline confirms tolerance on the additive surface.
+# Phase C (2026-06-10) extended the composite weighted average to
+# include Three-stage DCF, DDM, EPV, and Probability-weighted FV.
+# Liquidation and Replacement values surface as separate floor /
+# Q signals on the analysis payload — they are NOT folded into the
+# composite. See backend/services/composite_iv_service.py for the
+# new weight distribution.
 # ─────────────────────────────────────────────────────────────────
 
 def _safe_payload_section(payload: dict, key: str) -> dict:
@@ -394,10 +447,10 @@ def _safe_payload_section(payload: dict, key: str) -> dict:
 def _inject_ddm_dict(payload: dict) -> dict:
     """Populate ``ddm_fv`` + ``ddm_method`` on a dict payload.
 
-    T2.1 (2026-06-10) — wires the standalone DDM service. MUST run
-    AFTER `_inject_composite_iv_dict` (no read dependency, but matches
-    the canonical chain order so the frontend can rely on the field
-    being present when composite is). Defensive — never raises;
+    T2.1 (2026-06-10) — wires the standalone DDM service. Phase C
+    (2026-06-10) reordered the inject chain — this helper now runs
+    BEFORE `_inject_composite_iv_dict` so the composite extractor
+    can read the ddm_fv slot it writes. Defensive — never raises;
     leaves both fields None on failure.
 
     Applicability is decided up-front by
@@ -507,7 +560,9 @@ def _inject_epv_dict(payload: dict) -> dict:
     """Populate ``epv_per_share`` + ``epv_growth_value_gap``.
 
     T2.2 (2026-06-10) — wires the standalone EPV (Greenwald) service.
-    MUST run AFTER `_inject_composite_iv_dict`. Defensive.
+    Phase C (2026-06-10) reordered the inject chain — this helper
+    now runs BEFORE `_inject_composite_iv_dict` so the composite
+    extractor can read the field it writes. Defensive.
 
     EPV needs full balance-sheet history arrays (revenue / EBIT / D&A
     / capex / working capital) which are NOT carried on the standard
@@ -612,7 +667,9 @@ def _inject_three_stage_dict(payload: dict) -> dict:
     """Populate ``three_stage_fv`` + ``three_stage_method``.
 
     T2.5 (2026-06-10) — wires the standalone three-stage DCF service.
-    MUST run AFTER `_inject_composite_iv_dict`. Defensive.
+    Phase C (2026-06-10) reordered the inject chain — this helper
+    now runs BEFORE `_inject_composite_iv_dict` so the composite
+    extractor can read the field it writes. Defensive.
 
     Uses `select_three_stage_default_horizons(sector)` to derive the
     (N1, N2) horizon defaults per cohort. The engine's existing
@@ -897,7 +954,10 @@ def _inject_phase_b_estimators_dict(payload: dict) -> dict:
     """Run all five Phase-B estimator injects against a dict payload.
 
     Single call-site so the cache paths don't drift — every new
-    estimator added in Phase C+ goes here.
+    estimator added in Phase C+ goes here. Phase C (2026-06-10)
+    reordered the cache-path chains so this orchestrator runs BEFORE
+    `_inject_composite_iv_dict` (its outputs feed the composite
+    weighted average).
     """
     _inject_ddm_dict(payload)
     _inject_epv_dict(payload)
@@ -1069,16 +1129,24 @@ async def get_analysis(
             _out["ai_summary"] = None
             _inject_sector_medians_dict(_out, ticker)
             _inject_multiples_fv_dict(_out)
-            _inject_composite_iv_dict(_out)
+            # Phase C (2026-06-10): Phase-B estimators MUST run BEFORE
+            # composite so the four new estimator slots
+            # (three_stage_fv / ddm_fv / epv_per_share /
+            # probability_weighted_fv) are populated when the composite
+            # extractor reads them. Was the reverse pre-Phase-C.
             _inject_phase_b_estimators_dict(_out)
+            _inject_composite_iv_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
         _out = dict(_raw_cached)
         _inject_sector_medians_dict(_out, ticker)
         _inject_multiples_fv_dict(_out)
-        _inject_composite_iv_dict(_out)
+        # Phase C ordering — see comment in the include_summary=False
+        # branch above. Phase-B inject populates the inputs the
+        # composite extractor consumes.
         _inject_phase_b_estimators_dict(_out)
+        _inject_composite_iv_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -1106,8 +1174,11 @@ async def get_analysis(
         _enc = _je(cached)
         _inject_sector_medians_dict(_enc, ticker)
         _inject_multiples_fv_dict(_enc)
-        _inject_composite_iv_dict(_enc)
+        # Phase C (2026-06-10): Phase-B estimators MUST run BEFORE
+        # composite so the four new estimator slots are populated
+        # when the composite extractor reads them.
         _inject_phase_b_estimators_dict(_enc)
+        _inject_composite_iv_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -1149,8 +1220,11 @@ async def get_analysis(
             _out = dict(_clean)
             _inject_sector_medians_dict(_out, ticker)
             _inject_multiples_fv_dict(_out)
-            _inject_composite_iv_dict(_out)
+            # Phase C (2026-06-10): Phase-B estimators MUST run BEFORE
+            # composite so the four new estimator slots are populated
+            # when the composite extractor reads them.
             _inject_phase_b_estimators_dict(_out)
+            _inject_composite_iv_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -1350,8 +1424,13 @@ async def get_analysis(
         from fastapi.encoders import jsonable_encoder as _je
         _inject_sector_medians_model(result, ticker)
         _inject_multiples_fv_model(result)
-        _inject_composite_iv_model(result)
+        # Phase C (2026-06-10): Phase-B estimators MUST run BEFORE
+        # composite so the four new estimator slots
+        # (three_stage_fv / ddm_fv / epv_per_share /
+        # probability_weighted_fv) are populated on the model when
+        # the composite helper reads them via getattr().
         _inject_phase_b_estimators_model(result)
+        _inject_composite_iv_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

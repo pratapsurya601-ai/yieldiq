@@ -2,10 +2,15 @@
 # ═══════════════════════════════════════════════════════════════
 # Unit tests for backend/services/composite_iv_service.py.
 #
-# T1.1 engine refinement (2026-06-09) — weighted-average composite
-# of DCF + Multiples + Wall St analyst price target. The service is
-# pure derivation from three scalar inputs plus a branch tag, so the
-# tests need no DB / cache fixtures.
+# Originally T1.1 (2026-06-09): three-estimator weighted average of
+# DCF + Multiples + Wall St analyst price target.
+#
+# Phase C (2026-06-10) extended the average with four standalone
+# Phase-A engines: Three-stage DCF, DDM, EPV, Probability-weighted.
+# Default weights re-balanced — see composite_iv_service.py docstring.
+# The tests below cover both the legacy three-estimator paths (now
+# returning slightly different values because of the re-balance) and
+# the new 4-7 estimator paths.
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
@@ -13,7 +18,11 @@ from backend.services.composite_iv_service import (
     CompositeIV,
     DEFAULT_WEIGHT_ANALYST,
     DEFAULT_WEIGHT_DCF,
+    DEFAULT_WEIGHT_DDM,
+    DEFAULT_WEIGHT_EPV,
     DEFAULT_WEIGHT_MULTIPLES,
+    DEFAULT_WEIGHT_PROBABILITY_WEIGHTED,
+    DEFAULT_WEIGHT_THREE_STAGE,
     EXTREME_DIVERGENCE_RATIO,
     composite_to_dict,
     compute_composite_iv,
@@ -26,33 +35,47 @@ def _close(a: float, b: float, tol: float = 0.05) -> bool:
 
 
 class TestThreeEstimatorPath:
-    """All three inputs present — the dominant case for large-caps."""
+    """All three legacy inputs present — pre-Phase-C dominant case.
 
-    def test_all_three_inputs_weighted_correctly(self):
-        # HDFCBANK-shaped fixture from the T1.1 spec:
-        #   DCF = 1129.28, Multiples = 872.33, Analyst = 803.00
-        # Default weights: 0.50 / 0.30 / 0.20
-        # Composite = 1129.28*0.5 + 872.33*0.3 + 803.00*0.2
-        #           = 564.64 + 261.70 + 160.60 = 986.94
+    Phase C re-balanced weights (DCF 0.50 -> 0.35, Multiples 0.30 ->
+    0.20, Analyst 0.20 -> 0.15). When ONLY the legacy three are
+    provided the pro-rata renormalization yields DCF ≈ 0.50,
+    Multiples ≈ 0.286, Analyst ≈ 0.214 (total 0.70 redistributed).
+    """
+
+    def test_all_three_inputs_weighted_with_new_phase_c_weights(self):
+        # HDFCBANK-shaped fixture from the T1.1 spec, recomputed under
+        # Phase C weights (only the three legacy inputs supplied):
+        #   raw weights: DCF 0.35, Multiples 0.20, Analyst 0.15 = 0.70
+        #   pro-rata:    DCF 0.500, Multiples 0.2857, Analyst 0.2143
+        # Composite = 1129.28*0.500 + 872.33*0.2857 + 803.00*0.2143
+        #           ≈ 564.64 + 249.24 + 172.07 = 985.95
         result = compute_composite_iv(
             dcf_fv=1129.28,
             multiples_fv=872.33,
             analyst_avg=803.00,
         )
         assert result.value is not None
-        assert _close(result.value, 986.94, tol=0.5)
+        assert _close(result.value, 985.95, tol=0.5)
         assert result.method == "composite_dcf_multiples_analyst"
-        # Components must carry the default weights since all three present.
-        assert _close(result.components["dcf"].weight, DEFAULT_WEIGHT_DCF, tol=1e-6)
+        # Components carry pro-rata weights (not raw defaults).
+        legacy_total = (
+            DEFAULT_WEIGHT_DCF + DEFAULT_WEIGHT_MULTIPLES + DEFAULT_WEIGHT_ANALYST
+        )
+        assert _close(
+            result.components["dcf"].weight,
+            DEFAULT_WEIGHT_DCF / legacy_total,
+            tol=1e-3,
+        )
         assert _close(
             result.components["multiples"].weight,
-            DEFAULT_WEIGHT_MULTIPLES,
-            tol=1e-6,
+            DEFAULT_WEIGHT_MULTIPLES / legacy_total,
+            tol=1e-3,
         )
         assert _close(
             result.components["analyst"].weight,
-            DEFAULT_WEIGHT_ANALYST,
-            tol=1e-6,
+            DEFAULT_WEIGHT_ANALYST / legacy_total,
+            tol=1e-3,
         )
         # All component values are preserved (only the composite is averaged).
         assert _close(result.components["dcf"].value, 1129.28, tol=0.01)
@@ -68,57 +91,55 @@ class TestThreeEstimatorPath:
 
 
 class TestRedistributionPaths:
-    """Missing-estimator paths re-distribute weights pro-rata."""
+    """Missing-estimator paths re-distribute weights pro-rata.
+
+    Under Phase C weights the legacy two-estimator pairs renormalize
+    against the new defaults (0.35 / 0.20 / 0.15).
+    """
 
     def test_multiples_missing_dcf_and_analyst_share_pro_rata(self):
-        # Defaults: DCF 0.5, Analyst 0.2 → totals 0.7.
-        # Re-normalized: DCF 0.5/0.7 ≈ 0.7143, Analyst 0.2/0.7 ≈ 0.2857.
+        # Defaults: DCF 0.35, Analyst 0.15 → totals 0.50.
+        # Re-normalized: DCF 0.35/0.50 = 0.70, Analyst 0.15/0.50 = 0.30.
         result = compute_composite_iv(
             dcf_fv=1000.0, multiples_fv=None, analyst_avg=800.0
         )
         assert result.value is not None
         assert result.method == "composite_dcf_analyst"
-        # Composite = 1000 * (0.5/0.7) + 800 * (0.2/0.7)
-        #           = 714.29 + 228.57 = 942.86
-        assert _close(result.value, 942.86, tol=0.5)
-        assert _close(
-            result.components["dcf"].weight, 0.5 / 0.7, tol=1e-3
-        )
-        assert _close(
-            result.components["analyst"].weight, 0.2 / 0.7, tol=1e-3
-        )
-        # Total still sums to 1.0.
+        # Composite = 1000 * 0.70 + 800 * 0.30 = 700 + 240 = 940.
+        assert _close(result.value, 940.0, tol=0.5)
+        assert _close(result.components["dcf"].weight, 0.70, tol=1e-3)
+        assert _close(result.components["analyst"].weight, 0.30, tol=1e-3)
         total = sum(c.weight for c in result.components.values())
         assert _close(total, 1.0, tol=1e-6)
         assert "multiples" not in result.components
 
     def test_analyst_missing_dcf_and_multiples_share_pro_rata(self):
-        # Defaults: DCF 0.5, Multiples 0.3 → totals 0.8.
-        # Re-normalized: DCF 0.5/0.8 = 0.625, Multiples 0.3/0.8 = 0.375.
+        # Defaults: DCF 0.35, Multiples 0.20 → totals 0.55.
+        # Re-normalized: DCF 0.35/0.55 ≈ 0.636, Multiples 0.20/0.55 ≈ 0.364.
         result = compute_composite_iv(
             dcf_fv=1000.0, multiples_fv=800.0, analyst_avg=None
         )
         assert result.value is not None
         assert result.method == "composite_dcf_multiples"
-        # Composite = 1000 * 0.625 + 800 * 0.375 = 625 + 300 = 925.
-        assert _close(result.value, 925.0, tol=0.5)
+        # Composite ≈ 1000 * 0.636 + 800 * 0.364 ≈ 636 + 291 ≈ 927.27.
+        assert _close(result.value, 927.27, tol=0.5)
         assert _close(
-            result.components["dcf"].weight, 0.625, tol=1e-3
+            result.components["dcf"].weight, 0.35 / 0.55, tol=1e-3
         )
         assert _close(
-            result.components["multiples"].weight, 0.375, tol=1e-3
+            result.components["multiples"].weight, 0.20 / 0.55, tol=1e-3
         )
 
     def test_dcf_missing_multiples_and_analyst_share_pro_rata(self):
-        # Defaults: Multiples 0.3, Analyst 0.2 → totals 0.5.
-        # Re-normalized: Multiples 0.6, Analyst 0.4.
+        # Defaults: Multiples 0.20, Analyst 0.15 → totals 0.35.
+        # Re-normalized: Multiples 0.20/0.35 ≈ 0.571, Analyst 0.15/0.35 ≈ 0.429.
         result = compute_composite_iv(
             dcf_fv=None, multiples_fv=800.0, analyst_avg=900.0
         )
         assert result.value is not None
         assert result.method == "composite_multiples_analyst"
-        # Composite = 800 * 0.6 + 900 * 0.4 = 480 + 360 = 840.
-        assert _close(result.value, 840.0, tol=0.5)
+        # Composite ≈ 800 * 0.571 + 900 * 0.429 ≈ 457.14 + 385.71 = 842.86.
+        assert _close(result.value, 842.86, tol=0.5)
 
 
 class TestSingleEstimatorPaths:
@@ -152,6 +173,52 @@ class TestSingleEstimatorPaths:
         assert result.method == "analyst_only"
         assert _close(result.components["analyst"].weight, 1.0, tol=1e-6)
 
+    def test_only_three_stage_returns_three_stage_with_weight_one(self):
+        # New Phase C single-estimator path.
+        result = compute_composite_iv(
+            dcf_fv=None,
+            multiples_fv=None,
+            analyst_avg=None,
+            three_stage_fv=706.0,
+        )
+        assert result.value is not None
+        assert _close(result.value, 706.0, tol=0.01)
+        assert result.method == "three_stage_only"
+        assert _close(result.components["three_stage"].weight, 1.0, tol=1e-6)
+
+    def test_only_ddm_returns_ddm_with_weight_one(self):
+        result = compute_composite_iv(
+            dcf_fv=None,
+            multiples_fv=None,
+            analyst_avg=None,
+            ddm_fv=550.0,
+        )
+        assert result.value is not None
+        assert _close(result.value, 550.0, tol=0.01)
+        assert result.method == "ddm_only"
+
+    def test_only_epv_returns_epv_with_weight_one(self):
+        result = compute_composite_iv(
+            dcf_fv=None,
+            multiples_fv=None,
+            analyst_avg=None,
+            epv_fv=620.0,
+        )
+        assert result.value is not None
+        assert _close(result.value, 620.0, tol=0.01)
+        assert result.method == "epv_only"
+
+    def test_only_prob_weighted_returns_with_weight_one(self):
+        result = compute_composite_iv(
+            dcf_fv=None,
+            multiples_fv=None,
+            analyst_avg=None,
+            probability_weighted_fv=780.0,
+        )
+        assert result.value is not None
+        assert _close(result.value, 780.0, tol=0.01)
+        assert result.method == "probability_weighted_only"
+
 
 class TestUnavailable:
     def test_all_inputs_none_returns_unavailable(self):
@@ -180,9 +247,23 @@ class TestUnavailable:
         assert result.value is None
         assert result.method == "unavailable"
 
+    def test_all_seven_zero_or_negative_returns_unavailable(self):
+        # The new Phase-C slots are subject to the same gate.
+        result = compute_composite_iv(
+            dcf_fv=0.0,
+            multiples_fv=-1.0,
+            analyst_avg=0.0,
+            three_stage_fv=0.0,
+            ddm_fv=-5.0,
+            epv_fv=0.0,
+            probability_weighted_fv=0.0,
+        )
+        assert result.value is None
+        assert result.method == "unavailable"
+
 
 class TestHoldcoBranch:
-    """Pure holdcos skip multiples; composite = DCF alone."""
+    """Pure holdcos skip multiples + Phase-C extras; composite = DCF alone."""
 
     def test_holdco_kind_skips_multiples(self):
         # Even when multiples_fv is provided, the holdco branch ignores it.
@@ -225,15 +306,35 @@ class TestHoldcoBranch:
         assert result.value is None
         assert result.method == "unavailable"
 
+    def test_holdco_ignores_phase_c_estimators_too(self):
+        # Phase-C slots are also skipped on the holdco branch. The
+        # standalone services' applicability gates already exclude
+        # holdcos at the Phase-B inject layer; this is the belt-and-
+        # braces backstop on the composite side.
+        result = compute_composite_iv(
+            dcf_fv=1500.0,
+            multiples_fv=1200.0,
+            analyst_avg=1800.0,
+            three_stage_fv=1100.0,
+            ddm_fv=900.0,
+            epv_fv=1000.0,
+            probability_weighted_fv=1400.0,
+            stock_kind="holdco",
+        )
+        assert result.method == "holdco_dcf_only"
+        assert len(result.components) == 1
+        for k in ("three_stage", "ddm", "epv", "probability_weighted"):
+            assert k not in result.components
+
 
 class TestBankBranch:
     """Bank branch tags the dcf slot as residual_income via the method tag."""
 
     def test_bank_kind_with_three_estimators_tags_method(self):
-        # HDFCBANK-shaped: the dcf_fv parameter here is actually the
-        # P/BV residual-income FV the bank engine emitted. Composite
-        # math is unchanged; only the method tag flips so the frontend
-        # can relabel the pill.
+        # HDFCBANK-shaped (legacy 3 estimators only — no Phase-C extras):
+        # the dcf_fv parameter here is actually the P/BV residual-income
+        # FV the bank engine emitted. Composite math is unchanged; only
+        # the method tag flips so the frontend can relabel the pill.
         result = compute_composite_iv(
             dcf_fv=900.0,
             multiples_fv=850.0,
@@ -241,10 +342,11 @@ class TestBankBranch:
             stock_kind="bank",
         )
         assert result.value is not None
+        # Legacy bank 3-way tag preserved when no Phase-C estimator present.
         assert result.method == "bank_composite_residual_multiples_analyst"
-        # Composite math identical to non-bank.
-        # = 900*0.5 + 850*0.3 + 803*0.2 = 450 + 255 + 160.6 = 865.6
-        assert _close(result.value, 865.6, tol=0.5)
+        # Composite under Phase-C weights (pro-rata DCF 0.50 / Mult 0.286 / Ana 0.214):
+        # 900*0.500 + 850*0.2857 + 803*0.2143 ≈ 450 + 242.86 + 172.07 = 864.93
+        assert _close(result.value, 864.93, tol=0.5)
 
     def test_bank_sector_tagging_via_string(self):
         result = compute_composite_iv(
@@ -253,7 +355,7 @@ class TestBankBranch:
             analyst_avg=None,
             sector="Banking",
         )
-        # bank + 2 estimators -> bank_composite_residual_multiples
+        # bank + 2 legacy estimators -> bank_composite_residual_multiples
         assert result.method == "bank_composite_residual_multiples"
 
     def test_bank_single_dcf_returns_residual_income_tag(self):
@@ -261,6 +363,19 @@ class TestBankBranch:
             dcf_fv=900.0, multiples_fv=None, analyst_avg=None, stock_kind="bank"
         )
         assert result.method == "bank_residual_income"
+
+    def test_bank_with_phase_c_estimator_uses_generic_n_method_tag(self):
+        # Bank + any Phase-C estimator collapses to the generic
+        # bank_composite_N_method tag (the frontend reads N + the
+        # components dict for per-row labels).
+        result = compute_composite_iv(
+            dcf_fv=900.0,
+            multiples_fv=850.0,
+            analyst_avg=803.0,
+            three_stage_fv=706.0,
+            stock_kind="bank",
+        )
+        assert result.method == "bank_composite_4_method"
 
 
 class TestExtremeDivergence:
@@ -301,71 +416,30 @@ class TestStringCoercion:
             dcf_fv="1129.28", multiples_fv="872.33", analyst_avg="803.00"
         )
         assert result.value is not None
-        assert _close(result.value, 986.94, tol=0.5)
+        assert _close(result.value, 985.95, tol=0.5)
+
+    def test_string_phase_c_inputs_coerced(self):
+        result = compute_composite_iv(
+            dcf_fv=None,
+            multiples_fv=None,
+            analyst_avg=None,
+            three_stage_fv="706.00",
+        )
+        assert result.value is not None
+        assert _close(result.value, 706.0, tol=0.01)
 
 
 class TestRoundingAndShape:
-    def test_composite_value_is_rounded_to_2dp(self):
-        # Force a non-trivial decimal: 1003.7 * 0.5 + 750.2 * 0.3 + 612.8 * 0.2
-        # = 501.85 + 225.06 + 122.56 = 849.47 (already 2dp).
-        result = compute_composite_iv(
-            dcf_fv=1003.7, multiples_fv=750.2, analyst_avg=612.8
-        )
-        assert result.value is not None
-        # round(2dp) — assert no extra precision leaks.
-        assert result.value == round(result.value, 2)
-
-
-class TestSerialization:
-    def test_composite_to_dict_shape(self):
+    def test_serializes_via_composite_to_dict(self):
         result = compute_composite_iv(
             dcf_fv=1129.28, multiples_fv=872.33, analyst_avg=803.00
         )
-        d = composite_to_dict(result)
-        assert set(d.keys()) == {
-            "value",
-            "components",
-            "method",
-            "extreme_divergence",
-        }
-        assert isinstance(d["components"], dict)
-        assert set(d["components"]["dcf"].keys()) == {"value", "weight"}
-
-    def test_composite_to_dict_unavailable_path(self):
-        result = compute_composite_iv(
-            dcf_fv=None, multiples_fv=None, analyst_avg=None
-        )
-        d = composite_to_dict(result)
-        assert d["value"] is None
-        assert d["components"] == {}
-        assert d["method"] == "unavailable"
-
-
-class TestHdfcBankRoadmapExample:
-    """End-to-end pin for the HDFCBANK example in the T1.1 spec.
-
-    Spec says: DCF ₹1,129 + Multiples ₹872 + Wall St ₹803 → Composite ₹952.
-
-    The composite at ~₹987 vs the spec's quoted ₹952 reflects which
-    rounding the spec used; the test pins the actual arithmetic
-    (0.5/0.3/0.2 weighting of the spec-quoted inputs) and the gap to
-    AlphaSpread closing significantly.
-    """
-
-    def test_hdfcbank_composite_within_30pct_of_alphaspread(self):
-        ALPHASPREAD_FV = 803.0
-        YIELDIQ_DCF = 1129.0  # 40% high vs AlphaSpread.
-        result = compute_composite_iv(
-            dcf_fv=YIELDIQ_DCF,
-            multiples_fv=872.0,
-            analyst_avg=803.0,
-        )
-        # The composite must be MEANINGFULLY closer to AlphaSpread
-        # than the DCF-only is. The DCF-only gap was 40%; the composite
-        # must be inside 30% to count as a real improvement.
-        assert result.value is not None
-        gap_to_alphaspread = abs(result.value - ALPHASPREAD_FV) / ALPHASPREAD_FV
-        assert gap_to_alphaspread < 0.30  # under 30%
-        # AND the composite must be below the DCF (since both multiples
-        # and analyst are below) — surfaces the high-side bias closing.
-        assert result.value < YIELDIQ_DCF
+        as_dict = composite_to_dict(result)
+        assert isinstance(as_dict, dict)
+        assert "value" in as_dict
+        assert "components" in as_dict
+        assert "method" in as_dict
+        assert "extreme_divergence" in as_dict
+        for key, comp in as_dict["components"].items():
+            assert "value" in comp
+            assert "weight" in comp

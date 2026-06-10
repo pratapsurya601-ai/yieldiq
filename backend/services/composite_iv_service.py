@@ -47,14 +47,43 @@ from typing import Any, Optional
 logger = logging.getLogger("yieldiq.composite_iv")
 
 
-# Default weights for the three estimators. Tuned to the spec: DCF
-# carries the largest weight because the YieldIQ DCF has been the
-# headline engine since v1 and downstream gates already corroborate
-# its output; multiples adds a peer-relative reality check; analyst
-# consensus adds an outside-view anchor.
-DEFAULT_WEIGHT_DCF: float = 0.50
-DEFAULT_WEIGHT_MULTIPLES: float = 0.30
-DEFAULT_WEIGHT_ANALYST: float = 0.20
+# Default weights — Phase C update (2026-06-10).
+#
+# Phase A landed five new standalone estimators (DDM, EPV, Three-stage
+# DCF, Liquidation, Probability-weighted) and Phase B surfaced them as
+# additive fields. Phase C now folds the four estimator-class signals
+# (DDM, EPV, Three-stage, Probability-weighted) into the composite IV
+# average. Liquidation and Replacement stay OUT of the composite —
+# they are FLOOR / Q signals, not estimators of fair value.
+#
+# Weight design rationale:
+#   * DCF stays dominant (0.35) — it is the headline engine, the
+#     reverse-DCF anchor, and the only estimator with a full forward-
+#     looking cash-flow projection.
+#   * Three-stage DCF (0.15) is the largest of the four new slots
+#     because it directly corrects the cliff-bias of the two-stage
+#     model (HDFCBANK two-stage ₹1,129 vs three-stage ₹706 closes
+#     ~75% of the AlphaSpread gap on its own).
+#   * Multiples (0.20) and Wall St analyst (0.15) trimmed slightly to
+#     make room without dropping their qualitative roles (peer-relative
+#     reality check + outside view).
+#   * DDM / EPV / Probability-weighted carry small (0.05) weights —
+#     each provides a meaningful sanity check on a narrow slice of the
+#     opportunity surface (high-payout names for DDM, no-growth anchor
+#     for EPV, scenario averaging for prob-weighted) but none are
+#     applicable to every ticker.
+#
+# When some estimators are unavailable, surviving weights redistribute
+# pro-rata so the active weights always sum to 1.0 — the same posture
+# as the pre-Phase-C three-estimator design.
+DEFAULT_WEIGHT_DCF: float = 0.35              # was 0.50
+DEFAULT_WEIGHT_MULTIPLES: float = 0.20        # was 0.30
+DEFAULT_WEIGHT_ANALYST: float = 0.15          # was 0.20
+DEFAULT_WEIGHT_THREE_STAGE: float = 0.15      # NEW Phase C
+DEFAULT_WEIGHT_DDM: float = 0.05              # NEW Phase C
+DEFAULT_WEIGHT_EPV: float = 0.05              # NEW Phase C
+DEFAULT_WEIGHT_PROBABILITY_WEIGHTED: float = 0.05  # NEW Phase C
+# Total = 1.00 when all seven are present.
 
 # Extreme divergence flag — when the spread between max and min
 # active estimator exceeds 2x of the min, we still emit the composite
@@ -86,19 +115,26 @@ class CompositeIV:
         was usable.
     components
         Map of estimator name → component (value + weight). Keys are
-        a subset of {"dcf", "multiples", "analyst", "residual_income"}.
-        The key set documents WHICH estimators contributed.
+        a subset of {"dcf", "multiples", "analyst", "three_stage",
+        "ddm", "epv", "probability_weighted"}. The key set documents
+        WHICH estimators contributed.
     method
-        Short tag describing the composite assembly path. One of:
-          * "composite_dcf_multiples_analyst"  (3 contributors)
+        Short tag describing the composite assembly path. Phase C
+        (2026-06-10) extended the tag set; the legacy three-estimator
+        names are preserved for back-compat:
+          * "composite_dcf_multiples_analyst"  (3 contributors, legacy)
           * "composite_dcf_multiples"          (analyst missing)
           * "composite_dcf_analyst"            (multiples missing)
           * "composite_multiples_analyst"      (DCF missing)
-          * "dcf_only"                         (single DCF)
-          * "multiples_only"                   (single multiples)
-          * "analyst_only"                     (single analyst)
+          * "composite_{N}_method"             (4-7 estimators, any
+                                                Phase-C engine present)
+          * "bank_composite_{N}_method"        (bank variant of above)
+          * "<name>_only"                      (single estimator)
           * "holdco_dcf_only"                  (holdco branch)
           * "bank_residual_income"             (bank residual income drove dcf slot)
+          * "bank_composite_residual_multiples_analyst" (legacy bank 3-way)
+          * "bank_composite_residual_multiples"
+          * "bank_composite_residual_analyst"
           * "unavailable"                      (no inputs)
     extreme_divergence
         True when the max/min spread among active components exceeds
@@ -208,11 +244,21 @@ def compute_composite_iv(
     dcf_fv: Optional[float],
     multiples_fv: Optional[float],
     analyst_avg: Optional[float],
+    three_stage_fv: Optional[float] = None,
+    ddm_fv: Optional[float] = None,
+    epv_fv: Optional[float] = None,
+    probability_weighted_fv: Optional[float] = None,
     stock_kind: Optional[str] = None,
     sector: Optional[str] = None,
     ticker: Optional[str] = None,
 ) -> CompositeIV:
-    """Compute the composite intrinsic value from up to three estimators.
+    """Compute the composite intrinsic value from up to seven estimators.
+
+    Phase C (2026-06-10) extends the original three-estimator design
+    (DCF + Multiples + Wall St) with four Phase-A standalone engines:
+    Three-stage DCF, DDM, EPV, Probability-weighted. Liquidation and
+    Replacement values are intentionally NOT folded in — they are
+    floor / Q signals surfaced separately on the analysis payload.
 
     Arguments
     ─────────
@@ -225,6 +271,18 @@ def compute_composite_iv(
     analyst_avg
         Wall Street analyst price-target mean (Finnhub consensus).
         None when no analyst coverage.
+    three_stage_fv
+        Three-stage growth DCF FV (T2.5 service). None when the
+        applicability gate skips it (holdco / REIT / ETF / IPO).
+    ddm_fv
+        Dividend Discount Model FV (T2.1 service). None when payout
+        / streak / sector gates make DDM inapplicable.
+    epv_fv
+        Earnings Power Value FV (T2.2 Greenwald service). None when
+        history is short or earnings have been negative.
+    probability_weighted_fv
+        Probability-weighted scenario average FV (T2.4 service).
+        None when bull/base/bear are not all positive.
     stock_kind
         Optional kind tag — "holdco" / "bank" routes to the curated
         branches. When None we fall back to ticker / sector classifiers.
@@ -240,11 +298,28 @@ def compute_composite_iv(
     `CompositeIV` — value None when no estimator is usable. Always
     safe to render: a non-None composite always carries components
     summing to 1.0 and a method tag the frontend can branch on.
+
+    Backward compatibility
+    ──────────────────────
+    Callers passing only the original three positional arguments
+    (dcf_fv, multiples_fv, analyst_avg) still get a composite — the
+    four new estimator slots default to None and the surviving
+    weights redistribute pro-rata. The COMPUTED VALUE differs from
+    the pre-Phase-C version because the underlying default weights
+    were re-balanced (DCF 0.50 -> 0.35, Multiples 0.30 -> 0.20,
+    Analyst 0.20 -> 0.15). With only the original three present the
+    pro-rata renormalization yields DCF ≈ 0.500, Multiples ≈ 0.286,
+    Analyst ≈ 0.214 — close to (but not equal to) the pre-Phase-C
+    0.50 / 0.30 / 0.20. Expect ~1% drift on three-estimator tickers.
     """
     # ── Step 1: coerce + drop invalid inputs.
     _dcf = _coerce_pos_float(dcf_fv)
     _mult = _coerce_pos_float(multiples_fv)
     _ana = _coerce_pos_float(analyst_avg)
+    _ts = _coerce_pos_float(three_stage_fv)
+    _ddm = _coerce_pos_float(ddm_fv)
+    _epv = _coerce_pos_float(epv_fv)
+    _pw = _coerce_pos_float(probability_weighted_fv)
 
     # ── Step 2: branch routing.
     is_holdco = _is_holdco(stock_kind, ticker)
@@ -254,7 +329,10 @@ def compute_composite_iv(
     # SOTP is the right framework for holdcos but ships under T1.4;
     # until then the DCF (or `fair_value` slot for skip-DCF holdcos
     # which is 0 — caller filters those out via _coerce_pos_float) is
-    # the only honest estimator we can publish.
+    # the only honest estimator we can publish. The Phase-C extension
+    # slots (three_stage / ddm / epv / prob_weighted) are also skipped
+    # for holdcos — their applicability gates already exclude holdcos
+    # at the Phase-B inject layer, so they will be None here anyway.
     if is_holdco:
         if _dcf is None:
             return CompositeIV(
@@ -272,7 +350,9 @@ def compute_composite_iv(
 
     # ── Step 4: assemble the active-weights dict from the surviving
     # estimators. Defaults are applied; redistribution happens in
-    # _normalize_weights.
+    # _normalize_weights. Order in the dict matches the canonical
+    # estimator priority for documentation purposes; it does not
+    # affect the weighted average.
     raw_weights: dict[str, float] = {}
     if _dcf is not None:
         raw_weights["dcf"] = DEFAULT_WEIGHT_DCF
@@ -280,6 +360,14 @@ def compute_composite_iv(
         raw_weights["multiples"] = DEFAULT_WEIGHT_MULTIPLES
     if _ana is not None:
         raw_weights["analyst"] = DEFAULT_WEIGHT_ANALYST
+    if _ts is not None:
+        raw_weights["three_stage"] = DEFAULT_WEIGHT_THREE_STAGE
+    if _ddm is not None:
+        raw_weights["ddm"] = DEFAULT_WEIGHT_DDM
+    if _epv is not None:
+        raw_weights["epv"] = DEFAULT_WEIGHT_EPV
+    if _pw is not None:
+        raw_weights["probability_weighted"] = DEFAULT_WEIGHT_PROBABILITY_WEIGHTED
 
     if not raw_weights:
         return CompositeIV(
@@ -296,6 +384,14 @@ def compute_composite_iv(
         values_by_key["multiples"] = _mult
     if _ana is not None:
         values_by_key["analyst"] = _ana
+    if _ts is not None:
+        values_by_key["three_stage"] = _ts
+    if _ddm is not None:
+        values_by_key["ddm"] = _ddm
+    if _epv is not None:
+        values_by_key["epv"] = _epv
+    if _pw is not None:
+        values_by_key["probability_weighted"] = _pw
 
     # ── Step 5: weighted average. Round to 2dp at the boundary; the
     # frontend renders with formatCurrency which rounds to integers
@@ -314,12 +410,26 @@ def compute_composite_iv(
             extreme = True
 
     # ── Step 7: method tag.
+    #
+    # Phase C method tagging strategy:
+    #   * 1 estimator       -> "<name>_only"  (or bank_residual_income)
+    #   * 3 estimators      -> kept the legacy "composite_dcf_multiples_analyst"
+    #                          and friends for back-compat with the frontend
+    #                          explainer chips that rendered the original
+    #                          composite. Bank variants likewise preserved.
+    #   * 2 estimators      -> two-way tags as before.
+    #   * 4-7 estimators    -> "composite_{N}_method" with optional bank prefix.
+    #     This covers the new Phase-C mixes (DCF + Multiples + Analyst +
+    #     Three-stage, plus any of DDM / EPV / prob_weighted on top). The
+    #     frontend reads N to size the explainer panel; the components
+    #     dict carries the per-estimator labels and weights.
     keys = set(values_by_key.keys())
+    n_estimators = len(keys)
     # Bank branch tag: the "dcf" slot is actually the residual-income
     # FV the primary engine emitted. We surface this in the method tag
     # so the frontend can render the pill as "Residual income" not "DCF".
     if is_bank and "dcf" in keys:
-        if len(keys) == 1:
+        if n_estimators == 1:
             method = "bank_residual_income"
         else:
             # Bank + at least one other estimator. Use the standard
@@ -327,7 +437,7 @@ def compute_composite_iv(
             # field to decide whether to relabel the dcf pill.
             method = _multi_method_tag(keys, bank=True)
     else:
-        if len(keys) == 1:
+        if n_estimators == 1:
             sole = next(iter(keys))
             method = f"{sole}_only"
         else:
@@ -350,10 +460,29 @@ def compute_composite_iv(
 
 
 def _multi_method_tag(keys: set[str], bank: bool) -> str:
-    """Return the canonical method tag for a multi-estimator composite."""
+    """Return the canonical method tag for a multi-estimator composite.
+
+    Phase C (2026-06-10): the original three-estimator names are
+    preserved for back-compat with the frontend explainer. Any mix
+    that includes a Phase-C estimator (three_stage / ddm / epv /
+    probability_weighted) collapses to the generic
+    ``composite_{N}_method`` form — the frontend can read N to size
+    its explainer card and read the components dict for per-row labels.
+    """
     has_dcf = "dcf" in keys
     has_mult = "multiples" in keys
     has_ana = "analyst" in keys
+    phase_c_keys = {"three_stage", "ddm", "epv", "probability_weighted"}
+    has_any_phase_c = bool(keys & phase_c_keys)
+    n = len(keys)
+    # ── Generic Phase-C path: any Phase-C estimator present uses the
+    # N-method tag. Bank prefix preserved so the dcf slot keeps its
+    # residual-income relabel on the frontend pill.
+    if has_any_phase_c:
+        if bank:
+            return f"bank_composite_{n}_method"
+        return f"composite_{n}_method"
+    # ── Legacy three-estimator tags (no Phase-C estimator present) ──
     # Bank tag prefix flips the dcf label on the frontend pill.
     if bank:
         # Three-way bank composite is the dominant case for HDFCBANK /
