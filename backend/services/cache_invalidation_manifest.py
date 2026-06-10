@@ -2587,6 +2587,52 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Phase C.2 (2026-06-10) — verdict gate FV input switch.
+        #
+        # Scope-split out of Phase C (#813) to attribute any verdict
+        # flips to a single cause. The composite weight change in
+        # Phase C and the gate input switch in Phase C.2 ship as
+        # separate manifest events so canary-diff can pin each shift
+        # to its origin without ambiguity.
+        #
+        # Behaviour:
+        #   * Verdict gate (_apply_confidence_verdict_gate, called from
+        #     backend/services/analysis/service.py Layer C) now reads
+        #     composite_intrinsic_value when present (truthy: not None
+        #     and not 0), falling back to the DCF-only valuation.fair_value
+        #     otherwise. The gate's MoS-based bull/bear bypass paths
+        #     and the FV/price ratio override now act on this composite
+        #     FV when it is the chosen input.
+        #   * valuation.fair_value (DCF-only) field stays BYTE-IDENTICAL.
+        #     Only `verdict` and (because Layer 3 bypass thresholds key
+        #     off MoS) the gate's MoS-derived issues string can shift.
+        #   * Edge cases (pinned by
+        #     backend/tests/test_verdict_gate_composite_consumption.py):
+        #       composite=0       -> fall back to fair_value
+        #       composite=None    -> fall back to fair_value
+        #       both None/0       -> upstream verdict (typically
+        #                            "unavailable") flows through the
+        #                            gate unchanged (passthrough verdict).
+        #
+        # Canary impact: only tickers where composite_intrinsic_value
+        # diverges materially from valuation.fair_value AND the gate's
+        # confidence thresholds are crossed will see a verdict flip.
+        # Tickers with confidence >= 70 across all pillars and a
+        # non-extreme FV/price ratio see no change regardless of input.
+        "version_id": "v_phase_c_2_verdict_gate_composite_consumption_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["verdict", "mos"],
+        },
+        "rationale": (
+            "Phase C.2 — verdict gate now reads composite_intrinsic_value "
+            "when present (fallback to fair_value). DCF fair_value field "
+            "byte-identical. Bridge contract test #813 already pinned the "
+            "behavior."
+        ),
+    },
+    {
         # T3.1 Phase A — Bank residual-income engine deepened with
         # NIM decomposition, CASA sensitivity, provision-coverage
         # normalization, and DuPont ROE attribution. The new path is
