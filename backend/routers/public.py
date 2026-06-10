@@ -2663,6 +2663,62 @@ async def backtest_yiq50_endpoint(
         )
 
 
+@router.get("/verdict-attribution/{ticker}")
+async def verdict_attribution_endpoint(
+    ticker: str,
+    lookback_days: int = Query(default=365, ge=30, le=1825),
+):
+    """Per-ticker verdict attribution — episode-level alpha vs Nifty + sector.
+
+    For each contiguous verdict episode in `fair_value_history` over the
+    last `lookback_days`, compares the realised actual return against an
+    equal-weighted Nifty-top-5 proxy basket and a sector proxy basket
+    over the IDENTICAL window. The summary reports total verdicts tracked,
+    direction-correct share, average and median alpha vs Nifty, the best
+    and worst single verdict, plus a rolling 30-day track record array
+    for the sparkline.
+
+    Vocabulary is SEBI-clean — fields use "alpha" and "excess return",
+    never "outperform" / "underperform" / "buy" / "sell" / "hold".
+
+    Public, no-auth. 6-hour cache (matches /backtest/yiq50 cadence; the
+    underlying fair_value_history snapshots refresh daily but episode
+    boundaries shift slowly).
+    """
+    ticker_norm = ticker.upper().strip().replace(".NS", "").replace(".BO", "")
+    if not ticker_norm:
+        raise HTTPException(status_code=400, detail="Ticker required")
+
+    _cache_key = f"public:verdict-attribution:{ticker_norm}:{lookback_days}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from backend.services.verdict_attribution_service import (
+            compute_attribution,
+            to_dict,
+        )
+        summary = compute_attribution(ticker_norm, lookback_days=lookback_days)
+        result = to_dict(summary)
+        # 6h cache — long enough to absorb traffic spikes, short enough
+        # that a same-day FV-history refresh still surfaces within the
+        # session window when the user reloads after coffee.
+        cache.set(_cache_key, result, ttl=21600)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "verdict_attribution failed ticker=%s lookback_days=%s: %s: %s",
+            ticker_norm, lookback_days, type(e).__name__, e,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Verdict attribution failed: {type(e).__name__}",
+        )
+
+
 @router.get("/technicals/{ticker}")
 async def get_technicals_endpoint(ticker: str, days: int = Query(default=365, ge=60, le=730)):
     """
