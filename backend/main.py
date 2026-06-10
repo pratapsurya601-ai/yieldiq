@@ -1050,6 +1050,15 @@ app.include_router(home_briefing_router.router)
 from backend.routers import public_stats as public_stats_router
 app.include_router(public_stats_router.router)
 
+# T1.2 — Per-sector calibration accuracy. Reads existing
+# fair_value_history + daily_prices rows (quarantine-aware) and
+# projects per-sector median |error|, p90 |error|, signed median,
+# and 90-day direction-hit rate. 24h router cache. SEBI-safe by
+# construction (factual error stats only — no advisory verbs).
+#   GET /api/v1/public/calibration/sectors
+from backend.routers import calibration as calibration_router
+app.include_router(calibration_router.router)
+
 
 @app.get("/health")
 async def health_check():

@@ -2090,6 +2090,29 @@ MANIFEST: list[dict] = [
             "engine shape; SOTP perturbation deferred to T1.4)."
         ),
     },
+    {
+        # T1.2 — Per-sector backtest accuracy public page. New surface
+        # at /calibration backed by backend/services/backtest_publisher.py
+        # and a new /api/v1/public/calibration/sectors endpoint. The
+        # publisher READS existing fair_value_history + daily_prices
+        # rows (quarantine-aware: only rows with quarantine_reason
+        # IS NULL contribute); it does NOT touch any engine logic and
+        # does NOT change any cached payload field on any ticker.
+        # Manifest entry is a documentation no-op for the cache-bump
+        # gate (backend/services/ + backend/routers/ both touched);
+        # empty tickers + empty fields lists encode the no-op intent.
+        "version_id": "v_t1_2_backtest_publish_2026_06_09",
+        "applied_at": datetime(2026, 6, 9, 17, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["*"],
+            "fields": [],
+        },
+        "rationale": (
+            "New public calibration surface; reads existing "
+            "fair_value_history + daily_prices; no engine logic "
+            "change; no cache invalidation needed."
+        ),
+    },
 ]
 
 
