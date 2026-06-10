@@ -281,6 +281,15 @@ const ManifestHistoryPanel = dynamic(() => import("@/components/analysis/Manifes
   ssr: false,
   loading: smallSkeleton,
 })
+// T5.6 (2026-06-10): modern, searchable replacement for the Day-108a
+// timeline. Lives on the History tab alongside ValuationTrajectoryChart
+// + TimeMachineScrubber. The legacy ManifestHistoryPanel stays mounted
+// below the Summary tab (in the collapsed <details> "Model change log"
+// section) so the trust-signal link doesn't break.
+const VersionedSnapshotsPanel = dynamic(
+  () => import("@/components/analysis/VersionedSnapshotsPanel"),
+  { ssr: false, loading: smallSkeleton },
+)
 const ProExcelExportButton = dynamic(() => import("@/components/analysis/ProExcelExportButton"), {
   ssr: false,
 })
@@ -1602,6 +1611,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           <FairValueHistory
             ticker={ticker}
             companyName={formatCompanyName(company.company_name)}
+            currency={company.currency}
+          />
+          {/* T5.6: per-ticker versioned snapshots — searchable model
+              change log with date + field filters and per-entry FV
+              diffs sourced from fair_value_history. Lives in the
+              History tab so it sits next to the trajectory chart
+              and the Time Machine scrubber. */}
+          <VersionedSnapshotsPanel
+            ticker={ticker}
             currency={company.currency}
           />
           <div className="bg-bg rounded-2xl border border-border p-4">
