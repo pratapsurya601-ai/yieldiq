@@ -4188,135 +4188,147 @@ async def _build_yieldiq50() -> ScreenerResponse:
             if _S is not None:
                 _db = _S()
                 try:
-                    rows = _db.execute(_t("""
-                        -- 2026-04-29 fix: fair_value_history.ticker is mixed-form.
-                        -- The live analysis hot path (store_today_fair_value) writes
-                        -- canonical ".NS"-suffixed tickers; the monthly backfill
-                        -- script writes bare ones. stocks.ticker is always bare,
-                        -- so the previous JOIN s.ticker = fv.ticker silently
-                        -- dropped every row written by the live path — i.e. all
-                        -- recently-analysed stocks (the ones most likely to have
-                        -- a fresh, valid MoS). Result: the DB fallback returned
-                        -- few or zero rows and Discover rendered "warming up".
-                        -- Normalise fv.ticker to bare form on the JOIN so both
-                        -- writers' rows participate.
-                        WITH latest_fv AS (
-                          SELECT DISTINCT ON (ticker)
-                            ticker,
-                            -- bare form for joining to stocks/market_metrics
-                            CASE
-                              WHEN ticker LIKE '%.NS' OR ticker LIKE '%.BO'
-                                THEN split_part(ticker, '.', 1)
-                              ELSE ticker
-                            END AS ticker_bare,
-                            fair_value, price, mos_pct, verdict
-                          FROM fair_value_history
-                          ORDER BY ticker, date DESC
-                        ),
-                        latest_mm AS (
-                          -- 2026-04-25 fix: market_metrics' date column is
-                          -- `trade_date`, not `date`. Previously this CTE
-                          -- raised UndefinedColumn at runtime; the outer
-                          -- try/except swallowed it and the entire DB
-                          -- fallback returned zero rows, leaving Discover
-                          -- to render "YieldIQ 50 is warming up" whenever
-                          -- the in-process cache and CSV were empty.
-                          -- PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
-                          -- Prevents 2026-04-30 yfinance-NULL incident class.
-                          SELECT DISTINCT ON (ticker)
-                            ticker, market_cap_cr
-                          FROM market_metrics
-                          WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0
-                          ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC
+                    # Build the SQL once; the only difference between the
+                    # post-migration and pre-migration query is whether
+                    # `fv.yieldiq_score` is selected. PR #883 (migration
+                    # 202606101845) added the column; older deploys still
+                    # have just (fair_value, price, mos_pct, verdict).
+                    # We try the post-migration shape first and fall back
+                    # if PostgreSQL complains UndefinedColumn (same shape
+                    # as peers_service._cached_score uses).
+                    #
+                    # ROOT CAUSE (2026-06-11): KOTAKBANK / BANDHANBNK /
+                    # BANKINDIA all rendered "50/100" on Discover despite
+                    # MoS values of 44.8% / 37.2% / 34.6%. Cause was the
+                    # synth_score floor of 50 dominating the rail: rows
+                    # whose live cache override returned a 0-score (or
+                    # whose cache was missing for the bare ticker form)
+                    # collapsed back to the synth floor. PR #883
+                    # persisted the real yieldiq_score on fair_value_history;
+                    # this read-path now consumes it. Synth is reserved
+                    # for genuinely score-less rows and marked with
+                    # `score_estimated=True` so the frontend can render
+                    # "—" instead of a misleading "50/100" baseline.
+                    def _make_query(include_score: bool) -> str:
+                        _score_select = (
+                            "fv.yieldiq_score, fv.grade,"
+                            if include_score else "NULL::int AS yieldiq_score, NULL::text AS grade,"
                         )
-                        SELECT
-                          fv.ticker_bare AS ticker,
-                          s.company_name,
-                          s.sector,
-                          fv.mos_pct,
-                          fv.verdict,
-                          mm.market_cap_cr,
-                          fv.fair_value,
-                          fv.price
-                        FROM latest_fv fv
-                        JOIN stocks s ON s.ticker = fv.ticker_bare
-                        LEFT JOIN latest_mm mm ON mm.ticker = fv.ticker_bare
-                        WHERE fv.mos_pct IS NOT NULL
-                          AND fv.mos_pct > 0
-                          -- 2026-05-17 tighten: cap MoS at 50% (was 100).
-                          -- |mos|>50 implies tiny FV/price denominators —
-                          -- HUHTAMAKI surfaced at +99% under the old cap.
-                          AND fv.mos_pct <= 50
-                          -- Positive fair value required — fv=0 means the
-                          -- DCF blew up / IPO row with no model output.
-                          AND fv.fair_value > 0
-                          AND s.is_active = TRUE
-                          AND (fv.verdict IS NULL OR fv.verdict NOT IN (
-                            'avoid','under_review','data_limited','overvalued'
-                          ))
-                          AND COALESCE(mm.market_cap_cr, 0) >= 1000
-                          -- Stale fair_value_history rows must not surface
-                          -- when the live analysis_cache verdict has since
-                          -- flipped to a bad bucket. YESBANK was the case
-                          -- in point (overvalued in cache, "undervalued"
-                          -- in the day-old fair_value_history row).
-                          --
-                          -- 2026-05-18 fix: analysis_cache stores tickers
-                          -- in their CANONICAL form (e.g. RELIANCE.NS) per
-                          -- analysis_cache_service._canonical_cache_key,
-                          -- but fv.ticker_bare is bare (RELIANCE). The
-                          -- previous `ac.ticker = fv.ticker_bare` join
-                          -- never matched for Indian tickers, so the
-                          -- EXISTS clause rejected every row from the
-                          -- DB fallback — leaving Discover stuck on
-                          -- "warming up" whenever the in-process cache
-                          -- and screener_results.csv were empty (i.e.
-                          -- after every Railway cold-start). Match both
-                          -- bare and .NS-suffixed forms via IN so the
-                          -- check works regardless of writer source.
-                          AND EXISTS (
-                            SELECT 1 FROM analysis_cache ac
-                            WHERE ac.ticker IN (
-                                fv.ticker_bare,
-                                fv.ticker_bare || '.NS',
-                                fv.ticker_bare || '.BO'
-                              )
-                              AND (ac.payload->'valuation'->>'verdict') NOT IN (
+                        _score_cte = (
+                            "yieldiq_score, grade,"
+                            if include_score else ""
+                        )
+                        return f"""
+                            WITH latest_fv AS (
+                              SELECT DISTINCT ON (ticker)
+                                ticker,
+                                CASE
+                                  WHEN ticker LIKE '%.NS' OR ticker LIKE '%.BO'
+                                    THEN split_part(ticker, '.', 1)
+                                  ELSE ticker
+                                END AS ticker_bare,
+                                fair_value, price, mos_pct, verdict,
+                                {_score_cte}
+                                date
+                              FROM fair_value_history
+                              ORDER BY ticker, date DESC
+                            ),
+                            latest_mm AS (
+                              SELECT DISTINCT ON (ticker)
+                                ticker, market_cap_cr
+                              FROM market_metrics
+                              WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0
+                              ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC
+                            )
+                            SELECT
+                              fv.ticker_bare AS ticker,
+                              s.company_name,
+                              s.sector,
+                              fv.mos_pct,
+                              fv.verdict,
+                              mm.market_cap_cr,
+                              fv.fair_value,
+                              fv.price,
+                              {_score_select}
+                              fv.date AS fv_date
+                            FROM latest_fv fv
+                            JOIN stocks s ON s.ticker = fv.ticker_bare
+                            LEFT JOIN latest_mm mm ON mm.ticker = fv.ticker_bare
+                            WHERE fv.mos_pct IS NOT NULL
+                              AND fv.mos_pct > 0
+                              AND fv.mos_pct <= 50
+                              AND fv.fair_value > 0
+                              AND s.is_active = TRUE
+                              AND (fv.verdict IS NULL OR fv.verdict NOT IN (
                                 'avoid','under_review','data_limited','overvalued'
+                              ))
+                              AND COALESCE(mm.market_cap_cr, 0) >= 1000
+                              AND EXISTS (
+                                SELECT 1 FROM analysis_cache ac
+                                WHERE ac.ticker IN (
+                                    fv.ticker_bare,
+                                    fv.ticker_bare || '.NS',
+                                    fv.ticker_bare || '.BO'
+                                  )
+                                  AND (ac.payload->'valuation'->>'verdict') NOT IN (
+                                    'avoid','under_review','data_limited','overvalued'
+                                  )
                               )
-                          )
-                        ORDER BY fv.mos_pct DESC NULLS LAST
-                        LIMIT 80
-                    """)).fetchall()
+                            ORDER BY fv.mos_pct DESC NULLS LAST
+                            LIMIT 80
+                        """
+                    try:
+                        rows = _db.execute(_t(_make_query(include_score=True))).fetchall()
+                    except Exception:
+                        # Pre-migration deploy: yieldiq_score column doesn't
+                        # exist on this environment yet. Fall back to the
+                        # 4-column shape so the rail still works (every
+                        # row is treated as score-less and synth-marked).
+                        # Mirrors peers_service._cached_score's two-step
+                        # fallback strategy added in the same PR (#883).
+                        try:
+                            _db.rollback()
+                        except Exception:
+                            pass
+                        rows = _db.execute(_t(_make_query(include_score=False))).fetchall()
                     for r in rows:
                         t = r[0]
                         if t in by_ticker:
                             continue
-                        # Score not persisted in fair_value_history;
-                        # synthesize a reasonable proxy from MoS so the
-                        # row renders without "—".
                         mos = float(r[3]) if r[3] is not None else 0.0
                         # Defensive clamp — SQL already filters mos<=50
                         # (2026-05-17 tighten) but belt-and-braces for any
                         # historical row that slipped through with stale value.
                         if not (0 < mos <= 50):
                             continue
-                        # synth_score capped at 50 floor so the downstream
-                        # `_ok_for_top50(score>=50)` gate never drops a
-                        # row purely on the synthesised proxy. Real cache
-                        # override (below) replaces with live score.
-                        synth_score = min(95, max(50, int(50 + mos * 0.5)))
+                        # Real persisted YieldIQ score (PR #883). Column
+                        # is NULL for rows written before migration
+                        # 202606101845 OR by score-less callers (workflow
+                        # backfill / snapshot scripts that don't have a
+                        # score to persist). When NULL: synth from MoS
+                        # AND mark `score_estimated=True` so the frontend
+                        # renders "—" rather than a deceptive baseline.
+                        _persisted_score: int | None = None
+                        try:
+                            _raw_score = r[8] if len(r) > 8 else None
+                            if _raw_score is not None:
+                                _persisted_score = max(0, min(100, int(_raw_score)))
+                        except (TypeError, ValueError, IndexError):
+                            _persisted_score = None
+                        if _persisted_score is not None and _persisted_score > 0:
+                            row_score = _persisted_score
+                            row_estimated = False
+                        else:
+                            # Honest synth: no 50-floor any more. The
+                            # `_ok_for_top50` gate still keeps score<50
+                            # rows out of the rail; an estimated row with
+                            # synth=72 (mos=44%) still ranks. The 50-floor
+                            # was masking the fact that we had no real
+                            # score for these tickers.
+                            row_score = min(95, max(0, int(40 + mos * 0.8)))
+                            row_estimated = True
                         _row_fv = float(r[6]) if len(r) > 6 and r[6] is not None else 0.0
                         _row_cp = float(r[7]) if len(r) > 7 and r[7] is not None else 0.0
-                        # 2026-04-29 hotfix: ScreenerStock.moat / sector are
-                        # typed as `str` (non-Optional, default ""), so passing
-                        # `None` here raised a pydantic ValidationError on the
-                        # FIRST row and the outer `except Exception: pass`
-                        # below swallowed it — emptying `by_ticker` and
-                        # leaving the endpoint with 0 results. Pass empty
-                        # strings to match the schema. PR #181's ticker
-                        # normalisation was correct upstream; this is the
-                        # downstream construction bug that hid behind it.
                         # Step B (2026-05-17): derive Buffett MoS from upside.
                         # upside = (fv-cp)/cp; buffett = (fv-cp)/fv = upside/(1+upside).
                         _u_dec = mos / 100.0
@@ -4327,7 +4339,7 @@ async def _build_yieldiq50() -> ScreenerResponse:
                         by_ticker[t] = ScreenerStock(
                             ticker=t,
                             company_name=r[1] or t,
-                            score=synth_score,
+                            score=row_score,
                             fair_value=_row_fv,
                             current_price=_row_cp,
                             margin_of_safety=round(mos, 1),
@@ -4338,6 +4350,7 @@ async def _build_yieldiq50() -> ScreenerResponse:
                                 "undervalued" if mos > 10
                                 else "fairly_valued"
                             ),
+                            score_estimated=row_estimated,
                         )
                         if len(by_ticker) >= 50:
                             break
@@ -4350,6 +4363,16 @@ async def _build_yieldiq50() -> ScreenerResponse:
     # never serve a stale score/MoS once the live cache has fresher data.
     # Iterates only over tickers we already discovered above (CSV +
     # warm cache) — no static seed list any more.
+    #
+    # 2026-06-11 (YIQ50 score-uniformity fix): added a `live_score > 0`
+    # guard so a cache payload missing yieldiq_score (or carrying 0 as
+    # an uninitialised default from a partial QualityOutput) NEVER
+    # overwrites a real persisted score with a sentinel. The KOTAKBANK
+    # / BANDHANBNK / BANKINDIA 50/100 bug was a write-path artefact of
+    # this exact override path firing on score=0 / score=50 cached
+    # payloads. We now keep the pre-override row (which may carry the
+    # real persisted score from fair_value_history.yieldiq_score) when
+    # the live cache has nothing better to offer.
     for t in list(by_ticker.keys()):
         try:
             cached_payload = analysis_cache_service.get_cached(t)
@@ -4364,6 +4387,20 @@ async def _build_yieldiq50() -> ScreenerResponse:
             live_mos = v.get("margin_of_safety")
             live_score = q.get("yieldiq_score")
             if live_mos is None or live_score is None:
+                continue
+            # Guard: a cached payload with yieldiq_score = 0 means the
+            # QualityOutput defaulted (int = 0) without a real compute —
+            # don't promote that to the rail. Also skip score == 50 when
+            # we already have a non-50 row from the SQL fallback (i.e.
+            # `fv.yieldiq_score IS NOT NULL`), since the cache row would
+            # then look like a regression. The "50 sentinel" guard is
+            # tight (== 50, not <= 50) so it doesn't suppress legitimate
+            # bank scores that happen to land on the C+ boundary.
+            try:
+                _live_score_int = int(live_score)
+            except (TypeError, ValueError):
+                continue
+            if _live_score_int <= 0:
                 continue
             prev = by_ticker[t]
             # Step B (2026-05-17): pull buffett_mos_pct from the cached
@@ -4384,7 +4421,7 @@ async def _build_yieldiq50() -> ScreenerResponse:
             by_ticker[t] = ScreenerStock(
                 ticker=t,
                 company_name=c.get("company_name") or prev.company_name,
-                score=int(live_score),
+                score=_live_score_int,
                 fair_value=float(_live_fv) if _live_fv is not None else 0,
                 current_price=float(_live_cp) if _live_cp is not None else 0,
                 margin_of_safety=round(float(live_mos), 1),
@@ -4394,6 +4431,9 @@ async def _build_yieldiq50() -> ScreenerResponse:
                 verdict=v.get("verdict") or (
                     "undervalued" if live_mos > 10 else "fairly_valued" if live_mos > -10 else "overvalued"
                 ),
+                # Cache override carries a real computed score — clear
+                # the synth flag the SQL fallback might have set.
+                score_estimated=False,
             )
         except Exception:
             # Best-effort — keep the pre-override row from the source merge

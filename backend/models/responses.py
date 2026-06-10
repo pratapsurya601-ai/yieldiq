@@ -1104,6 +1104,16 @@ class ScreenerStock(BaseModel):
     # via get_live_quotes_bulk() in the screener service. None for any
     # row missing from live_quotes (frontend falls back gracefully).
     as_of: Optional[str] = None
+    # YIQ50 leaderboard sentinel (2026-06-11): True when `score` is a
+    # synthesized proxy from MoS rather than a persisted YieldIQ score
+    # (fair_value_history.yieldiq_score still NULL for this ticker AND
+    # analysis_cache row absent or scoreless). Frontend must render
+    # "—" / "Pending" rather than a misleading "50/100" baseline.
+    # ROOT CAUSE: the synth-floor at score=50 + missing yieldiq_score
+    # persistence put three banks (KOTAKBANK / BANDHANBNK / BANKINDIA)
+    # at identical 50/100 on Discover despite very different MoS readings.
+    # PR #883 added fv.yieldiq_score; this flag is the read-path corollary.
+    score_estimated: bool = False
 
 
 class ScreenerResponse(BaseModel):
