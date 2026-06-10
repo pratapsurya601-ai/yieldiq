@@ -67,6 +67,7 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import HonestHero from "@/components/analysis/HonestHero"
 import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
+import AnalystConsensusReframePanel from "@/components/analysis/AnalystConsensusReframePanel"
 import EarningsImpactSimulator from "@/components/analysis/EarningsImpactSimulator"
 import DerivedInsightsPanel, {
   type DerivedInsights as DerivedInsightsShape,
@@ -1358,6 +1359,25 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               they land). Renders only the methods that returned a
               value; everything else collapses into a footnote. */}
           <ValuationMethodsPanel data={data} />
+          {/* Competitor audit #2 (2026-06-10) — reframe the legacy
+              "Independent" analyst-consensus card as a confident
+              side-by-side: Wall Street's mean target vs YieldIQ's
+              composite IV, with a one-line gap diagnosis and the
+              "why we may differ" explainer. Self-collapses to a short
+              empty notice when Wall Street coverage is unavailable —
+              the deeper no-coverage framing still lives in
+              InsightCards further down the page. */}
+          <AnalystConsensusReframePanel
+            ticker={company.ticker ?? data.ticker}
+            wallStAvgTarget={data.analyst_consensus?.price_target?.mean ?? null}
+            wallStHighTarget={data.analyst_consensus?.price_target?.high ?? null}
+            wallStLowTarget={data.analyst_consensus?.price_target?.low ?? null}
+            analystCount={data.analyst_consensus?.coverage_count ?? null}
+            yiqComposite={data.composite_intrinsic_value ?? valuation.fair_value ?? null}
+            yiqMethod={data.composite_components?.method ?? null}
+            currentPrice={valuation.current_price}
+            currency={company.currency}
+          />
           {/* T6.4 — what-if calculator. Collapsible (closed by default)
               so it doesn't dominate the Valuation tab; lets users drag
               four levers to see how the DCF Fair Value would shift
