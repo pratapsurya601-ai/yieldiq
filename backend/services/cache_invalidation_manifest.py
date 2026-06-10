@@ -436,6 +436,35 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Forward earnings calendar + FV-impact preview (2026-06-10)
+        # — new endpoint
+        # /api/v1/public/earnings-calendar-fv-impact/{ticker} backed
+        # by backend/services/earnings_calendar_fv_impact_service.py
+        # and mounted as <UpcomingEarningsCalendar/> at the top of
+        # the analysis page Summary tab. PURELY ADDITIVE: no
+        # cached AnalysisResponse field is read or written by this
+        # surface; the analyze() payload is byte-identical pre/post
+        # this PR. scope.fields=[] documents that no cached field
+        # changes its output as a result of this PR; downstream
+        # gates (cache_version_check, fair_value_history_gate,
+        # canary_diff) require no invalidation. scope.tickers="*"
+        # because the surface is universal.
+        "version_id": "v_forward_earnings_calendar_fv_impact_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Forward earnings calendar + per-5%-beat FV-impact "
+            "preview — new endpoint and analysis-page panel. Re-uses "
+            "earnings_calendar_service for the date and the SAME "
+            "sector multiplier x dampener as earnings_impact_service "
+            "for the sensitivity. Additive only: no FV / verdict / "
+            "scoring change; analyze() payload unchanged."
+        ),
+    },
+    {
         # T3.6 Phase A (2026-06-10) — IT services overlay standalone
         # service added at backend/services/it_services_overlay_service.py.
         # Adjusts DCF FV for IT-specific risks generic DCF doesn't see:
