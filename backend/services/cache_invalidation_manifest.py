@@ -524,9 +524,8 @@ MANIFEST: list[dict] = [
         # banks; correct EPV reason).
         "version_id": "v_composite_bank_cohort_coverage_2026_06_11",
         "title_public": (
-            "Composite Composition panel now includes Multiples and "
-            "Bank Residual Income for banks; EPV correctly marked as "
-            "not applicable for the financial cohort"
+            "Composite panel adds Multiples + Bank Residual Income rows "
+            "for banks; EPV correctly marked not applicable"
         ),
         "applied_at": datetime.now(timezone.utc),
         "scope": {
