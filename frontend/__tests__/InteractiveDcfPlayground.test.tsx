@@ -302,7 +302,7 @@ describe("InteractiveDcfPlayground — Reverse-DCF mode", () => {
 
   it("solves for an implied growth rate that brackets the engine default", () => {
     const props = relianceShapeProps()
-    // Set current price BELOW engine FV → implied growth should
+    // Set current price BELOW engine FV → implied growth must
     // be LOWER than the engine's 8% default at the same WACC + TGR.
     renderOpen({ ...props, currentPrice: props.baseFairValue * 0.85 })
     const growthCell =
@@ -370,7 +370,7 @@ describe("InteractiveDcfPlayground — Save Scenario", () => {
       "10.0",
     )
 
-    // Click the chip — slider should snap back to 16%.
+    // Click the chip — slider snaps back to 16%.
     fireEvent.click(
       screen.getByTestId("playground-scenario-chip-BearCase"),
     )
