@@ -806,6 +806,35 @@ class AnalysisResponse(BaseModel):
     # backend-stamped invariant + the method label.
     headline_fair_value: Optional[float] = None
     headline_fair_value_method: Optional[str] = None
+    # ── Composite Composition transparency (2026-06-10) ─────────────
+    # v_composite_composition_transparency_2026_06_10 — additive
+    # surface that explains WHY composite_intrinsic_value carries the
+    # value it does. Renders as the breakdown table in
+    # frontend/src/components/analysis/CompositeCompositionPanel.tsx.
+    #
+    # Shape (see composite_composition_service.composition_to_dict
+    # for the canonical contract):
+    #   {
+    #     "estimators": [
+    #       {"key": "dcf", "label": "DCF", "value": 1141.82,
+    #        "weight_nominal": 0.35, "weight_effective": 0.45,
+    #        "contribution": 513.82, "applicable": true,
+    #        "reason": null, "is_outlier": false,
+    #        "description": "Two-stage discounted cash flow"},
+    #       ...
+    #     ],
+    #     "estimators_available": 3,
+    #     "estimators_total": 7,
+    #     "confidence_label": "LOW",          # HIGH/MODERATE/LOW/MINIMAL
+    #     "confidence_caption": "3 of 7 estimators populated — LOW ...",
+    #     "outliers": ["wall_street"],
+    #     "composite_value": 1147.77,
+    #   }
+    #
+    # Purely additive — None on legacy cached payloads and on tickers
+    # where the inject helper raised. The frontend hides the panel when
+    # the field is absent.
+    composite_composition: Optional[dict] = None
     # ── Phase B — additive standalone estimator surfacing (2026-06-10) ──
     # Five OPTIONAL per-ticker estimators surfaced alongside the
     # DCF + Multiples + Wall-St composite. Each is a thin projection

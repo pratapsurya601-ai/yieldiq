@@ -373,6 +373,29 @@ def _inject_composite_iv_dict(payload: dict) -> dict:
             }
         else:
             payload["composite_components"] = None
+        # ── Composite Composition transparency (2026-06-10) ──
+        # Build the per-estimator breakdown payload so the frontend
+        # can render the "Composite from N of 7 estimators" panel.
+        # Pure derivation from composite_components + the *_fv slots
+        # populated by the Phase-B inject chain — never touches I/O.
+        # Defensive: a composition failure leaves the field absent
+        # and the panel self-hides. See composite_composition_service.
+        try:
+            from backend.services.composite_composition_service import (
+                build_composite_composition,
+                composition_to_dict,
+            )
+            composition = build_composite_composition(
+                payload=payload,
+                composite_components=payload.get("composite_components"),
+            )
+            payload["composite_composition"] = composition_to_dict(composition)
+        except Exception:
+            # Inner-try mirror — the outer try only catches the import
+            # / compute failure; the composition pass has its own guard
+            # so a composition failure cannot poison the composite
+            # write above (which has already succeeded by this point).
+            payload["composite_composition"] = None
     except Exception:
         # Field is purely additive — never break the response.
         pass
@@ -457,6 +480,46 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
             }
         else:
             result.composite_components = None
+        # ── Composite Composition transparency (2026-06-10) ──
+        # Build the per-estimator breakdown payload so the frontend
+        # can render the "Composite from N of 7 estimators" panel.
+        # Mirrors the dict-variant inject above. Constructs a focused
+        # dict view of the relevant model fields, passes it to the
+        # shared service, writes the resulting payload back. Inner
+        # try guard so a composition failure leaves the field absent
+        # rather than tripping the outer composite handler.
+        try:
+            from backend.services.composite_composition_service import (
+                build_composite_composition,
+                composition_to_dict,
+            )
+            _comp_payload = {
+                "valuation": _val,
+                "insights": _ins,
+                "multiples_based_fv": result.multiples_based_fv,
+                "three_stage_fv": getattr(result, "three_stage_fv", None),
+                "ddm_fv": getattr(result, "ddm_fv", None),
+                "epv_per_share": getattr(result, "epv_per_share", None),
+                "probability_weighted_fv": getattr(
+                    result, "probability_weighted_fv", None
+                ),
+                "composite_intrinsic_value": result.composite_intrinsic_value,
+                "ddm_reason": getattr(result, "ddm_reason", None),
+                "epv_reason": getattr(result, "epv_reason", None),
+                "three_stage_reason": getattr(
+                    result, "three_stage_reason", None
+                ),
+                "probability_weighted_reason": getattr(
+                    result, "probability_weighted_reason", None
+                ),
+            }
+            composition = build_composite_composition(
+                payload=_comp_payload,
+                composite_components=result.composite_components,
+            )
+            result.composite_composition = composition_to_dict(composition)
+        except Exception:
+            result.composite_composition = None
     except Exception:
         pass
     return result
