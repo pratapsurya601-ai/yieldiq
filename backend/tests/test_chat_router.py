@@ -58,8 +58,26 @@ def _parse_sse_events(body: bytes | str) -> list[dict]:
 
 @pytest.fixture
 def client():
+    """TestClient with the auth dependency overridden so the chat
+    endpoint is reachable in tests. The chat router depends on
+    backend.middleware.auth.get_current_user; we substitute a Pro-tier
+    user so the rate-limiter never blocks during the test run.
+    """
     from backend.main import app
-    return TestClient(app)
+    from backend.middleware import auth as auth_middleware
+
+    def _fake_user():
+        return {
+            "id": "test-user-1",
+            "email": "test@yieldiq.test",
+            "tier": "pro",
+        }
+
+    app.dependency_overrides[auth_middleware.get_current_user] = _fake_user
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(auth_middleware.get_current_user, None)
 
 
 # A stub AnalysisService.get_full_analysis return value. We mock the

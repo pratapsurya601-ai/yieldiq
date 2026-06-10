@@ -399,11 +399,15 @@ async def chat_stream(
 
         if client is None:
             text = _deterministic_fallback(messages, payload_dict, norm_ticker)
-            # Chunk the template so the UI assembly logic is exercised
-            # even in the no-LLM path.
+            # Defence-in-depth: scrub each chunk before forwarding even
+            # though _deterministic_fallback already scrubs the full
+            # string. A future regression in the template path must NOT
+            # be able to leak banned vocab through SSE.
             for chunk in _chunked(text, 80):
                 yield _sse_event({
-                    "delta": chunk, "done": False, "source": "template",
+                    "delta": _strip_banned(chunk),
+                    "done": False,
+                    "source": "template",
                 })
             yield _sse_event({"delta": "", "done": True, "source": "template"})
             return
