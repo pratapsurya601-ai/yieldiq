@@ -2549,6 +2549,52 @@ MANIFEST: list[dict] = [
             "(Phase C.2) will flip it to prefer composite_intrinsic_value."
         ),
     },
+    {
+        # T3.1 Phase A — Bank residual-income engine deepened with
+        # NIM decomposition, CASA sensitivity, provision-coverage
+        # normalization, and DuPont ROE attribution. The new path is
+        # OPT-IN: compute_deepened_bank_valuation() is exposed for
+        # tests and a future Phase B wiring; the existing peer-median
+        # P/BV path remains the default for compute_financial_fair_value().
+        # No cached field shape changes in Phase A — scope.fields is
+        # empty by design; the entry exists so that when Phase B flips
+        # tickers over, the cache-version-check gate has an anchor and
+        # the timeline records when the engine capability shipped.
+        "version_id": "v_t3_1_bank_residual_income_deepened_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                # Private banks
+                "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "FEDERALBNK",
+                # Stressed private banks
+                "YESBANK", "RBLBANK", "BANDHANBNK", "IDFCFIRSTB", "INDUSINDBK",
+                # PSU banks
+                "SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB",
+                "BANKINDIA", "IOB", "CENTRALBK", "UCOBANK", "MAHABANK", "IDBI",
+                # Lending NBFCs
+                "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN",
+                "MUTHOOTFIN", "MANAPPURAM",
+                "SHRIRAMFIN", "SUNDARMFIN",
+                "M&MFIN", "SBICARD", "POONAWALLA",
+                "CREDITACC", "FIVESTAR",
+                # Govt NBFCs
+                "PFC", "REC", "RECLTD", "IRFC", "HUDCO",
+                # Housing finance
+                "LICHSGFIN", "PNBHOUSING",
+                "AAVAS", "HOMEFIRST", "CANFINHOME", "AADHARHFC",
+                # Life insurance
+                "LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI", "CANHLIFE",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.1 — bank residual-income engine deepened with NIM "
+            "decomposition, CASA sensitivity, provision normalization, "
+            "and DuPont ROE attribution. Existing peer-median P/BV "
+            "fallback preserved; deepened path is opt-in per ticker via "
+            "Phase B wiring."
+        ),
+    },
 ]
 
 

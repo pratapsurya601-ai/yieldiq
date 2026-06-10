@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import statistics
 import time as _time
+from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 logger = logging.getLogger("yieldiq.financial_valuation")
@@ -742,3 +743,510 @@ def compute_financial_fair_value(
         ticker, group,
     )
     return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# T3.1 Phase A — Deepened bank residual-income valuation
+# ═══════════════════════════════════════════════════════════════
+#
+# Why this exists:
+#   The peer-median P/BV path above is correct as a sector anchor
+#   but it cannot answer questions like "is HDFCBANK's 17% ROE
+#   sustainable given a 46% CASA mix?" or "what is SBIN's adjusted
+#   ROE if it had peer-normal provision coverage?".
+#
+#   T3.1 deepens the residual-income engine with:
+#     1. NIM decomposition  — yield on advances minus cost of funds
+#     2. CASA sensitivity   — CASA mix → cost of funds → NIM → ROE
+#     3. Provision coverage normalization — under-provisioning
+#        artificially inflates current-period ROE
+#     4. DuPont attribution — explain WHY ROE is what it is
+#        (NIM × asset turnover + fees - costs - credit - tax) × leverage
+#
+# OPT-IN: existing compute_financial_fair_value() remains the default
+# path. compute_deepened_bank_valuation() is exposed for tests + a
+# future Phase B that will wire it per-ticker through the analysis
+# service. No callers are switched in Phase A.
+#
+# Residual-income (Gordon-growth) closed form for justified P/B:
+#     P/B = (ROE - g) / (COE - g)
+# This is the standard Damodaran "value of equity from RI" derivation
+# when payout = (1 - g/ROE). It is the same anchor the peer-median
+# path implicitly relies on; here we surface the inputs explicitly so
+# we can flex each driver.
+# ═══════════════════════════════════════════════════════════════
+
+# Bank-deepening tickers (Phase A scope — banks + lending NBFCs +
+# insurance + HFCs). Kept as a module-level constant so the
+# cache_invalidation_manifest entry and the
+# is_bank_deepening_meaningful() helper share a single source.
+_BANK_DEEPENING_TICKERS: list[str] = sorted({
+    # Private banks
+    "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "FEDERALBNK",
+    # Stressed private banks
+    "YESBANK", "RBLBANK", "BANDHANBNK", "IDFCFIRSTB", "INDUSINDBK",
+    # PSU banks
+    "SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB",
+    "BANKINDIA", "IOB", "CENTRALBK", "UCOBANK", "MAHABANK", "IDBI",
+    # Lending NBFCs (NIM-driven economics)
+    "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN",
+    "MUTHOOTFIN", "MANAPPURAM",
+    "SHRIRAMFIN", "SUNDARMFIN",
+    "M&MFIN", "SBICARD", "POONAWALLA",
+    "CREDITACC", "FIVESTAR",
+    # Govt NBFCs
+    "PFC", "REC", "RECLTD", "IRFC", "HUDCO",
+    # Housing finance (also NIM-driven)
+    "LICHSGFIN", "PNBHOUSING",
+    "AAVAS", "HOMEFIRST", "CANFINHOME", "AADHARHFC",
+    # Life insurance (cost-of-funds analogue = guaranteed-return
+    # liabilities; NIM analogue is investment spread). Included for
+    # cohort completeness; attribution helpers gracefully skip when
+    # inputs are absent.
+    "LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI", "CANHLIFE",
+})
+
+
+# Sector keywords that mark a name as bank/NBFC/insurance for the
+# is_bank_deepening_meaningful gate. Lowercased contains-match.
+_BANK_LIKE_SECTOR_KEYWORDS: tuple[str, ...] = (
+    "bank", "nbfc", "non-banking financial", "non banking financial",
+    "insurance", "insurer", "life insur", "general insur",
+    "housing finance", "mortgage", "lending",
+    "financial services", "diversified financials",
+)
+
+
+@dataclass
+class BankDeepenedInputs:
+    """All inputs for the deepened bank residual-income engine.
+
+    The first five fields preserve the existing P/B framework. The
+    remaining fields are optional drivers — each unlocks an additional
+    attribution / sensitivity component when present. Missing values
+    cause the engine to fall back gracefully rather than fabricate.
+    """
+    # Existing P/B inputs
+    book_value_per_share: float
+    roe_pct: float                # ROE as decimal (0.17 = 17%)
+    cost_of_equity: float          # as decimal (0.125 = 12.5%)
+    sustainable_growth: float      # g, as decimal (0.10 = 10%)
+    payout_ratio: float            # dividend payout, decimal
+
+    # NEW deepening inputs — all optional
+    nim_pct: Optional[float] = None              # net interest margin, decimal
+    yield_on_advances_pct: Optional[float] = None
+    cost_of_funds_pct: Optional[float] = None
+    casa_mix_pct: Optional[float] = None         # CASA / total deposits, decimal
+    provision_coverage_pct: Optional[float] = None  # provisions / GNPA, decimal
+    gnpa_pct: Optional[float] = None             # GNPA / advances, decimal
+    loan_growth_pct: Optional[float] = None      # YoY advances growth, decimal
+    fee_income_pct_of_revenue: Optional[float] = None  # fee / (NII + fee), decimal
+    cost_to_income_pct: Optional[float] = None   # opex / (NII + fee), decimal
+    tax_rate_pct: Optional[float] = None         # effective tax rate, decimal
+    credit_cost_pct: Optional[float] = None      # provisions / advances, decimal
+    equity_to_assets_pct: Optional[float] = None  # equity / total assets, decimal
+
+
+@dataclass
+class BankROEAttribution:
+    """Attribution of ROE to component drivers (DuPont for banks).
+
+    All fields are in decimal units (0.0123 = 123 bps).
+    `attribution_gap_pct` is |computed - reported| in decimal — large
+    values flag stale / inconsistent inputs.
+    """
+    nim_contribution: Optional[float]
+    fee_contribution: Optional[float]
+    cost_drag: Optional[float]
+    credit_cost_drag: Optional[float]
+    tax_drag: Optional[float]
+    leverage_multiplier: Optional[float]
+    computed_roe_pct: Optional[float]
+    reported_roe_pct: Optional[float]
+    attribution_gap_pct: Optional[float]
+
+
+@dataclass
+class BankDeepenedResult:
+    """Output of compute_deepened_bank_valuation().
+
+    method semantics:
+      "bank_deepened"  — full residual-income + attribution path used
+      "bank_pb_only"   — fell back to plain residual-income (missing
+                         optional inputs); existing peer path remains
+                         the recommended outer fallback
+      "unavailable"    — inputs insufficient even for the P/B fallback
+    """
+    fair_pb: Optional[float]
+    fair_value_per_share: Optional[float]
+    roe_attribution: Optional[BankROEAttribution]
+    casa_sensitivity: Optional[dict]
+    provision_normalization: Optional[dict]
+    sanity_warnings: list[str] = field(default_factory=list)
+    method: str = "unavailable"
+
+
+# ── small private helpers ───────────────────────────────────────
+
+def _is_finite_positive(x: Optional[float]) -> bool:
+    try:
+        return x is not None and float(x) > 0 and float(x) == float(x)
+    except (TypeError, ValueError):
+        return False
+
+
+def _gordon_pb(roe: float, coe: float, g: float) -> Optional[float]:
+    """Justified P/B from residual-income closed form.
+
+    Returns None when COE <= g (Gordon collapses) or any input is
+    non-finite. Negative results (ROE < g) are returned — they signal
+    a sub-book franchise, which is meaningful.
+    """
+    if not (_is_finite_positive(coe) and roe == roe and g == g):
+        return None
+    denom = coe - g
+    if denom <= 1e-6:
+        return None
+    return (roe - g) / denom
+
+
+def _round_or_none(x: Optional[float], digits: int = 4) -> Optional[float]:
+    if x is None:
+        return None
+    try:
+        return round(float(x), digits)
+    except (TypeError, ValueError):
+        return None
+
+
+# ── public components ───────────────────────────────────────────
+
+def compute_roe_attribution(inputs: BankDeepenedInputs) -> Optional[BankROEAttribution]:
+    """Decompose reported ROE into NIM + fee + cost + credit + leverage.
+
+    Standard bank DuPont:
+        ROA = (NIM + fee_yield - opex_yield - credit_cost - tax_drag)
+        ROE = ROA × leverage
+
+    where every "_yield" term is expressed per unit of assets. We
+    proxy asset-base ratios from inputs that are typically expressed
+    per unit of revenue (cost_to_income, fee_income_pct_of_revenue)
+    by anchoring on NIM as a stand-in for asset turnover. This is an
+    approximation; the `attribution_gap_pct` field surfaces how far
+    the reconstructed ROE diverges from the reported value so callers
+    can flag low-confidence attributions.
+
+    Returns None if NIM is missing — without a yield anchor we cannot
+    decompose anything meaningful.
+    """
+    nim = inputs.nim_pct
+    roe_reported = inputs.roe_pct
+    if not _is_finite_positive(nim):
+        return None
+
+    # Leverage proxy. If equity_to_assets is provided use 1/E2A.
+    # Otherwise back it out from ROE/ROA if both look sane; else fall
+    # back to a sector-typical 10x for banks (E/A ~ 10%).
+    if _is_finite_positive(inputs.equity_to_assets_pct):
+        leverage = 1.0 / inputs.equity_to_assets_pct  # type: ignore[operator]
+    else:
+        leverage = 10.0
+
+    # Fee contribution on assets. fee_income_pct_of_revenue is fee /
+    # (NII + fee); revenue / assets ~= NIM / (1 - fee_ratio). Hence
+    # fee / assets ~= NIM × fee_ratio / (1 - fee_ratio).
+    fee_ratio = inputs.fee_income_pct_of_revenue
+    if _is_finite_positive(fee_ratio) and fee_ratio < 0.95:  # type: ignore[operator]
+        fee_yield = nim * fee_ratio / (1.0 - fee_ratio)  # type: ignore[operator]
+    else:
+        fee_yield = 0.0
+
+    revenue_yield = nim + fee_yield  # PPOP/assets ex-cost
+
+    # Cost drag — opex / assets = cost_to_income × revenue / assets
+    cti = inputs.cost_to_income_pct
+    if _is_finite_positive(cti):
+        cost_yield = cti * revenue_yield  # type: ignore[operator]
+    else:
+        cost_yield = 0.0
+
+    # Credit cost — direct input preferred; otherwise approximate
+    # from GNPA × (1 - PCR) charged off proportionally.
+    if _is_finite_positive(inputs.credit_cost_pct):
+        credit_yield = inputs.credit_cost_pct  # type: ignore[assignment]
+    elif (
+        _is_finite_positive(inputs.gnpa_pct)
+        and inputs.provision_coverage_pct is not None
+        and 0 <= inputs.provision_coverage_pct <= 1.0
+    ):
+        # Rough: a bank carrying GNPA must provision the uncovered
+        # slug over its NPA-recognition cycle (~3y typical).
+        credit_yield = inputs.gnpa_pct * (1.0 - inputs.provision_coverage_pct) / 3.0
+    else:
+        credit_yield = 0.0
+
+    pre_tax_yield = revenue_yield - cost_yield - credit_yield
+
+    tax_rate = inputs.tax_rate_pct if _is_finite_positive(inputs.tax_rate_pct) else 0.25
+    tax_yield = max(0.0, pre_tax_yield) * tax_rate
+
+    roa = pre_tax_yield - tax_yield
+    computed_roe = roa * leverage
+
+    gap = None
+    if _is_finite_positive(roe_reported):
+        gap = abs(computed_roe - roe_reported)
+
+    return BankROEAttribution(
+        nim_contribution=_round_or_none(nim * leverage),
+        fee_contribution=_round_or_none(fee_yield * leverage),
+        cost_drag=_round_or_none(cost_yield * leverage),
+        credit_cost_drag=_round_or_none(credit_yield * leverage),
+        tax_drag=_round_or_none(tax_yield * leverage),
+        leverage_multiplier=_round_or_none(leverage, 2),
+        computed_roe_pct=_round_or_none(computed_roe),
+        reported_roe_pct=_round_or_none(roe_reported),
+        attribution_gap_pct=_round_or_none(gap),
+    )
+
+
+def compute_casa_sensitivity(inputs: BankDeepenedInputs) -> Optional[dict]:
+    """Project ROE impact of ±5pp CASA shifts.
+
+    Mechanics: CASA deposits (current ~0%, savings ~3.0%) are
+    materially cheaper than term deposits (~6.5-7.0%). A 1pp rise in
+    CASA mix lowers blended cost of funds by ~3.5-4 bps, which flows
+    1:1 into NIM, which flows through leverage into ROE.
+
+    Reference points (FY25 trailing):
+      HDFCBANK ~46% CASA, KOTAKBANK ~50%, IndusInd ~43%, SBIN ~38%
+    """
+    if not _is_finite_positive(inputs.casa_mix_pct):
+        return None
+    if not _is_finite_positive(inputs.nim_pct):
+        return None
+
+    # Spread between term and CASA rates. Conservative blended
+    # estimate; in Phase B this can be replaced by per-bank actual
+    # deposit-rate schedules.
+    casa_rate = 0.020   # ~2% blended CA + SA
+    term_rate = 0.0675  # ~6.75% blended TD
+    cof_delta_per_pp_casa = (term_rate - casa_rate) / 100.0  # per 1pp shift
+
+    # Leverage to scale NIM-delta → ROE-delta
+    if _is_finite_positive(inputs.equity_to_assets_pct):
+        leverage = 1.0 / inputs.equity_to_assets_pct  # type: ignore[operator]
+    else:
+        leverage = 10.0
+
+    # +/- 5pp CASA shift
+    nim_delta_up = 5.0 * cof_delta_per_pp_casa
+    nim_delta_dn = -5.0 * cof_delta_per_pp_casa
+    roe_delta_up = nim_delta_up * leverage
+    roe_delta_dn = nim_delta_dn * leverage
+
+    return {
+        "current_casa_mix_pct": _round_or_none(inputs.casa_mix_pct),
+        "casa_plus_5pp": {
+            "nim_delta_bps": _round_or_none(nim_delta_up * 10000, 1),
+            "roe_delta_bps": _round_or_none(roe_delta_up * 10000, 1),
+            "projected_roe_pct": _round_or_none(inputs.roe_pct + roe_delta_up),
+        },
+        "casa_minus_5pp": {
+            "nim_delta_bps": _round_or_none(nim_delta_dn * 10000, 1),
+            "roe_delta_bps": _round_or_none(roe_delta_dn * 10000, 1),
+            "projected_roe_pct": _round_or_none(inputs.roe_pct + roe_delta_dn),
+        },
+        "assumed_casa_rate_pct": casa_rate,
+        "assumed_term_rate_pct": term_rate,
+        "assumed_leverage": _round_or_none(leverage, 2),
+    }
+
+
+def compute_provision_normalization(inputs: BankDeepenedInputs) -> Optional[dict]:
+    """If PCR < 70%, recompute ROE under PCR=70% normalisation.
+
+    Mechanics: under-provisioned banks defer credit cost to future
+    periods, inflating current-period ROE. To normalise, we estimate
+    the additional provision needed to lift PCR to the cohort floor
+    (70%), spread that hit over a 3y recognition cycle, and reduce
+    ROE by the post-tax impact.
+
+    Threshold 70% chosen because RBI's "Prompt Corrective Action"
+    framework historically flagged PSBs below ~70% PCR as needing
+    capital action; private banks routinely sit above 75-80%.
+
+    Returns None when PCR / GNPA are missing or PCR is already
+    above the threshold.
+    """
+    pcr = inputs.provision_coverage_pct
+    gnpa = inputs.gnpa_pct
+    threshold = 0.70
+
+    if pcr is None or not _is_finite_positive(gnpa):
+        return None
+    if pcr >= threshold:
+        return {
+            "current_pcr_pct": _round_or_none(pcr),
+            "threshold_pcr_pct": threshold,
+            "adjusted_roe_pct": _round_or_none(inputs.roe_pct),
+            "roe_haircut_bps": 0.0,
+            "note": "PCR already at or above normalization threshold; no adjustment.",
+        }
+
+    additional_provision_share = (threshold - pcr) * gnpa  # of advances
+    # Spread the catch-up over 3y; convert advances-yield to asset-yield
+    # using equity-to-assets-implied leverage (assume advances ~ assets
+    # for a bank, which is the usual approximation).
+    annual_extra_provision_on_assets = additional_provision_share / 3.0
+
+    if _is_finite_positive(inputs.equity_to_assets_pct):
+        leverage = 1.0 / inputs.equity_to_assets_pct  # type: ignore[operator]
+    else:
+        leverage = 10.0
+
+    tax_rate = inputs.tax_rate_pct if _is_finite_positive(inputs.tax_rate_pct) else 0.25
+    post_tax_drag_on_assets = annual_extra_provision_on_assets * (1.0 - tax_rate)
+    roe_haircut = post_tax_drag_on_assets * leverage
+
+    return {
+        "current_pcr_pct": _round_or_none(pcr),
+        "threshold_pcr_pct": threshold,
+        "additional_provision_share_of_advances": _round_or_none(additional_provision_share),
+        "annualized_drag_yrs": 3,
+        "adjusted_roe_pct": _round_or_none(inputs.roe_pct - roe_haircut),
+        "roe_haircut_bps": _round_or_none(roe_haircut * 10000, 1),
+        "note": (
+            "Under-provisioned vs cohort floor; ROE normalised by spreading "
+            "PCR catch-up over a 3y recognition cycle."
+        ),
+    }
+
+
+def compute_deepened_bank_valuation(inputs: BankDeepenedInputs) -> BankDeepenedResult:
+    """Main entry — residual-income fair P/B plus attribution stack.
+
+    Always returns a BankDeepenedResult. When optional inputs are
+    absent the result still carries the P/B from the Gordon residual-
+    income closed form (method="bank_pb_only"). When all components
+    can be computed method="bank_deepened".
+    """
+    warnings: list[str] = []
+
+    # Validate the required primary inputs.
+    if not _is_finite_positive(inputs.book_value_per_share):
+        return BankDeepenedResult(
+            fair_pb=None,
+            fair_value_per_share=None,
+            roe_attribution=None,
+            casa_sensitivity=None,
+            provision_normalization=None,
+            sanity_warnings=["book_value_per_share missing or non-positive"],
+            method="unavailable",
+        )
+
+    fair_pb = _gordon_pb(
+        inputs.roe_pct,
+        inputs.cost_of_equity,
+        inputs.sustainable_growth,
+    )
+
+    if fair_pb is None:
+        warnings.append(
+            "Gordon residual-income closed form collapsed (COE ≤ g or "
+            "non-finite inputs); fair_pb unavailable."
+        )
+        return BankDeepenedResult(
+            fair_pb=None,
+            fair_value_per_share=None,
+            roe_attribution=None,
+            casa_sensitivity=None,
+            provision_normalization=None,
+            sanity_warnings=warnings,
+            method="unavailable",
+        )
+
+    # Sanity clamp — keep absurd outliers from leaking through.
+    if fair_pb < 0:
+        warnings.append(
+            f"ROE ({inputs.roe_pct:.2%}) below sustainable growth "
+            f"({inputs.sustainable_growth:.2%}) — sub-book franchise."
+        )
+    if fair_pb > 12.0:
+        warnings.append(
+            f"fair_pb={fair_pb:.2f} > 12.0; clamping to 12.0 to keep "
+            "Phase A output bounded. Verify COE / g inputs."
+        )
+        fair_pb = 12.0
+
+    fv_per_share = fair_pb * inputs.book_value_per_share
+
+    attribution = compute_roe_attribution(inputs)
+    casa_sens = compute_casa_sensitivity(inputs)
+    pcr_norm = compute_provision_normalization(inputs)
+
+    # Surface large attribution gaps as data-quality warnings.
+    if attribution and attribution.attribution_gap_pct is not None:
+        if attribution.attribution_gap_pct > 0.04:  # > 400 bps
+            warnings.append(
+                f"ROE attribution gap = {attribution.attribution_gap_pct:.2%} — "
+                "reconstructed ROE diverges materially from reported. "
+                "Check NIM / leverage / cost-to-income inputs."
+            )
+
+    # Method classification — "deepened" requires at least one
+    # optional driver beyond the bare Gordon path.
+    any_deepening = any([attribution is not None, casa_sens is not None, pcr_norm is not None])
+    method = "bank_deepened" if any_deepening else "bank_pb_only"
+
+    return BankDeepenedResult(
+        fair_pb=_round_or_none(fair_pb, 3),
+        fair_value_per_share=_round_or_none(fv_per_share, 2),
+        roe_attribution=attribution,
+        casa_sensitivity=casa_sens,
+        provision_normalization=pcr_norm,
+        sanity_warnings=warnings,
+        method=method,
+    )
+
+
+def is_bank_deepening_meaningful(
+    ticker: str,
+    sector: Optional[str],
+    has_nim_data: bool,
+) -> tuple[bool, str]:
+    """Gate: should we route this ticker through the deepened engine?
+
+    Returns (eligible, reason). Eligible iff:
+      (a) ticker is in the bank/NBFC/insurance cohort OR sector text
+          contains a bank-like keyword, AND
+      (b) NIM data is available (no NIM = no decomposition value;
+          existing P/B path is just as good).
+    """
+    t = _clean(ticker)
+    in_cohort = t in _BANK_DEEPENING_TICKERS
+    sector_match = False
+    if sector:
+        s = sector.lower()
+        sector_match = any(kw in s for kw in _BANK_LIKE_SECTOR_KEYWORDS)
+
+    if not (in_cohort or sector_match):
+        return False, "ticker not in bank/NBFC/insurance cohort and sector text does not match"
+    if not has_nim_data:
+        return False, "NIM data unavailable — deepened engine adds no signal over P/B"
+    return True, "bank-like ticker with NIM data — deepened engine applicable"
+
+
+def to_dict(result: BankDeepenedResult) -> dict:
+    """JSON-safe projection of BankDeepenedResult.
+
+    Used by routers / cache writers that cannot serialise dataclasses
+    directly. asdict() handles the nested BankROEAttribution.
+    """
+    if result is None:  # pragma: no cover — defensive
+        return {}
+    payload = asdict(result)
+    # asdict turns the dataclass tree into plain dicts/lists already;
+    # nothing further to coerce in Phase A.
+    return payload
