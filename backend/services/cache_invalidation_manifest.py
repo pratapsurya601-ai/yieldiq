@@ -324,6 +324,48 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # T1.4 Phase A — holdco SOTP standalone service added.
+        # Sum-of-the-Parts framework with sector-tuned holdco
+        # discounts (22% pure-financial / 28% TATAINVEST / 30%
+        # conglomerate / 35% media / 25% default). Underlying
+        # market caps come via injectable data_provider; seed data
+        # in backend/data/holdco_underlyings.json extended with a
+        # parallel `_sotp_data` block carrying per-holdco stake
+        # percentages (FY25 estimates — needs annual refresh from
+        # primary sources).
+        #
+        # Phase A is standalone — no wiring into
+        # composite_iv_service.py yet, so no response field is
+        # added in this PR. Phase B (separate PR) will route the 13
+        # holdco tickers through compute_sotp instead of the
+        # current DCF-only fallback, and that PR will carry the
+        # invalidation entry with scope.fields covering verdict /
+        # fair_value / mos_pct / scenarios.
+        #
+        # scope.tickers enumerates the 13 holdco tickers literally
+        # (not "*") because the change is holdco-specific. scope.
+        # fields is empty because this PR adds no response surface.
+        "version_id": "v_t1_4_holdco_sotp_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "BAJAJHLDNG", "TATAINVEST", "MAHSCOOTER", "PILANIINVS",
+                "KAMAHOLD", "SUMMITSEC", "WILLIAMAGR", "MCLEODRUSS",
+                "NDTV", "NETWORK18", "GAYAHWS", "MOIL", "GRASIM",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T1.4 Phase A — holdco SOTP standalone service added. "
+            "Sum-of-the-Parts framework with sector-tuned holdco "
+            "discounts. Underlying market caps via injectable "
+            "data_provider; seed data in holdco_underlyings.json "
+            "extended with stake percentages. Phase B wires into "
+            "composite_iv_service.py holdco branch (separate PR) "
+            "so holdcos get SOTP instead of DCF-only fallback."
+        ),
+    },
+    {
         # Phase B (2026-06-10) — surface the 5 standalone Phase-A
         # estimators (T2.1 DDM, T2.2 EPV, T2.5 Three-stage DCF, T2.8
         # Liquidation, T2.4 Probability-weighted) as ADDITIVE fields
