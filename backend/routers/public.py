@@ -2511,6 +2511,68 @@ async def get_concall_sentiment(ticker: str):
     return _cached_json(payload, s_maxage=3600, swr=7200)
 
 
+@router.get("/news-fv-correlation/{ticker}")
+async def get_news_fv_correlation(
+    ticker: str,
+    fv_change_threshold_pct: float = Query(default=3.0, ge=0.5, le=50.0),
+    lookback_days: int = Query(default=90, ge=7, le=365),
+):
+    """News ↔ Fair Value correlation panel — for each material FV change
+    in the lookback window, surface the news headlines (within ±7 days)
+    that most plausibly drove it.
+
+    Novel surface — no peer product publishes this linkage. Used by
+    NewsFvCorrelationPanel on /analysis/[ticker]. No auth, 30-min cache.
+
+    Returns 200 with an empty `correlations` list when:
+      * the ticker has fewer than 2 history rows in the window,
+      * no consecutive delta crosses the threshold (quiet ticker), or
+      * news + history both unavailable (degraded mode).
+    The UI renders an honest empty state in any of those cases.
+    """
+    tkr = (ticker or "").upper().strip().replace(".NS", "").replace(".BO", "")
+    if not tkr:
+        raise HTTPException(status_code=400, detail="ticker required")
+    _cache_key = (
+        f"public:news-fv-corr:{tkr}:{int(fv_change_threshold_pct * 10)}:{lookback_days}"
+    )
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+    try:
+        from backend.services.news_fv_correlation_service import (
+            find_correlated_news,
+            to_dict,
+        )
+        corrs = find_correlated_news(
+            tkr,
+            fv_change_threshold_pct=fv_change_threshold_pct,
+            lookback_days=lookback_days,
+        )
+        payload = to_dict(corrs)
+        payload["ticker"] = tkr
+        payload["display_ticker"] = tkr
+        cache.set(_cache_key, payload, ttl=1800)
+        return payload
+    except Exception as exc:
+        logger.warning("news-fv-correlation failed for %s: %s", tkr, exc)
+        # Additive panel — never break the analysis page over a degraded
+        # correlation surface. Return the empty shape so the UI renders
+        # its empty state.
+        return {
+            "ticker": tkr,
+            "display_ticker": tkr,
+            "correlations": [],
+            "summary": {
+                "total_material_moves": 0,
+                "moves_with_drivers": 0,
+                "window_days": 7,
+                "min_driver_score": 0.15,
+                "top_drivers_per_move": 3,
+            },
+        }
+
+
 @router.get("/news")
 async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = Query(default=50, le=100)):
     """
