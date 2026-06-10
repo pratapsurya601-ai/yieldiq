@@ -38,7 +38,7 @@ import { getFVHistory, type FVHistoryPoint, type FVHistoryResponse } from "@/lib
 export interface TimeMachineState {
   /** ISO YYYY-MM-DD, or null when scrubber sits at "today". */
   selectedDate: string | null
-  /** Updater — consumers should rarely call this; the scrubber owns writes. */
+  /** Updater — consumers rarely call this; the scrubber owns writes. */
   setSelectedDate: (date: string | null) => void
   /**
    * Historical row matching `selectedDate`, or null when:

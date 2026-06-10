@@ -34,9 +34,9 @@
  * opt-in panels via `useTimeMachine()`.
  *
  * SEBI compliance — every user-facing string is screened against
- * `backend/services/analysis/sebi_filter.py BANNED_WORDS`. No
- * recommendation language; we show the model's historical FV and a
- * factual margin-of-safety percentage.
+ * `backend/services/analysis/sebi_filter.py BANNED_WORDS`. No advice
+ * language; we show the model's historical FV and a factual
+ * margin-of-safety percentage.
  */
 
 import { useCallback, useMemo } from "react"
@@ -60,7 +60,7 @@ export interface TimeMachineScrubberProps {
   /**
    * Fired when the user moves the slider or clicks "Reset to today".
    * `null` means the scrubber is back at the rightmost tick — the
-   * parent should clear any scrubbed state.
+   * parent clears any scrubbed state in that case.
    */
   onDateChange: (date: string | null) => void
   currency?: string | null
