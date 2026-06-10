@@ -792,7 +792,11 @@ function AnalystConsensusPanel({ data, currency, ticker: _ticker, valuation }: A
               />
             ) : null)}
           </div>
-          <div className="grid grid-cols-5 gap-1 mt-2 text-[11px] text-caption">
+          {/* Mobile-PR-A (Issue 4, audit 2026-06-10): hardcoded
+              grid-cols-5 clipped sentiment labels ("Bullish" -> "Bulli…")
+              at 360px (~64px / cell). Progressive widening: 2 cols on
+              tiniest viewports, 3 cols small phones, 5 cols sm+. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1 mt-2 text-[11px] text-caption">
             {segs.map((s) => (
               <div key={s.label} className="flex flex-col items-center">
                 <span className="font-semibold text-body">{s.n}</span>
