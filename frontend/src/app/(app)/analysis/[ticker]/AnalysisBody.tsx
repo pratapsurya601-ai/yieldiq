@@ -78,6 +78,7 @@ import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
 import SectorHeatmapMini from "@/components/analysis/SectorHeatmapMini"
 import AnalystConsensusReframePanel from "@/components/analysis/AnalystConsensusReframePanel"
 import EarningsImpactSimulator from "@/components/analysis/EarningsImpactSimulator"
+import StressTestScenarios from "@/components/analysis/StressTestScenarios"
 import DerivedInsightsPanel, {
   type DerivedInsights as DerivedInsightsShape,
 } from "@/components/analysis/DerivedInsightsPanel"
@@ -1421,6 +1422,23 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               baseFairValue={valuation.fair_value}
               baseWacc={valuation.wacc}
               baseTerminalGrowth={valuation.terminal_growth}
+            />
+          ) : null}
+          {/* Historical-extreme stress test calculator. Sits directly
+              below EarningsImpactSimulator so the two "what-if" panels
+              live as a pair on the Valuation tab. Collapsible (closed
+              by default) so they don't dominate first paint. */}
+          {valuation.dcf_reliable &&
+          valuation.fair_value > 0 &&
+          valuation.current_price > 0 ? (
+            <StressTestScenarios
+              ticker={data.ticker}
+              sector={company.sector}
+              currency={company.currency}
+              currentPrice={valuation.current_price}
+              baseFairValue={valuation.fair_value}
+              baseWacc={valuation.wacc}
+              baseGrowth={valuation.terminal_growth}
             />
           ) : null}
           {scenarioBlock}
