@@ -158,7 +158,7 @@ describe("VersionedSnapshotsPanel", () => {
     const fromInput = screen.getByLabelText(/Filter from date/i) as HTMLInputElement
     fireEvent.change(fromInput, { target: { value: "2026-05-01" } })
 
-    // Only the May entry should remain.
+    // Only the May entry remains.
     await waitFor(() => {
       expect(
         screen.queryByText(/Migration anchor entry/),
@@ -178,7 +178,7 @@ describe("VersionedSnapshotsPanel", () => {
     const toInput = screen.getByLabelText(/Filter to date/i) as HTMLInputElement
     fireEvent.change(toInput, { target: { value: "2026-03-31" } })
 
-    // Two pre-April entries should remain.
+    // Two pre-April entries remain.
     await waitFor(() => {
       expect(screen.getByText(/Migration anchor entry/)).toBeInTheDocument()
     })

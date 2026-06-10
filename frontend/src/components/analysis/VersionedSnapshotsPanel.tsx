@@ -11,7 +11,7 @@
 //
 // SEBI-safe: all copy describes engine changes ("rebuilt the model
 // for ABC industry") rather than investment advice. The FV-diff
-// caption is a model output comparison, not a price recommendation.
+// caption is a model output comparison, not advisory text.
 
 import { useEffect, useMemo, useState } from "react"
 import Cookies from "js-cookie"
