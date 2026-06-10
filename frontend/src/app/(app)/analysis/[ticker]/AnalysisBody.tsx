@@ -31,6 +31,7 @@ import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
+import RevenueSegmentBreakdown from "@/components/analysis/RevenueSegmentBreakdown"
 import { ChartDrawIn, RevealOnScroll } from "@/components/anim"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
@@ -1631,10 +1632,26 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </section>
           </RevealOnScroll>
 
-          {/* Section 5 — detailed statements. */}
+          {/* Section 5 — Revenue Segment Breakdown (task #176-followup,
+              2026-06-10). Pulls business + geographic segments from the
+              latest ar_signals.segment_data. Renders an honest
+              "AR signals coming soon" empty state when the ticker has
+              no extraction yet — additive, never blocks the page. */}
+          <RevealOnScroll>
+            <section aria-labelledby="fin-section-segments">
+              <NumberedSectionHeader
+                number={5}
+                title="REVENUE BY SEGMENT"
+                caption="Business and geographic split of revenue from the latest annual report."
+              />
+              <RevenueSegmentBreakdown ticker={ticker} />
+            </section>
+          </RevealOnScroll>
+
+          {/* Section 6 — detailed statements. */}
           <section aria-labelledby="fin-section-statements">
             <NumberedSectionHeader
-              number={5}
+              number={6}
               title="DETAILED STATEMENTS"
               caption="Income statement, balance sheet and cash flow as reported."
             />

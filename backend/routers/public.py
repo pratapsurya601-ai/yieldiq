@@ -1297,6 +1297,68 @@ async def get_annual_reports(
 
 
 # ─────────────────────────────────────────────────────────────────
+# Revenue-segment breakdown (task #176-followup, 2026-06-10).
+#
+# AlphaSpread + Tickertape both ship a segment pie panel. We read
+# the latest ar_signals.segment_data row (populated by Anthropic-
+# backed ar_intel_service from the annual-report PDF) and reshape
+# it into business + geographic buckets. Empty lists are an honest
+# valid response — the frontend renders an "AR signals coming
+# soon" empty state for tickers without an extraction yet.
+#
+# Additive surface — no manifest entry needed beyond the ship
+# marker (v_revenue_segment_breakdown_2026_06_10) because no
+# cached engine field changes.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/revenue-segments/{ticker}")
+async def get_revenue_segments(ticker: str):
+    """Return business + geographic revenue split for ``ticker``.
+
+    Response shape::
+
+        {"ticker":            "RELIANCE",
+         "fiscal_year":       2024,
+         "published_at":      "2024-08-15",
+         "business_segments": [{"name", "revenue_cr", "pct",
+                                "ebit_cr", "yoy_growth_pct", "fy"}, ...],
+         "geo_segments":      [...same shape...],
+         "trend":             {"name", "yoy_growth_pct"} | null,
+         "withheld":          false,
+         "source":            "annual_report"}
+
+    Always returns 200. Empty lists when no AR extraction exists
+    yet — the panel renders the "coming soon" state.
+    """
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    _cache_key = f"public:revenue-segments:{t}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=43200)
+
+    try:
+        from backend.services.revenue_segments_service import (
+            empty_payload,
+            get_segments_for_ticker,
+        )
+    except Exception as exc:
+        logger.warning("revenue-segments import failed: %s", exc)
+        payload = {"ticker": t, "business_segments": [], "geo_segments": []}
+        return _cached_json(payload, s_maxage=60, swr=300)
+
+    try:
+        payload = get_segments_for_ticker(t)
+    except Exception as exc:  # pragma: no cover — service swallows
+        logger.warning("get_revenue_segments(%s) failed: %s", t, exc)
+        payload = empty_payload(t)
+
+    cache.set(_cache_key, payload, ttl=21600, version_keyed=False)
+    return _cached_json(payload, s_maxage=21600, swr=43200)
+
+
+# ─────────────────────────────────────────────────────────────────
 # Day-99 (2026-05-22): industry-relative percentile rankings.
 #
 # No Indian competitor surfaces "Quality 8.5/10 — 75th percentile in
