@@ -163,7 +163,7 @@ describe("PortfolioHero", () => {
       expect(skeleton).toBeInTheDocument()
       expect(skeleton).toHaveAttribute("aria-busy", "true")
       expect(skeleton).toHaveAttribute("aria-label", "Loading portfolio summary")
-      // Neither real branch should mount during loading — that was the
+      // Neither real branch mounts during loading — that was the
       // exact bug the audit caught.
       expect(container.querySelector('[data-testid="portfolio-hero-empty"]')).toBeNull()
       expect(container.querySelector('[data-testid="portfolio-hero-summary"]')).toBeNull()

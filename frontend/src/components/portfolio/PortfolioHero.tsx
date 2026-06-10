@@ -71,9 +71,9 @@ export default function PortfolioHero({ summary, holdings, isLoading }: Portfoli
 
   const hasHoldings = !!summary && summary.count > 0 && holdings.length > 0
 
-  // Empty state — value prop + CTAs. Stays SEBI-clean: no buy / sell /
-  // hold / recommend vocabulary, no opinion verbs. Frames the page as
-  // a tracking + alerting tool rather than advice.
+  // Empty state — value prop + CTAs. Stays SEBI-clean: no advisory
+  // vocabulary and no opinion verbs. Frames the page as a tracking
+  // + alerting tool rather than advice.
   if (!hasHoldings) {
     return (
       <section
