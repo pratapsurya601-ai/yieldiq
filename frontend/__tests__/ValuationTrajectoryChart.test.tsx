@@ -115,8 +115,8 @@ describe("ValuationTrajectoryChart", () => {
       />,
     )
     const panel = screen.getByTestId("trajectory-insights")
-    // Trend line — synthesised history drifts UP, so the panel should
-    // surface a positive trend statement.
+    // Trend line — synthesised history drifts UP, so the panel
+    // surfaces a positive trend statement.
     expect(panel.textContent).toMatch(/DCF fair value has trended up/i)
     // Within-band statistic line.
     expect(panel.textContent).toMatch(
@@ -150,7 +150,7 @@ describe("ValuationTrajectoryChart", () => {
     )
     const section = screen.getByTestId("valuation-trajectory-chart")
     expect(section).toHaveAttribute("data-state", "ready")
-    // Composite-gap line should NOT appear in insights.
+    // Composite-gap line is absent from insights when prop omitted.
     const panel = screen.getByTestId("trajectory-insights")
     expect(panel.textContent).not.toMatch(/composite intrinsic value sits/i)
   })
