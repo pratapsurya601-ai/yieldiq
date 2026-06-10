@@ -6,7 +6,7 @@
  *   2. Send triggers postChatStream with the ticker + the user
  *      message (NOT the empty assistant placeholder).
  *   3. Streaming deltas assemble in the assistant bubble live —
- *      partial text appears before the done:true event.
+ *      partial text lands before the done:true event.
  *   4. Suggested-prompt chip pre-populates the textarea.
  *   5. Cmd+Enter submits the composer.
  *   6. SEBI guard — no banned vocab in the rendered DOM (banned
@@ -172,7 +172,7 @@ describe("AnalysisChatPanel", () => {
 
   it("rendered DOM contains no SEBI-banned vocabulary", async () => {
     // Even when the model streams adversarial deltas (the backend
-    // SHOULD scrub but the component must also not paint banned
+    // scrubs but the component must also not paint banned
     // tokens in its own copy: header, placeholder, suggested prompts,
     // empty state).
     postChatStreamMock.mockImplementation(
