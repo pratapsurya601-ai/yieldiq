@@ -16,21 +16,24 @@
 import { useEffect, useMemo, useState } from "react"
 import Cookies from "js-cookie"
 
-// Task #123 (2026-05-23): the backend now returns one of two shapes
-// from /api/v1/public/manifest-history/{ticker}:
+// ROOT-CAUSE #11 (2026-06-10): the backend now returns a single
+// `title` field that is the only user-facing string. It is
+// pattern-guarded at the data layer and at the serializer to keep
+// engineering jargon (T-numbers, internal slugs, raw field names,
+// engineer-speak like "byte-identical") from ever surfacing here. Every
+// previous attempt to sanitise this surface (#123, #175, #188) hardened
+// the rationale; this fix introduces a separate title field so future
+// vocabulary forms can never slip through unnoticed.
 //
-//   * authed (cookie present) — { version_id, applied_at, rationale,
-//     fields_affected } — the raw "engineering receipts" view.
-//   * anon — { applied_at, description, fields_affected } — the
-//     sanitized view (no version_id, rationale stripped of internal
-//     cadence tokens like "Day-107a", "Audit#7", "PR #498").
-//
-// We render whichever fields are present and never assume the authed
-// keys exist. Display copy normalises to `description` (anon) or
-// `rationale` (authed), in that priority order.
+// `description` is preserved on the response for back-compat (older
+// clients still read it) and `rationale` for the authed receipts view,
+// but the panel headline ALWAYS prefers `title`. If a future server
+// stops sending `title` we fall back to the legacy fields rather than
+// blanking the timeline.
 interface ManifestEntry {
   version_id?: string
   applied_at: string | null
+  title?: string
   rationale?: string
   description?: string
   fields_affected: string[]
@@ -81,10 +84,12 @@ function FieldChip({ field }: { field: string }) {
 }
 
 function TimelineCard({ entry }: { entry: ManifestEntry }) {
-  // Task #123: prefer the sanitized `description` (anon shape) over
-  // the raw `rationale` (authed shape). Either is rendered as the
-  // headline copy; we never concatenate them.
-  const copy = entry.description || entry.rationale || "Model updated."
+  // ROOT-CAUSE #11: prefer the pattern-guarded `title` over the
+  // sanitised `description` and the raw `rationale`. The title is the
+  // ONE string we render here; description/rationale only appear in
+  // back-compat paths if a future server omits title.
+  const copy =
+    entry.title || entry.description || entry.rationale || "Model updated."
   return (
     <li className="relative pl-6 py-3">
       {/* Dot on the rail. */}
