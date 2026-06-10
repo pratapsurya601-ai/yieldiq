@@ -223,6 +223,20 @@ describe("ScoreVerdictReconcilerCaption — render branches", () => {
     const node = screen.getByTestId("score-verdict-reconciler-caption")
     expect(node.className).toContain("lg:mt-8")
   })
+
+  // Layout regression (2026-06-11, P1 bug A): on viewports >= xl the
+  // analysis page renders <StickyTableOfContents/> as a fixed right-rail
+  // overlay; without a max-width constraint the explanation paragraph
+  // wrapped under the TOC ("intrinsic value today" tucked beneath the
+  // TOC list). Locking a reading-measure cap keeps the prose inside the
+  // centered content column. If a future agent removes this constraint
+  // they must replace it with an equivalent reserved-space mechanism
+  // (e.g. a parent grid that excludes the TOC strip).
+  it("applies a max-width constraint to keep prose clear of the right-rail TOC", () => {
+    render(<ScoreVerdictReconcilerCaption divergence={hdfcbankShape()} />)
+    const node = screen.getByTestId("score-verdict-reconciler-caption")
+    expect(node.className).toMatch(/max-w-\[80ch\]/)
+  })
 })
 
 
