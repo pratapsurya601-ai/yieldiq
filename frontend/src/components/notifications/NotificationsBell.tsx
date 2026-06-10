@@ -22,12 +22,16 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query"
+import { AnimatePresence, motion } from "framer-motion"
 import axios from "axios"
 import Cookies from "js-cookie"
 
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 import { relativeTime } from "@/lib/relativeTime"
+import PressScale from "@/components/motion/PressScale"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { SLIDE_IN, SLIDE_IN_REDUCED, pickVariants } from "@/lib/motion/variants"
 import type {
   Notification,
   NotificationsUnreadCountResponse,
@@ -91,6 +95,8 @@ export default function NotificationsBell() {
   const router = useRouter()
   const qc = useQueryClient()
   const isAuthed = useAuthStore((s) => Boolean(s.token))
+  const reduced = useReducedMotion()
+  const drawerVariants = pickVariants(SLIDE_IN, SLIDE_IN_REDUCED, reduced)
 
   // Bell-badge polling. Cheap endpoint; runs every 60s but ONLY while
   // the tab is visible (refetchIntervalInBackground: false).
@@ -156,6 +162,7 @@ export default function NotificationsBell() {
 
   return (
     <div ref={ref} className="relative">
+      <PressScale className="rounded-full" as="div">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -194,11 +201,21 @@ export default function NotificationsBell() {
           </span>
         )}
       </button>
+      </PressScale>
 
+      {/* Drawer — animates open via SLIDE_IN (fade + 8px x-slide) so the
+          panel feels like it's sliding out from the bell, not popping in.
+          AnimatePresence handles the exit when `open` flips false. */}
+      <AnimatePresence>
       {open && (
-        <div
+        <motion.div
+          key="notif-drawer"
           role="dialog"
           aria-label="Notifications"
+          variants={drawerVariants}
+          initial="hidden"
+          animate="visible"
+          exit="hidden"
           className={cn(
             "absolute right-0 top-full mt-2 w-80 max-h-[480px]",
             "rounded-xl border border-border bg-bg shadow-xl",
@@ -292,8 +309,9 @@ export default function NotificationsBell() {
               </ul>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }

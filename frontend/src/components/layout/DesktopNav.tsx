@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 import ThemeToggle from "@/components/layout/ThemeToggle"
 import NotificationsBell from "@/components/notifications/NotificationsBell"
+import PressScale from "@/components/motion/PressScale"
 
 const LINKS = [
   { label: "Home", href: "/home" },
@@ -27,7 +28,13 @@ export default function DesktopNav() {
   return (
     <header className="hidden md:block sticky top-0 z-40 bg-bg/95 dark:bg-bg/90 backdrop-blur-md border-b border-border">
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center gap-8">
-        <Link href="/home" className="flex items-center gap-2 flex-shrink-0" aria-label="YieldIQ home">
+        {/* Logo — `.hover-lift` adds a subtle 2px lift + shadow on hover.
+            Reduced-motion users get a no-op (utility class self-disables). */}
+        <Link
+          href="/home"
+          className="hover-lift flex items-center gap-2 flex-shrink-0 rounded-md px-1 -mx-1"
+          aria-label="YieldIQ home"
+        >
           <span className="text-lg font-black tracking-tight">
             <span className="text-ink">Yield</span>
             <span className="text-blue-600 dark:text-blue-400">IQ</span>
@@ -39,6 +46,10 @@ export default function DesktopNav() {
           )}
         </Link>
 
+        {/* Nav links — `data-yq-nav-link` enables the CSS hover underline
+            animation defined in globals.css. PressScale provides the
+            tap-feedback gesture (scale on :active, opacity dip when
+            reduced-motion is on). */}
         <nav className="flex items-center gap-1 flex-1" aria-label="Main navigation">
           {LINKS.map((l) => {
             const active =
@@ -46,18 +57,21 @@ export default function DesktopNav() {
                 ? pathname === "/home"
                 : pathname.startsWith(l.href)
             return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
-                  active
-                    ? "bg-tone-info-bg text-tone-info-fg"
-                    : "text-body hover:text-ink hover:bg-surface"
-                )}
-              >
-                {l.label}
-              </Link>
+              <PressScale key={l.href} className="rounded-lg">
+                <Link
+                  href={l.href}
+                  data-yq-nav-link="true"
+                  data-yq-nav-active={active ? "true" : "false"}
+                  className={cn(
+                    "relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                    active
+                      ? "bg-tone-info-bg text-tone-info-fg"
+                      : "text-body hover:text-ink hover:bg-surface"
+                  )}
+                >
+                  {l.label}
+                </Link>
+              </PressScale>
             )
           })}
         </nav>
@@ -79,39 +93,43 @@ export default function DesktopNav() {
               {isNearLimit && <span className="text-[10px] font-bold">&uarr; Upgrade</span>}
             </Link>
           )}
-          <Link
-            href="/search"
-            className="inline-flex items-center gap-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-400 transition"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
-            </svg>
-            Search
-          </Link>
+          <PressScale className="rounded-lg">
+            <Link
+              href="/search"
+              className="inline-flex items-center gap-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-400 transition"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+              Search
+            </Link>
+          </PressScale>
           <NotificationsBell />
           <ThemeToggle />
-          <Link
-            href="/account"
-            aria-label="Account"
-            className={cn(
-              "h-8 w-8 rounded-full flex items-center justify-center transition",
-              pathname.startsWith("/account")
-                ? "bg-tone-info-bg text-tone-info-fg ring-2 ring-blue-100 dark:ring-blue-900/40"
-                : "bg-surface text-body hover:bg-tone-neutral-bg"
-            )}
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.499-1.632z"
-              />
-            </svg>
-          </Link>
+          <PressScale className="rounded-full">
+            <Link
+              href="/account"
+              aria-label="Account"
+              className={cn(
+                "h-8 w-8 rounded-full flex items-center justify-center transition",
+                pathname.startsWith("/account")
+                  ? "bg-tone-info-bg text-tone-info-fg ring-2 ring-blue-100 dark:ring-blue-900/40"
+                  : "bg-surface text-body hover:bg-tone-neutral-bg"
+              )}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.499-1.632z"
+                />
+              </svg>
+            </Link>
+          </PressScale>
         </div>
       </div>
     </header>

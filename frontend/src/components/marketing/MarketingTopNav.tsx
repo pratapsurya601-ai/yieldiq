@@ -3,9 +3,13 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import PressScale from "@/components/motion/PressScale"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { SLIDE_IN, SLIDE_IN_REDUCED, pickVariants } from "@/lib/motion/variants"
 
 /**
  * Unified top navigation — used by every page surface (marketing root,
@@ -56,6 +60,8 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
   const [open, setOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const reduced = useReducedMotion()
+  const menuVariants = pickVariants(SLIDE_IN, SLIDE_IN_REDUCED, reduced)
 
   const token = useAuthStore((s) => s.token)
   const tier = useAuthStore((s) => s.tier)
@@ -108,14 +114,21 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
   return (
     <nav className={wrapperCls} aria-label="Primary navigation">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-        <Link href={token ? "/home" : "/"} className="flex items-center gap-2 flex-shrink-0">
+        {/* Logo — `.hover-lift` gives the icon a subtle 2px lift on hover,
+            announcing "this is interactive" without committing to a full
+            scale. */}
+        <Link
+          href={token ? "/home" : "/"}
+          className="hover-lift flex items-center gap-2 flex-shrink-0 rounded-lg px-1 -mx-1"
+        >
           <img src="/logo-new.svg" alt="YieldIQ" className="w-7 h-7 rounded-lg" />
           <span className={cn("font-bold", isDark ? "text-white" : "text-ink")}>
             YieldIQ
           </span>
         </Link>
 
-        {/* Desktop nav items */}
+        {/* Desktop nav items — `data-yq-nav-link` enables the hover
+            underline animation from globals.css. */}
         <div className="hidden md:flex items-center gap-6 text-sm">
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/")
@@ -123,7 +136,9 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={cn(active ? linkActive : linkBase)}
+                data-yq-nav-link="true"
+                data-yq-nav-active={active ? "true" : "false"}
+                className={cn("relative", active ? linkActive : linkBase)}
               >
                 {item.label}
               </Link>
@@ -151,49 +166,63 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
                 </Link>
               )}
               <div ref={menuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen((v) => !v)}
-                  aria-haspopup="menu"
-                  aria-expanded={menuOpen}
-                  aria-label="Account menu"
-                  className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center transition",
-                    isDark
-                      ? "bg-white/10 text-white hover:bg-white/15"
-                      : "bg-surface text-body hover:bg-tone-neutral-bg"
-                  )}
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.499-1.632z" />
-                  </svg>
-                </button>
-                {menuOpen && (
-                  <div
-                    role="menu"
-                    className="absolute right-0 mt-2 w-44 rounded-lg border border-border bg-bg dark:bg-surface shadow-lg overflow-hidden text-sm"
+                <PressScale className="rounded-full" as="div">
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    aria-label="Account menu"
+                    className={cn(
+                      "h-8 w-8 rounded-full flex items-center justify-center transition",
+                      isDark
+                        ? "bg-white/10 text-white hover:bg-white/15"
+                        : "bg-surface text-body hover:bg-tone-neutral-bg"
+                    )}
                   >
-                    <Link href="/account" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Account</Link>
-                    <Link href="/portfolio" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Portfolio</Link>
-                    <Link href="/compare" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Compare</Link>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => { logout(); setMenuOpen(false) }}
-                      className="block w-full text-left px-3 py-2 text-ink hover:bg-surface border-t border-border"
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.499-1.632z" />
+                    </svg>
+                  </button>
+                </PressScale>
+                {/* Account dropdown — SLIDE_IN variant animates the fade +
+                    8px x-slide on open; AnimatePresence handles the exit
+                    once `menuOpen` flips false. */}
+                <AnimatePresence>
+                  {menuOpen && (
+                    <motion.div
+                      key="account-menu"
+                      role="menu"
+                      variants={menuVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="hidden"
+                      className="absolute right-0 mt-2 w-44 rounded-lg border border-border bg-bg dark:bg-surface shadow-lg overflow-hidden text-sm"
                     >
-                      Sign out
-                    </button>
-                  </div>
-                )}
+                      <Link href="/account" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Account</Link>
+                      <Link href="/portfolio" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Portfolio</Link>
+                      <Link href="/compare" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Compare</Link>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { logout(); setMenuOpen(false) }}
+                        className="block w-full text-left px-3 py-2 text-ink hover:bg-surface border-t border-border"
+                      >
+                        Sign out
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </>
           ) : (
             <>
               <Link href="/auth/login" className={signinLink}>Sign in</Link>
-              <Link href="/auth/signup" className={ctaLink}>
-                Start Free &rarr;
-              </Link>
+              <PressScale className="rounded-lg">
+                <Link href="/auth/signup" className={ctaLink}>
+                  Start Free &rarr;
+                </Link>
+              </PressScale>
             </>
           )}
         </div>
@@ -201,7 +230,10 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
         {/* Mobile hamburger */}
         <button
           onClick={() => setOpen(!open)}
-          className={cn("md:hidden p-2", isDark ? "text-white" : "text-ink")}
+          className={cn(
+            "md:hidden p-2 rounded-lg active:scale-95 transition-transform",
+            isDark ? "text-white" : "text-ink"
+          )}
           aria-label="Menu"
           aria-expanded={open}
         >

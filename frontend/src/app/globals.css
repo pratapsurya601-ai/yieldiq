@@ -471,3 +471,45 @@ html[data-yq-motion-off="1"] .skeleton,
 html[data-yq-motion-off="1"] .prism-pulse-breathe {
   animation: none;
 }
+
+/* ── Nav link hover underline ─────────────────────────────
+   Pure-CSS hover underline animation for nav links — left-
+   anchored, scales horizontally from 0 → 100% on hover. Used
+   by the desktop top-nav (DesktopNav, MarketingTopNav). The
+   active state shows the underline at 100% width without
+   transitioning, so the indicator reads as state, not as a
+   hover preview.
+
+   We deliberately bind to `:hover` only (NOT `:focus-visible`)
+   so keyboard users get the browser-default focus ring as
+   their indicator. Animating on focus would compete with the
+   ring and read as visual noise. */
+[data-yq-nav-link] {
+  position: relative;
+}
+[data-yq-nav-link]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.7;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+[data-yq-nav-link]:hover::after,
+[data-yq-nav-link][data-yq-nav-active="true"]::after {
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-yq-nav-link]::after {
+    transition: none;
+  }
+}
+html[data-yq-motion-off="1"] [data-yq-nav-link]::after {
+  transition: none;
+}

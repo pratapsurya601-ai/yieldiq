@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import PressScale from "@/components/motion/PressScale"
 
 type Theme = "light" | "dark"
 const STORAGE_KEY = "yieldiq_theme"
@@ -73,20 +74,21 @@ export default function ThemeToggle() {
       {(["light", "dark"] as const).map((opt) => {
         const active = current === opt
         return (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => choose(opt)}
-            aria-pressed={active}
-            className={
-              "rounded-full px-2.5 py-1 text-[11px] font-medium capitalize transition " +
-              (active
-                ? "bg-brand text-white shadow-sm"
-                : "hover:text-ink")
-            }
-          >
-            {opt}
-          </button>
+          <PressScale key={opt} className="rounded-full" as="span">
+            <button
+              type="button"
+              onClick={() => choose(opt)}
+              aria-pressed={active}
+              className={
+                "rounded-full px-2.5 py-1 text-[11px] font-medium capitalize transition " +
+                (active
+                  ? "bg-brand text-white shadow-sm"
+                  : "hover:text-ink")
+              }
+            >
+              {opt}
+            </button>
+          </PressScale>
         )
       })}
     </div>

@@ -3,9 +3,13 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 import AnalysisCounter from "@/components/layout/AnalysisCounter"
+import PressScale from "@/components/motion/PressScale"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { SLIDE_IN, SLIDE_IN_REDUCED, pickVariants } from "@/lib/motion/variants"
 
 interface NavTab {
   label: string
@@ -95,6 +99,8 @@ export default function Navbar() {
   const tier = useAuthStore((s) => s.tier)
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
+  const reduced = useReducedMotion()
+  const moreVariants = pickVariants(SLIDE_IN, SLIDE_IN_REDUCED, reduced)
 
   // Close the More menu on outside click or route change
   useEffect(() => {
@@ -125,107 +131,119 @@ export default function Navbar() {
 
           if (tab.primary) {
             return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                aria-label={tab.label}
-                className={cn(
-                  "flex flex-col items-center justify-center -mt-5",
-                  "h-12 w-12 rounded-full bg-blue-600 shadow-md shadow-blue-300",
-                  "active:scale-95 transition-transform"
-                )}
-              >
-                {tab.icon(isActive)}
-              </Link>
+              <PressScale key={tab.href} className="rounded-full -mt-5">
+                <Link
+                  href={tab.href}
+                  aria-label={tab.label}
+                  className={cn(
+                    "flex flex-col items-center justify-center",
+                    "h-12 w-12 rounded-full bg-blue-600 shadow-md shadow-blue-300",
+                  )}
+                >
+                  {tab.icon(isActive)}
+                </Link>
+              </PressScale>
             )
           }
 
           return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              aria-label={tab.label}
-              className={cn(
-                "relative flex flex-col items-center justify-center gap-0.5 py-1 px-3 min-h-[44px] min-w-[44px]",
-                "transition-colors active:scale-95"
-              )}
-            >
-              {isActive && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2px] bg-blue-500 rounded-full" />
-              )}
-              {tab.icon(isActive)}
-              <span
+            <PressScale key={tab.href} className="rounded-lg">
+              <Link
+                href={tab.href}
+                aria-label={tab.label}
                 className={cn(
-                  "text-[10px] font-medium",
-                  isActive ? "text-blue-600 dark:text-blue-400" : "text-caption"
+                  "relative flex flex-col items-center justify-center gap-0.5 py-1 px-3 min-h-[44px] min-w-[44px]",
+                  "transition-colors"
                 )}
               >
-                {tab.label}
-              </span>
-            </Link>
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2px] bg-blue-500 rounded-full" />
+                )}
+                {tab.icon(isActive)}
+                <span
+                  className={cn(
+                    "text-[10px] font-medium",
+                    isActive ? "text-blue-600 dark:text-blue-400" : "text-caption"
+                  )}
+                >
+                  {tab.label}
+                </span>
+              </Link>
+            </PressScale>
           )
         })}
 
-        {/* More menu — holds Screener, Compare, Account */}
+        {/* More menu — holds Screener, Compare, Account.
+            PressScale provides tap feedback; AnimatePresence + SLIDE_IN
+            variants animate the dropdown panel open/close. */}
         <div ref={moreRef} className="relative">
-          <button
-            type="button"
-            aria-label="More"
-            aria-expanded={moreOpen}
-            aria-haspopup="menu"
-            onClick={() => setMoreOpen((v) => !v)}
-            className={cn(
-              "relative flex flex-col items-center justify-center gap-0.5 py-1 px-3 min-h-[44px] min-w-[44px]",
-              "transition-colors active:scale-95"
-            )}
-          >
-            {moreActive && !moreOpen && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2px] bg-blue-500 rounded-full" />
-            )}
-            <svg
-              className={cn("h-5 w-5", moreActive ? "text-blue-600 dark:text-blue-400" : "text-caption")}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-            </svg>
-            <span
+          <PressScale className="rounded-lg" as="div">
+            <button
+              type="button"
+              aria-label="More"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((v) => !v)}
               className={cn(
-                "text-[10px] font-medium",
-                moreActive ? "text-blue-600 dark:text-blue-400" : "text-caption"
+                "relative flex flex-col items-center justify-center gap-0.5 py-1 px-3 min-h-[44px] min-w-[44px]",
+                "transition-colors"
               )}
             >
-              More
-            </span>
-          </button>
+              {moreActive && !moreOpen && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2px] bg-blue-500 rounded-full" />
+              )}
+              <svg
+                className={cn("h-5 w-5", moreActive ? "text-blue-600 dark:text-blue-400" : "text-caption")}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+              </svg>
+              <span
+                className={cn(
+                  "text-[10px] font-medium",
+                  moreActive ? "text-blue-600 dark:text-blue-400" : "text-caption"
+                )}
+              >
+                More
+              </span>
+            </button>
+          </PressScale>
 
-          {moreOpen && (
-            <div
-              role="menu"
-              className="absolute bottom-full right-0 mb-2 w-44 rounded-lg border border-border bg-bg dark:bg-surface shadow-lg overflow-hidden"
-            >
-              {MORE_ITEMS.map((item) => {
-                const isActive = pathname.startsWith(item.href)
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    role="menuitem"
-                    onClick={() => setMoreOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 text-sm",
-                      isActive ? "bg-tone-info-bg text-blue-600" : "text-ink hover:bg-surface"
-                    )}
-                  >
-                    {item.icon}
-                    <span className="font-medium">{item.label}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          )}
+          <AnimatePresence>
+            {moreOpen && (
+              <motion.div
+                key="more-menu"
+                role="menu"
+                variants={moreVariants}
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
+                className="absolute bottom-full right-0 mb-2 w-44 rounded-lg border border-border bg-bg dark:bg-surface shadow-lg overflow-hidden"
+              >
+                {MORE_ITEMS.map((item) => {
+                  const isActive = pathname.startsWith(item.href)
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      role="menuitem"
+                      onClick={() => setMoreOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 text-sm",
+                        isActive ? "bg-tone-info-bg text-blue-600" : "text-ink hover:bg-surface"
+                      )}
+                    >
+                      {item.icon}
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </nav>
