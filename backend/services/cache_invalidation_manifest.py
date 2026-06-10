@@ -2729,6 +2729,55 @@ MANIFEST: list[dict] = [
             "route developer tickers through compute_developer_nav."
         ),
     },
+    {
+        # T3.8 Phase A — Cement capacity utilization × EBITDA/tonne
+        # × multiple framework, standalone (no router wiring).
+        #
+        # Indian cement is volume × realization × margin where
+        # utilization MATTERS: 75% util is breakeven, 85% strong, 95%
+        # stretched. The new engine values the company at MID-CYCLE
+        # production (capacity × mid-util) × EBITDA/tonne × segment
+        # multiple - net debt. Current utilization is reported as a
+        # trough / mid / peak cycle-position chip but does NOT scale
+        # the EBITDA going into the valuation — the point of using
+        # mid-cycle is to avoid the over/underpay-at-extremes trap a
+        # generic DCF on trailing FCF falls into for cyclicals.
+        #
+        # Segment multiples: premium 17x (ULTRACEMCO, SHREECEM),
+        # mid-tier 13.5x (AMBUJACEM, ACC, DALBHARAT, JKCEMENT,
+        # RAMCOCEM, BIRLACORPN), weak 10.5x (INDIACEM, JKLAKSHMI,
+        # ORIENTCEM).
+        #
+        # Phase A is standalone — no router wiring, no read-path
+        # entry in the analysis cache shape. Phase B (separate PR)
+        # routes the 11 cement tickers below through this engine
+        # and surfaces the cycle-position chip on the analysis page.
+        #
+        # Empty fields list means _field_in_scope() returns False for
+        # any caller's fields_needed iterable, so this entry is
+        # effectively a documentation-only no-op for the read-validity
+        # gate — by design for Phase A.
+        "version_id": "v_t3_8_cement_utilization_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "ULTRACEMCO", "AMBUJACEM", "ACC", "SHREECEM",
+                "JKCEMENT", "RAMCOCEM", "DALBHARAT", "INDIACEM",
+                "JKLAKSHMI", "BIRLACORPN", "ORIENTCEM",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.8 Phase A — cement capacity utilization × EBITDA/"
+            "tonne × multiple framework. Mid-cycle EBITDA = capacity "
+            "× mid_util × EBITDA/tonne; EV = EBITDA × segment "
+            "multiple; Equity = EV - net debt. Cycle position "
+            "(trough / mid / peak) reported as a chip; current "
+            "util does NOT scale the EBITDA going into the "
+            "valuation. Phase B routes the 11 cement tickers "
+            "through this engine."
+        ),
+    },
 ]
 
 
