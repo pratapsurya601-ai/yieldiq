@@ -472,7 +472,110 @@ def compute_sensitivity_score(
 
 
 # ───────────────────────────────────────────────────────────────────
-# Convenience: compute all four at once.
+# 5. composite_agreement_score (T1.6, 2026-06-10)
+# ───────────────────────────────────────────────────────────────────
+# Independent 5th confidence pillar. Quantifies how tightly the
+# constituent estimators of the composite intrinsic value cluster.
+# High score = estimators agree = high trust in the composite.
+# Low score = wide spread = composite is averaging noise.
+#
+# Read from the ``composite_components`` dict emitted by
+# ``composite_iv_service.composite_to_dict`` (T1.1, PR #777). Each
+# component is ``{"value": <per-share IV>, "weight": <renorm wt>}``;
+# this pillar consumes the values only — weights are the composite's
+# concern, not the agreement measure's.
+#
+# Returns ``None`` (not 0) when fewer than 2 components exist — a
+# single-estimator path (pure holdco DCF-only, bank residual-income
+# without multiples) carries no agreement signal by construction.
+# Same defensive posture as ``compute_sensitivity_score``.
+#
+# Algorithm: coefficient of variation (CV = stdev / mean) over the
+# per-component values, then a 5-bucket map to a 0-100 score. CV is
+# scale-free, so the same threshold map works for a ₹15 small-cap
+# and a ₹1.5L large-cap. The thresholds match the verbal description
+# in the T1.6 brief (5/15/30/50% spread bands).
+# ───────────────────────────────────────────────────────────────────
+def compute_composite_agreement_score(
+    composite_components: Optional[Mapping[str, Any]],
+) -> Optional[int]:
+    """5th pillar — agreement among composite IV constituent estimators.
+
+    ``composite_components`` shape (from
+    ``composite_iv_service.composite_to_dict``):
+
+        {
+            "value": float | None,
+            "components": {
+                "dcf":       {"value": 1129.28, "weight": 0.50},
+                "multiples": {"value": 872.33,  "weight": 0.30},
+                "analyst":   {"value": 803.00,  "weight": 0.20},
+            },
+            "method": "composite_dcf_multiples_analyst",
+            "extreme_divergence": False,
+        }
+
+    Returns:
+        int in [0, 100] — high = estimators cluster tightly.
+        None — fewer than 2 components, malformed input, or values
+        that resolve to a non-positive mean (no agreement signal).
+
+    Score map (CV = stdev / mean over component values):
+        CV <= 0.05 -> 100   (tight cluster, ~within 5% of each other)
+        CV <= 0.15 ->  80   (modest spread, ~within 15%)
+        CV <= 0.30 ->  60   (HDFCBANK-shape, ~within 30%)
+        CV <= 0.50 ->  40   (wide spread)
+        CV  > 0.50 ->  20   (extreme_divergence territory)
+    """
+    if not isinstance(composite_components, Mapping):
+        return None
+
+    comps = composite_components.get("components")
+    if not isinstance(comps, Mapping) or not comps:
+        return None
+
+    # Extract per-component values; ignore entries without a numeric
+    # positive value. The composite_iv_service guarantees positive
+    # values for any active component, but be defensive against
+    # legacy / malformed cached payloads.
+    values: list[float] = []
+    for comp in comps.values():
+        if not isinstance(comp, Mapping):
+            continue
+        v = comp.get("value")
+        try:
+            vf = float(v) if v is not None else 0.0
+        except (TypeError, ValueError):
+            continue
+        if vf > 0:
+            values.append(vf)
+
+    if len(values) < 2:
+        return None
+
+    mean = sum(values) / len(values)
+    if mean <= 0:  # pragma: no cover — defensive (all-positive guard above)
+        return None
+    var = sum((x - mean) ** 2 for x in values) / len(values)
+    stdev = var ** 0.5
+    cv = stdev / abs(mean)
+
+    if cv <= 0.05:
+        score = 100
+    elif cv <= 0.15:
+        score = 80
+    elif cv <= 0.30:
+        score = 60
+    elif cv <= 0.50:
+        score = 40
+    else:
+        score = 20
+
+    return _clamp(score)
+
+
+# ───────────────────────────────────────────────────────────────────
+# Convenience: compute all five at once.
 # ───────────────────────────────────────────────────────────────────
 def compute_all_scores(
     ticker: str,
@@ -485,18 +588,23 @@ def compute_all_scores(
     extra_flags: Optional[Mapping[str, bool]] = None,
     base_inputs: Optional[Mapping[str, Any]] = None,
     base_verdict: Optional[str] = None,
+    composite_components: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Optional[int]]:
-    """Compute all four confidence scores in one call.
+    """Compute all five confidence scores in one call.
 
     Returns a dict with keys ``data_quality``, ``model_confidence``,
-    ``valuation_stability``, ``sensitivity``. Never raises; defensive
-    against every input being ``None`` (would just return three
-    zeros/neutrals + sensitivity=None).
+    ``valuation_stability``, ``sensitivity``, ``composite_agreement``.
+    Never raises; defensive against every input being ``None``.
 
     T2.7 (2026-06-09) added the 4th key ``sensitivity`` as an
     additive pillar. It is ``None`` for holdcos, banks, and any call
-    where ``base_inputs`` / ``base_verdict`` are missing; the
-    existing three pillars are byte-identical to PR 1.
+    where ``base_inputs`` / ``base_verdict`` are missing.
+
+    T1.6 (2026-06-10) added the 5th key ``composite_agreement``.
+    Measures how tightly the composite IV constituent estimators
+    cluster. ``None`` when fewer than 2 estimators are in the
+    composite (single-estimator paths, malformed input). The
+    existing four pillars are byte-identical to T2.7.
     """
     try:
         dq = compute_data_quality_score(enriched, raw)
@@ -531,11 +639,17 @@ def compute_all_scores(
     except Exception:  # pragma: no cover
         _log.exception("[%s] sensitivity_score failed", ticker)
         sens = None
+    try:
+        agree = compute_composite_agreement_score(composite_components)
+    except Exception:  # pragma: no cover
+        _log.exception("[%s] composite_agreement_score failed", ticker)
+        agree = None
     return {
         "data_quality": dq,
         "model_confidence": mc,
         "valuation_stability": vs,
         "sensitivity": sens,
+        "composite_agreement": agree,
     }
 
 

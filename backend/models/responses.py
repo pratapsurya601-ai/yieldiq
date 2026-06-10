@@ -202,6 +202,13 @@ class ValuationOutput(BaseModel):
     # existing 3-pillar scores are byte-identical; this is a new field.
     confidence_sensitivity: Optional[int] = None
 
+    # T1.6 (2026-06-10): composite agreement score — 5th confidence pillar.
+    # Measures clustering vs. spread among composite IV constituent estimators.
+    # High score = estimators agree = high trust in composite.
+    # Low score = wide spread = composite is averaging noise.
+    # None when composite has <2 estimators (single-estimator path).
+    confidence_composite_agreement: Optional[int] = None
+
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
     # endpoint (returns this Pydantic model directly) matches the

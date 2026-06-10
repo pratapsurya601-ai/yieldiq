@@ -324,6 +324,32 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # T1.6 (2026-06-10) — added composite_agreement_score as the
+        # 5th confidence pillar. Measures clustering vs. spread among
+        # the constituent estimators that feed composite_intrinsic_value
+        # (DCF + Multiples + Wall St analyst). High score = estimators
+        # agree = high trust in the composite; low score = wide spread
+        # = composite is averaging noise. Independent of the existing
+        # 4 pillars (data_quality, model_confidence, valuation_stability,
+        # sensitivity). Purely additive — the existing pillars are
+        # byte-identical; this surfaces a new Optional field
+        # (`confidence_composite_agreement`) on ValuationOutput. None
+        # for single-estimator paths (holdco DCF-only, bank residual-
+        # income without multiples) where agreement is structurally
+        # undefined.
+        "version_id": "v_t1_6_confidence_composite_agreement_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["confidence_composite_agreement"],
+        },
+        "rationale": (
+            "T1.6 — added composite_agreement_score as 5th confidence "
+            "pillar. Measures clustering of composite IV constituent "
+            "estimators. Independent of existing 4 scores. Additive only."
+        ),
+    },
+    {
         # T2.6 Phase A — Adjusted Present Value (Myers framework)
         # standalone service. Useful for leveraged / deleveraging
         # stories where WACC distorts the valuation (LBO targets,
