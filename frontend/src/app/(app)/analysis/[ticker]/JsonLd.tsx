@@ -34,7 +34,7 @@ interface JsonLdProps {
    * number every user-visible "Fair Value" pill on the analysis page
    * shows. Pre-fix, this prop was the DCF-only `valuation.fair_value`
    * and the Rich Results card for HDFCBANK said "₹1,142" while the
-   * page hero said "₹1,148". Callers should pass `headline_fair_value`
+   * page hero said "₹1,148". Callers must pass `headline_fair_value`
    * (falling back to `composite_intrinsic_value` and finally
    * `valuation.fair_value` for legacy payloads).
    */
