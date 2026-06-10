@@ -324,6 +324,30 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # T2.6 Phase A — Adjusted Present Value (Myers framework)
+        # standalone service. Useful for leveraged / deleveraging
+        # stories where WACC distorts the valuation (LBO targets,
+        # capital-intensive cyclicals at inflection, real estate /
+        # infrastructure). Niche tool — surfaces when leverage is
+        # material. Phase B wires conditional surfacing for high-D/E
+        # names; this Phase A is the standalone service only with no
+        # engine wiring, so scope.fields is empty (no cached row
+        # changes its output as a result of this PR).
+        "version_id": "v_t2_6_apv_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T2.6 Phase A — Adjusted Present Value standalone (Myers "
+            "framework). Useful for leveraged / deleveraging stories "
+            "where WACC distorts. Niche tool — surfaces when leverage "
+            "is material. Phase B wires conditional surfacing for "
+            "high-D/E names."
+        ),
+    },
+    {
         # T2.3 Phase A — replacement value standalone service added at
         # backend/services/replacement_value_service.py. Sibling to the
         # T2.8 liquidation-value service (PR #795): liquidation = orderly
