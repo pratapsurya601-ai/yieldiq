@@ -540,6 +540,24 @@ export interface AnalysisResponse {
   probability_weighted_fv?: number | null
   probability_weighted_method?: string | null
   /**
+   * T5.3 (2026-06-10): 4 derived insights synthesized at the router
+   * layer from the rich payload (composite IV + 5-pillar confidence
+   * + Graham/Tobin anchors + per-sector backtest accuracy). Surfaced
+   * as one bundle so the frontend renders a single panel above the
+   * Valuation tab. Each of the four sub-slots is independently
+   * nullable; the panel hides any card with a null slot. Backend
+   * shape lives in backend/services/derived_insights_service.py;
+   * consumers should import the matching TS types from
+   * components/analysis/DerivedInsightsPanel.tsx so the contract
+   * stays in one place.
+   */
+  derived_insights?: {
+    confidence_summary?: unknown | null
+    estimator_clustering?: unknown | null
+    floor_ceiling?: unknown | null
+    sector_calibration?: unknown | null
+  } | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of

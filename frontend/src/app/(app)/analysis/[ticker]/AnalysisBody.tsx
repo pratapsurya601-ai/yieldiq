@@ -65,6 +65,9 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 // and StickyScorecard.tsx are deleted in this PR.
 import HonestHero from "@/components/analysis/HonestHero"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
+import DerivedInsightsPanel, {
+  type DerivedInsights as DerivedInsightsShape,
+} from "@/components/analysis/DerivedInsightsPanel"
 import MobileScoreStrip from "@/components/analysis/MobileScoreStrip"
 import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
@@ -1290,6 +1293,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "Valuation",
       content: (
         <div className="space-y-4">
+          {/* T5.3 (2026-06-10) — 4 derived insights synthesized from
+              composite IV + 5-pillar confidence + Graham/Tobin anchors
+              + per-sector backtest accuracy. Rendered at the top of
+              the Valuation tab as the "look here first" cards. Hides
+              itself when the payload pre-dates T5.3 (derived_insights
+              null) or no insight could be computed. */}
+          <DerivedInsightsPanel
+            insights={
+              (data.derived_insights as DerivedInsightsShape | null) ?? null
+            }
+          />
           {/* T5.10 — per-engine valuation methods panel. Surfaces every
               independent estimate the engine produced (Composite, DCF,
               Multiples, Wall Street, plus the Phase B services once
