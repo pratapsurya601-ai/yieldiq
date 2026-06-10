@@ -129,7 +129,12 @@ export default async function AnalysisPage({
   const exchange: "NSE" | "BSE" = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"
 
   return (
-    <>
+    // Mobile-PR-A (Issue 3, audit 2026-06-10): clear the fixed mobile
+    // bottom nav (Navbar.tsx:118, ~64px + env(safe-area-inset-bottom))
+    // so the final TrustFooter / SEBI disclaimer is not hidden behind
+    // it. SEBI compliance copy partially covered is a regulatory
+    // matter, not just an aesthetic one. md+ has no bottom nav.
+    <div className="pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0">
       {prism && (
         <JsonLd
           ticker={tickerUpper}
@@ -146,6 +151,6 @@ export default async function AnalysisPage({
       <TickerStrip />
       <AdrCohortBanner ticker={ticker} />
       <AnalysisAuthGate ticker={ticker} ssrAuthenticated={ssrAuthenticated} />
-    </>
+    </div>
   )
 }

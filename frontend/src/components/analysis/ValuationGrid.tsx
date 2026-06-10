@@ -118,7 +118,10 @@ export default function ValuationGrid({
           vs CMP {formatCurrency(currentPrice, currency, ticker)}
         </p>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      {/* Mobile-PR-A (Issue 1, audit 2026-06-10): stack scenarios on
+          sub-md to prevent ₹ currency strings from wrapping mid-number
+          at 360px (≈107px / card was too narrow for `₹1,42,500`). */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {cases.map(({ key, data }) => {
           const palette = CASE_PALETTE[key]
           // Premium Feel R2 — wrap each scenario value with the
