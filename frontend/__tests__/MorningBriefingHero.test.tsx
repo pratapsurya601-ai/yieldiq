@@ -1,5 +1,5 @@
 /**
- * MorningBriefingHero — personalized /home opener.
+ * MorningBriefingHero — generic /home opener (no first-name).
  *
  * Covers:
  *   1. Loading state — skeleton renders all three placeholder rows
@@ -9,23 +9,20 @@
  *      prose is SEBI-clean (no banned advisory verbs).
  *   3. Empty-portfolio render — portfolio tile is suppressed, NIFTY
  *      tile still renders, briefing copy invites onboarding.
+ *   4. Greeting copy NEVER contains a first-name token — closes the
+ *      2026-06-11 P0 home-greeting bug. Pins the invariant in CI.
  *
- * The auth store is stubbed via a lightweight module mock so we
- * don't need to spin up the full Zustand persistence layer. The
- * api helper is mocked to return one of three fixture shapes per
+ * The api helper is mocked to return one of three fixture shapes per
  * test, exercising the loading / success / empty branches without
- * any network IO.
+ * any network IO. The auth store is intentionally NOT mocked anymore
+ * — the hero stopped reading it on 2026-06-11 so a mock would be
+ * dead weight and could mask a regression where the import sneaks
+ * back in.
  */
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import React from "react"
-
-// Stub the auth store — only the two fields the hero reads from.
-vi.mock("@/store/authStore", () => ({
-  useAuthStore: (selector: (s: { email: string | null; displayName: string | null }) => unknown) =>
-    selector({ email: "surya@example.com", displayName: "Surya" }),
-}))
 
 vi.mock("@/lib/api", () => ({
   getMorningBriefing: vi.fn(),
@@ -107,10 +104,13 @@ describe("MorningBriefingHero", () => {
     )
     expect(screen.queryByTestId("morning-briefing-skeleton")).not.toBeInTheDocument()
 
-    // Greeting uses the displayName from the auth store.
-    // (greetingWord depends on the local IST hour at test time, so we
-    //  assert the name token rather than the time-of-day word.)
-    expect(screen.getByText(/Surya/)).toBeInTheDocument()
+    // P0 home-greeting bug (2026-06-11): greeting must be GENERIC.
+    // The "Surya" token from the briefing payload MUST NOT appear
+    // anywhere in the rendered top-line — the hero stopped reading
+    // it on the fix landing. The briefing prose still references
+    // user-specific tickers (HDFCBANK) below, that's expected.
+    const hero = screen.getByTestId("morning-briefing-hero")
+    expect((hero.textContent || "").toLowerCase()).not.toContain("surya")
 
     // Both tiles are present.
     expect(screen.getByTestId("morning-briefing-portfolio-tile")).toBeInTheDocument()
@@ -166,11 +166,18 @@ describe("MorningBriefingHero", () => {
         expect(screen.getByTestId("morning-briefing-fallback")).toBeInTheDocument(),
       { timeout: 3500 },
     )
-    // Fallback uses the display name + a neutral greeting word; no
-    // tiles or briefing card must leak through.
+    // Fallback uses a neutral greeting word with NO first-name token;
+    // no tiles or briefing card must leak through.
     expect(screen.queryByTestId("morning-briefing-portfolio-tile")).not.toBeInTheDocument()
     expect(screen.queryByTestId("morning-briefing-nifty-tile")).not.toBeInTheDocument()
     expect(screen.queryByTestId("morning-briefing-card")).not.toBeInTheDocument()
-    expect(screen.getByText(/Surya/)).toBeInTheDocument()
+    const fallback = screen.getByTestId("morning-briefing-fallback")
+    // P0 home-greeting bug — even the fallback must not personalize.
+    expect((fallback.textContent || "").toLowerCase()).not.toContain("surya")
+    // The remaining copy must be a recognisable time-of-day greeting
+    // (Good morning / Good afternoon / Good evening / Welcome back).
+    expect(fallback.textContent || "").toMatch(
+      /(Good (morning|afternoon|evening)|Welcome back)/,
+    )
   })
 })

@@ -51,6 +51,15 @@ function Tile({ cfg }: { cfg: TileConfig }) {
   const results = data?.results ?? []
   const total = data?.total ?? 0
   const top = results.slice(0, 3)
+  // 2026-06-11 — backend sets filter_applied.relaxed=true when the
+  // strict gates returned 0 candidates and the relax pass kicked in.
+  // We surface this as a "Closest matches" badge on the tile so the
+  // home surface is honest about the widened criteria (rather than
+  // implying these names cleared the canonical Wide-Moat / Deep Value
+  // bar). See _query_preset_from_db in backend/routers/screener.py.
+  const relaxed = Boolean(
+    (data?.filter_applied as { relaxed?: unknown } | undefined)?.relaxed,
+  )
   // The backend already sorts each named preset's leaderboard by its
   // primary signal (MoS desc for buffett/deep_value, revenue-CAGR desc
   // for growth_quality — see `_PRESET_SORT_KEYS` in
@@ -69,6 +78,14 @@ function Tile({ cfg }: { cfg: TileConfig }) {
             <h3 className="text-sm font-semibold text-ink truncate">{cfg.title}</h3>
           </div>
           <p className="text-[10px] text-caption">{cfg.blurb}</p>
+          {relaxed && top.length > 0 && (
+            <p
+              className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5"
+              data-testid={`quant-tile-relaxed-${cfg.key}`}
+            >
+              Closest matches
+            </p>
+          )}
         </div>
         <span
           className="text-base font-bold font-mono text-ink tabular-nums"
