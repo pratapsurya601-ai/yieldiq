@@ -65,6 +65,7 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 // side rail at ≥1024 and into <MobileScoreStrip> below 1024. ScoreCard.tsx
 // and StickyScorecard.tsx are deleted in this PR.
 import HonestHero from "@/components/analysis/HonestHero"
+import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
 import EarningsImpactSimulator from "@/components/analysis/EarningsImpactSimulator"
 import DerivedInsightsPanel, {
@@ -1784,6 +1785,33 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             honestCardTeaser={data.honest_card?.best_estimate ?? null}
           />
         </Reveal>
+
+        {/* Cross-confirmation chip (2026-06-10) — competitor-audit gap #1.
+            AlphaSpread's signature "Both methods agree within X%" trust
+            signal. Prefers the richer "N of 7 methods agree within 15%"
+            framing when the cross_engine_consensus payload from PR #836
+            is present; falls back to the DCF + Multiples agreement
+            sentence on legacy payloads. Self-hides when both inputs
+            are unusable so it can be mounted unconditionally.
+
+            Mounted ABOVE the ConsensusSignalBadge (PR #836) and BELOW
+            the HonestHero so the trust signal reads inline with the
+            verdict triad. */}
+        <CrossConfirmationChip
+          dcfFv={valuation.fair_value ?? null}
+          multiplesFv={data.multiples_based_fv ?? null}
+          compositeIv={data.composite_intrinsic_value ?? null}
+          consensus={
+            (data as unknown as {
+              cross_engine_consensus?:
+                | import("@/components/analysis/CrossConfirmationChip").ConsensusSignalLike
+                | null
+            }).cross_engine_consensus ?? null
+          }
+          ticker={data.ticker}
+          currency={company.currency}
+          className="mt-3"
+        />
 
         {/* Cross-engine consensus signal (2026-06-10): direction-
             agreement count across the 7+ standalone estimators. Sits
