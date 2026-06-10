@@ -40,6 +40,8 @@ import MarketPulse from "@/components/discover/MarketPulse"
 // import { NearLowsRail, LowestPERail } from "@/components/discover/DiscoverRails"
 import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
+import Reveal from "@/components/motion/Reveal"
+import RevealStagger from "@/components/motion/RevealStagger"
 
 // Day-68: Methodology spotlight — 7 daily tips that rotate by day-of-year
 // so the same visitor sees a different tip each visit within a week. This
@@ -215,7 +217,7 @@ export default function DiscoverPage() {
 
       {/* Day-81 hero (1/6): Highest-scored stock today (anchor). */}
       {topPick && (
-        <section>
+        <Reveal as="section">
           <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
           <TopPickCard
             ticker={topPick.ticker}
@@ -226,27 +228,29 @@ export default function DiscoverPage() {
             summary={topPick.summary || ""}
           />
           <p className="text-[10px] text-caption mt-1">Updated daily. Based on YieldIQ 50 model. Not investment advice.</p>
-        </section>
+        </Reveal>
       )}
 
       {/* Day-81 (2/6): Daily Insight — moved up from bottom-third so
           cold-start visitors get an educational anchor immediately under
           the Top Pick. Rotates daily (day-of-year mod 7). */}
-      <section data-day81-slot="daily-insight">
-        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
-          Daily Insight
-        </p>
-        <Link
-          href={todayTip.href}
-          className="block bg-bg dark:bg-surface border border-border rounded-xl p-4 hover:border-brand transition"
-        >
-          <p className="text-sm font-semibold text-ink mb-1">{todayTip.title}</p>
-          <p className="text-xs text-caption leading-relaxed">{todayTip.body}</p>
-          <p className="text-[11px] font-semibold text-brand mt-2">
-            Read the full methodology &rarr;
+      <Reveal as="section" className="block" delay={80}>
+        <div data-day81-slot="daily-insight">
+          <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
+            Daily Insight
           </p>
-        </Link>
-      </section>
+          <Link
+            href={todayTip.href}
+            className="block bg-bg dark:bg-surface border border-border rounded-xl p-4 hover:border-brand transition"
+          >
+            <p className="text-sm font-semibold text-ink mb-1">{todayTip.title}</p>
+            <p className="text-xs text-caption leading-relaxed">{todayTip.body}</p>
+            <p className="text-[11px] font-semibold text-brand mt-2">
+              Read the full methodology &rarr;
+            </p>
+          </Link>
+        </div>
+      </Reveal>
 
       {/* Day-81 (3/6): Screener Presets — promoted from page bottom to
           above-the-fold. This is the highest-intent conversion surface
@@ -276,11 +280,13 @@ export default function DiscoverPage() {
         </div>
         {yiq50 && yiq50.results.length >= 3 ? (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <RevealStagger staggerMs={100} className="grid grid-cols-3 gap-2 mb-3">
               {yiq50.results.slice(0, 3).map((s, i) => (
                 <Link key={s.ticker} href={`/analysis/${s.ticker}`}
-                  className="relative bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 min-h-[96px] text-center hover:border-blue-300 hover:shadow-sm active:scale-[0.98] transition">
-                  {/* Rank badge */}
+                  className="relative bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 min-h-[96px] text-center hover:border-blue-300 hover:shadow-sm hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] transition-transform transition-shadow duration-150">
+                  {/* Rank badge — RevealStagger drives the entry animation
+                      for the whole tile, so the medal lands naturally
+                      with a sub-100ms stagger. No bespoke keyframe needed. */}
                   <span className={`absolute -top-2 -left-2 w-6 h-6 rounded-full ${RANK_COLORS[i]} text-white text-[10px] font-bold flex items-center justify-center shadow-sm`}>
                     #{i + 1}
                   </span>
@@ -312,9 +318,16 @@ export default function DiscoverPage() {
                   )}
                 </Link>
               ))}
-            </div>
+            </RevealStagger>
             {tier !== "free" && yiq50.results.length > 3 && (
-              <div className="bg-bg dark:bg-surface rounded-xl border border-gray-100 overflow-hidden">
+              <Reveal className="bg-bg dark:bg-surface rounded-xl border border-gray-100 overflow-hidden">
+                {/*
+                  Sortable table — RevealStagger cannot wrap <tr> rows
+                  (it injects <div> wrappers, which is invalid HTML
+                  inside <tbody>). The whole table gets a single Reveal
+                  fade-up instead, which keeps semantics intact while
+                  still removing the harsh pop-in.
+                */}
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 text-[10px] text-caption uppercase">
@@ -350,7 +363,7 @@ export default function DiscoverPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Reveal>
             )}
             {tier === "free" && (
               <div className="bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 text-center">

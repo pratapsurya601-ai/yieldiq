@@ -23,6 +23,8 @@ import {
   type QuantPresetConfig,
 } from "./quantPicksPresets"
 import { Shield, TrendingDown, Rocket, Coins } from "lucide-react"
+import HoverCard from "@/components/motion/HoverCard"
+import RevealStagger from "@/components/motion/RevealStagger"
 
 type TileConfig = QuantPresetConfig & {
   icon: React.ComponentType<{ className?: string }>
@@ -70,7 +72,7 @@ function Tile({ cfg }: { cfg: TileConfig }) {
   const remaining = Math.max(0, total - top.length)
 
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col">
+    <HoverCard className="bg-surface border border-border rounded-2xl p-4 flex flex-col">
       <div className="flex items-start justify-between mb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
@@ -185,14 +187,17 @@ function Tile({ cfg }: { cfg: TileConfig }) {
           See all →
         </span>
       )}
-    </div>
+    </HoverCard>
   )
 }
 
 export default function QuantPicksGrid() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <RevealStagger
+      staggerMs={60}
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+    >
       {TILES.map(t => <Tile key={t.key} cfg={t} />)}
-    </div>
+    </RevealStagger>
   )
 }

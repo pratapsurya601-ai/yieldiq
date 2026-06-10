@@ -46,6 +46,8 @@ import {
   quantPresetQueryKey,
   type QuantPresetConfig,
 } from "./quantPicksPresets"
+import HoverCard from "@/components/motion/HoverCard"
+import RevealStagger from "@/components/motion/RevealStagger"
 
 // Mirrors MarketsStrip's hours gate so both widgets refresh in lockstep
 // during market hours and idle after-hours. Duplicated rather than
@@ -169,7 +171,7 @@ function Column({
           {emptyMessage}
         </div>
       ) : (
-        <div>
+        <RevealStagger staggerMs={40}>
           {movers.map((m) => (
             <MoverRow
               key={m.ticker}
@@ -177,7 +179,7 @@ function Column({
               sparkline={sparklines?.[m.ticker]}
             />
           ))}
-        </div>
+        </RevealStagger>
       )}
     </div>
   )
@@ -246,7 +248,7 @@ function WorthALookPreview({
         const data: ScreenerResponse | undefined = queries[i]?.data
         const top = (data?.results ?? []).slice(0, 3)
         return (
-          <div
+          <HoverCard
             key={preset.key}
             className="bg-surface border border-border rounded-xl overflow-hidden"
           >
@@ -300,7 +302,7 @@ function WorthALookPreview({
                 })}
               </div>
             )}
-          </div>
+          </HoverCard>
         )
       })}
     </div>

@@ -17,6 +17,9 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getMarketPulse } from "@/lib/api"
 import { formatPct } from "@/lib/utils"
+import HoverCard from "@/components/motion/HoverCard"
+import RevealStagger from "@/components/motion/RevealStagger"
+import NumberFlip from "@/components/motion/NumberFlip"
 
 interface IndexEntry {
   href: string
@@ -100,41 +103,46 @@ export default function IndexDashboardsRow() {
   }
 
   return (
-    <div className="grid sm:grid-cols-3 gap-3">
+    <RevealStagger staggerMs={80} className="grid sm:grid-cols-3 gap-3">
       {INDEX_DASHBOARDS.map(idx => {
         const live = lookup(idx.pulseName)
         return (
-          <Link
-            key={idx.href}
-            href={idx.href}
-            className="block bg-bg dark:bg-surface border border-border rounded-xl p-5 hover:border-brand hover:shadow-sm transition"
-            data-testid="index-dashboard-card"
-          >
-            <div className="flex items-baseline justify-between gap-2 mb-2">
-              <p className="text-base font-bold text-ink truncate">{idx.name}</p>
-              {live && (
-                <div className="flex items-baseline gap-2 flex-shrink-0">
-                  <span
-                    className="text-sm font-mono font-semibold text-ink tabular-nums"
-                    data-testid="index-dashboard-level"
-                  >
-                    {formatLevel(live.price)}
-                  </span>
-                  <span
-                    className={`text-xs font-mono tabular-nums ${changeClass(live.change_pct)}`}
-                    data-testid="index-dashboard-change"
-                  >
-                    {Number.isFinite(live.change_pct) ? formatPct(live.change_pct) : "—"}
-                  </span>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-caption leading-relaxed">
-              {idx.description}
-            </p>
-          </Link>
+          <HoverCard key={idx.href}>
+            <Link
+              href={idx.href}
+              className="block bg-bg dark:bg-surface border border-border rounded-xl p-5 hover:border-brand hover:shadow-sm transition"
+              data-testid="index-dashboard-card"
+            >
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <p className="text-base font-bold text-ink truncate">{idx.name}</p>
+                {live && (
+                  <div className="flex items-baseline gap-2 flex-shrink-0">
+                    <span
+                      className="text-sm font-mono font-semibold text-ink tabular-nums"
+                      data-testid="index-dashboard-level"
+                    >
+                      {Number.isFinite(live.price) ? (
+                        <NumberFlip value={live.price} decimals={2} />
+                      ) : (
+                        formatLevel(live.price)
+                      )}
+                    </span>
+                    <span
+                      className={`text-xs font-mono tabular-nums ${changeClass(live.change_pct)}`}
+                      data-testid="index-dashboard-change"
+                    >
+                      {Number.isFinite(live.change_pct) ? formatPct(live.change_pct) : "—"}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-caption leading-relaxed">
+                {idx.description}
+              </p>
+            </Link>
+          </HoverCard>
         )
       })}
-    </div>
+    </RevealStagger>
   )
 }

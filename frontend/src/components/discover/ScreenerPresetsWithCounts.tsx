@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import HoverCard from "@/components/motion/HoverCard"
+import RevealStagger from "@/components/motion/RevealStagger"
 
 // 2026-04-30 P0 fix: preset cards used to point at
 // `/discover/screener?preset=<key>`, which calls the auth-gated
@@ -67,44 +69,46 @@ const PRESETS: Preset[] = [
 
 function PresetCard({ preset }: { preset: Preset }) {
   return (
-    <Link
-      href={preset.href}
-      className={cn(
-        "rounded-xl border border-border shadow-sm",
-        "border-l-4 p-3 flex flex-col justify-between",
-        "cursor-pointer hover:shadow-md hover:border-l-[6px] active:scale-[0.99] transition",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        preset.borderColor,
-        preset.bgGradient
-      )}
-    >
-      <div className="mb-3">
-        <h3 className="text-sm font-semibold text-ink">{preset.name}</h3>
-        {/* `text-body` (one tier brighter than `text-caption`) is needed for
-            legible contrast on the colored gradient backgrounds in BOTH
-            light and dark mode. The 2026-04-25 dark-mode bug was caused by
-            `text-caption` (#94A3B8 in dark) sitting too close in luminance
-            to the dark-mode gradient stops. */}
-        <p className="text-xs text-body mt-1 line-clamp-2">{preset.description}</p>
-      </div>
-      <span
+    <HoverCard>
+      <Link
+        href={preset.href}
         className={cn(
-          "inline-flex items-center justify-center rounded-lg px-3 py-1.5 min-h-[36px]",
-          "text-xs font-medium bg-bg text-body pointer-events-none"
+          "block rounded-xl border border-border shadow-sm",
+          "border-l-4 p-3 flex flex-col justify-between",
+          "cursor-pointer hover:shadow-md hover:border-l-[6px] active:scale-[0.99] transition",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          preset.borderColor,
+          preset.bgGradient
         )}
       >
-        Run
-      </span>
-    </Link>
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-ink">{preset.name}</h3>
+          {/* `text-body` (one tier brighter than `text-caption`) is needed for
+              legible contrast on the colored gradient backgrounds in BOTH
+              light and dark mode. The 2026-04-25 dark-mode bug was caused by
+              `text-caption` (#94A3B8 in dark) sitting too close in luminance
+              to the dark-mode gradient stops. */}
+          <p className="text-xs text-body mt-1 line-clamp-2">{preset.description}</p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex items-center justify-center rounded-lg px-3 py-1.5 min-h-[36px]",
+            "text-xs font-medium bg-bg text-body pointer-events-none"
+          )}
+        >
+          Run
+        </span>
+      </Link>
+    </HoverCard>
   )
 }
 
 export default function ScreenerPresetsWithCounts() {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <RevealStagger staggerMs={60} className="grid grid-cols-2 gap-3">
       {PRESETS.map((preset) => (
         <PresetCard key={preset.name} preset={preset} />
       ))}
-    </div>
+    </RevealStagger>
   )
 }
