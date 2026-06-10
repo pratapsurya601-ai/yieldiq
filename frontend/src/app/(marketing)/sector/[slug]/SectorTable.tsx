@@ -2,9 +2,23 @@
 // Day-108c (2026-05-23) — sortable cohort table for the sector
 // landing page. Pure client component so the server payload stays
 // streamable; sort state lives in this component only.
+//
+// Motion (2026-06-11): the first 20 rows get a per-row stagger on
+// first viewport entry. RevealStagger can't be used directly because
+// it inserts a wrapper <div> that breaks <tbody><tr> semantics, so
+// we replicate its CSS-only stagger inline on each <tr>. Sort state
+// changes are NOT re-animated — the stagger only fires once at mount.
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { useInViewOnce } from "@/components/anim/useInViewOnce"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { DURATION, cssEase } from "@/lib/motion/timing"
+
+// Tight stagger for long lists — 20ms keeps the cascade brisk so the
+// last (20th) row arrives ~400ms after the first.
+const ROW_STAGGER_MS = 20
+const ROW_STAGGER_LIMIT = 20
 
 type Row = {
   ticker: string
@@ -42,6 +56,11 @@ function verdictBadge(v: string | null): { label: string; cls: string } {
 export default function SectorTable({ rows }: { rows: Row[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("score")
   const [asc, setAsc] = useState<boolean>(false)
+  const reduced = useReducedMotion()
+  // Trigger the stagger on the wrapper's first viewport entry.
+  const { ref: animRef, inView } = useInViewOnce<HTMLDivElement>(0.1)
+  const animVisible = reduced || inView
+  const rowEase = cssEase("outExpo")
 
   const sorted = useMemo(() => {
     const out = [...rows]
@@ -87,7 +106,11 @@ export default function SectorTable({ rows }: { rows: Row[] }) {
   }
 
   return (
-    <div className="overflow-x-auto -mx-4 md:mx-0">
+    <div
+      ref={animRef}
+      className="overflow-x-auto -mx-4 md:mx-0"
+      data-anim="sector-table"
+    >
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="border-b border-gray-200 text-left text-caption">
@@ -132,11 +155,34 @@ export default function SectorTable({ rows }: { rows: Row[] }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map(r => {
+          {sorted.map((r, idx) => {
             const v = verdictBadge(r.verdict)
             const bare = r.ticker.replace(/\.(NS|BO)$/i, "")
+            // Per-row stagger entrance — only animate the first
+            // ROW_STAGGER_LIMIT rows so a 200-ticker cohort doesn't
+            // wait 4s for the cascade to finish. Beyond the limit the
+            // <tr> renders in its final state with no transition.
+            // Reduced-motion: render final state, no transition.
+            const animate = idx < ROW_STAGGER_LIMIT
+            const rowStyle: React.CSSProperties = animate
+              ? {
+                  opacity: animVisible ? 1 : 0,
+                  transform: animVisible
+                    ? "translate3d(0,0,0)"
+                    : "translate3d(0,6px,0)",
+                  transition: reduced
+                    ? "none"
+                    : `opacity ${DURATION.normal}ms ease-out ${idx * ROW_STAGGER_MS}ms, transform ${DURATION.normal}ms ${rowEase} ${idx * ROW_STAGGER_MS}ms`,
+                  willChange: animVisible ? "auto" : "opacity, transform",
+                }
+              : {}
             return (
-              <tr key={r.ticker} className="border-b border-gray-100 hover:bg-gray-50">
+              <tr
+                key={r.ticker}
+                className="border-b border-gray-100 hover:bg-gray-50"
+                style={rowStyle}
+                data-stagger-index={animate ? idx : undefined}
+              >
                 <td className="py-2 px-3 font-mono">
                   <Link
                     href={`/analysis/${encodeURIComponent(r.ticker)}`}
