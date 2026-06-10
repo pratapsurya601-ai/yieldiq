@@ -130,7 +130,7 @@ describe("TaxEfficiencyCalculator — math correctness", () => {
     expect(owed.replace(/[,\s]/g, "")).toMatch(/10400|10\.4K|0\.10L|10K/i)
   })
 
-  it("Loss scenario: both regimes show zero tax and the loss note appears", () => {
+  it("Loss scenario: both regimes show zero tax and the loss note renders", () => {
     renderCalc()
     setInput("tax-entry-input", "2000")
     setInput("tax-exit-input", "1500")

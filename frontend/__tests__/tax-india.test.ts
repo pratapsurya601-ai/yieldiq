@@ -130,7 +130,7 @@ describe("preTaxReturn / postTaxReturn", () => {
     const pre = preTaxReturn(1000, 2000)
     const post = postTaxReturn(1000, 2000, 6) // STCG
     expect(pre).toBeGreaterThan(post)
-    // Post-tax delta should be exactly the cess-adjusted STCG drag.
+    // Post-tax delta must be exactly the cess-adjusted STCG drag.
     expect(pre - post).toBeCloseTo(STCG_RATE * (1 + CESS_RATE), 6)
   })
 
@@ -143,7 +143,7 @@ describe("preTaxReturn / postTaxReturn", () => {
 
 describe("annualiseReturn", () => {
   it("matches the standard CAGR formula for whole-year holds", () => {
-    // 21% over 2 years should annualise to sqrt(1.21) − 1 ≈ 0.10.
+    // 21% over 2 years annualises to sqrt(1.21) − 1 ≈ 0.10.
     const a = annualiseReturn(0.21, 24)
     expect(a).toBeCloseTo(Math.sqrt(1.21) - 1, 6)
   })

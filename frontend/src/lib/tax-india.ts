@@ -88,7 +88,7 @@ export function computeCapitalGainsTax(
   const regime = classifyHolding(holdingMonths)
 
   // A capital loss produces zero tax under both regimes. Set-off and
-  // carry-forward rules apply but are a portfolio-level concern, not
+  // carry-forward rules apply but are a portfolio-level matter, not
   // a per-position one. We surface the loss in `gain` so the caller
   // can render it but never charge tax on it.
   if (gain <= 0) {
