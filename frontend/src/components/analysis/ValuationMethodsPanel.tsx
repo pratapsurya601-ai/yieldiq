@@ -444,8 +444,49 @@ function toneForGap(gap: number | null): string {
   return "text-rose-700 dark:text-rose-300"
 }
 
+/**
+ * Map of engine method tags to human-readable labels. The engine emits
+ * snake_case identifiers (e.g. "bank_composite_2_method"); rendering
+ * those raw — or with underscores merely stripped — looks like a
+ * leaked internal token. The override table below covers every known
+ * engine tag with a hand-tuned label; anything not in the table falls
+ * back to title-cased word-split so a newly added tag still reads as
+ * "Some New Method" rather than "some new method".
+ */
+const METHOD_LABELS: Record<string, string> = {
+  bank_composite_2_method: "Bank Composite (2-method)",
+  bank_composite_residual_multiples_analyst:
+    "Bank Composite (Residual Income × Multiples × Wall St)",
+  bank_composite_residual_multiples:
+    "Bank Composite (Residual Income × Multiples)",
+  bank_residual_income: "Bank — Residual Income",
+  pb_residual_income: "P/B Residual Income",
+  composite_dcf_multiples_analyst:
+    "Composite (DCF × Multiples × Wall St)",
+  composite_dcf_multiples: "Composite (DCF × Multiples)",
+  composite_dcf_analyst: "Composite (DCF × Wall St)",
+  composite_multiples_analyst: "Composite (Multiples × Wall St)",
+  holdco_dcf_only: "Holdco — DCF only (SOTP pending)",
+  dcf_only: "DCF only",
+  multiples_only: "Multiples only",
+  analyst_only: "Wall Street consensus only",
+  three_scenario: "Three-scenario weighted",
+  four_scenario: "Four-scenario weighted",
+  unavailable: "Unavailable",
+}
+
+function toTitleCase(s: string): string {
+  return s
+    .split(" ")
+    .map((w) => (w.length === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ")
+}
+
 function prettifyMethodTag(method: string): string {
-  // "two_stage" -> "two stage", "h_model" -> "h model", preserves
-  // already-pretty values like "Damodaran fade".
-  return method.replace(/_/g, " ")
+  const known = METHOD_LABELS[method]
+  if (known) return known
+  // Fallback: replace underscores with spaces and title-case so an
+  // unmapped tag like "explicit_fade" reads as "Explicit Fade" rather
+  // than "explicit fade".
+  return toTitleCase(method.replace(/_/g, " "))
 }
