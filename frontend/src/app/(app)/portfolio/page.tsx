@@ -1,6 +1,7 @@
 "use client"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert, resetHoldings, getBandShifts, getFVHistoryBatch } from "@/lib/api"
+import PortfolioHero from "@/components/portfolio/PortfolioHero"
 import PortfolioSumOfPartsCard from "@/components/portfolio/PortfolioSumOfPartsCard"
 import PortfolioReturnsStrip from "@/components/portfolio/PortfolioReturnsStrip"
 import HoldingSparkline from "@/components/portfolio/HoldingSparkline"
@@ -234,6 +235,21 @@ function PortfolioInner() {
         </div>
       )}
 
+      {/* Portfolio hero — topmost content above the tabs. Renders
+          a value-prop card when the user has zero holdings (which
+          is the dominant entry path via `/watchlist` → `/portfolio
+          ?tab=watchlist`) and a summary KPI gradient when they do.
+          Replaced the previous empty `.skeleton` placeholder that
+          sat above the tabs and read as a broken hero on the
+          watchlist tab (P2 audit 2026-06-10). */}
+      {!showSample && (
+        <PortfolioHero
+          summary={summary}
+          holdings={holdings}
+          isLoading={holdingsLoading}
+        />
+      )}
+
       {/* Portfolio Prism — weighted 6-pillar signature across all holdings */}
       {holdings && holdings.length >= 3 && <PortfolioPrism holdings={holdings} />}
       {/* Day-97: also fire the Prism for the sample fixture so the brand-new
@@ -304,8 +320,10 @@ function PortfolioInner() {
       )}
       {tab === "holdings" && !holdingsError && holdingsLoading && (
         <div className="space-y-3" aria-busy="true" aria-label="Loading holdings">
-          {/* Summary skeleton — matches the gradient header card */}
-          <div className="skeleton rounded-2xl h-[148px]" />
+          {/* Summary skeleton moved into <PortfolioHero/> (audit 2026-06-10).
+              The gradient KPI card now lives above the tabs and owns its
+              own loading skeleton, so duplicating it here would render two
+              stacked grey rectangles during fetch. */}
           {/* Three holding-row skeletons — matches the real card layout */}
           {[0, 1, 2].map((i) => (
             <div key={i} className="bg-bg dark:bg-surface rounded-xl border border-border p-4 space-y-3">
@@ -335,49 +353,12 @@ function PortfolioInner() {
           <section aria-label="Holdings" data-testid="holdings-list" className="space-y-3">
             {/* Warn when any holding is trading >15% below our model fair value */}
             <BelowFairValueBanner holdings={holdings} />
-            {/* Portfolio Summary */}
-            {summary && summary.count > 0 && (() => {
-              // FIX day2-#15: the backend's `winners`/`losers` counts use
-              // `pnl > 0` and `pnl < 0` respectively, which drops
-              // zero-gain holdings (e.g. TATAGOLD-E @ +0.00%) into
-              // neither bucket — so Winners + Losers < count.
-              // Recompute client-side with ties going to Winners
-              // (0% ≥ 0%) so the two buckets always sum to count.
-              const winners = holdings.filter((h) => h.pnl_pct >= 0).length
-              const losers = holdings.filter((h) => h.pnl_pct < 0).length
-              return (
-              <div className="bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl p-4 text-white">
-                <p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">Total Value</p>
-                <p className="text-3xl font-black mb-1">{fmtRsCompact(summary.total_current_value)}</p>
-                <div className="flex items-baseline gap-2">
-                  <p className={`text-sm font-bold ${summary.total_pnl_abs >= 0 ? "text-green-200" : "text-red-200"}`}>
-                    {summary.total_pnl_abs >= 0 ? "+" : ""}{fmtRsCompact(summary.total_pnl_abs)}
-                  </p>
-                  <p className={`text-sm font-semibold ${summary.total_pnl_abs >= 0 ? "text-green-200" : "text-red-200"}`}>
-                    ({summary.total_pnl_pct >= 0 ? "+" : ""}{summary.total_pnl_pct.toFixed(2)}%)
-                  </p>
-                </div>
-                {/* Day-30 (2026-05-20): added grid-cols-1 mobile
-                    default. The old grid-cols-3 squashed Invested /
-                    Current Value / P&L into ~110px columns on 375px
-                    phones, truncating the larger rupee values. */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/20 text-xs">
-                  <div>
-                    <p className="opacity-80">Invested</p>
-                    <p className="font-bold text-sm">{fmtRsCompact(summary.total_invested)}</p>
-                  </div>
-                  <div>
-                    <p className="opacity-80">Winners</p>
-                    <p className="font-bold text-sm">{winners}/{summary.count}</p>
-                  </div>
-                  <div>
-                    <p className="opacity-80">Losers</p>
-                    <p className="font-bold text-sm">{losers}/{summary.count}</p>
-                  </div>
-                </div>
-              </div>
-              )
-            })()}
+            {/* Portfolio Summary moved to <PortfolioHero/> above the tabs
+                so the gradient KPI card stays visible on Watchlist / Alerts
+                / Updates tabs too (audit 2026-06-10 P2). The hero shows
+                total value, +/- P&L, invested, winners/losers, and a top
+                mover — the inline duplicate that used to live here was
+                redundant once the hero shipped. */}
 
             {/* P0 #5 Feature C — return decomposition strip. Sits
                 between the gradient summary and the holdings list so
