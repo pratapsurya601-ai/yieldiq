@@ -102,6 +102,19 @@ export interface ValuationOutput {
   data_quality_score?: number | null
   model_confidence_score?: number | null
   valuation_stability_score?: number | null
+
+  // T2.7 (2026-06-09) — 4th confidence pillar. Monte Carlo
+  // sensitivity: fraction of 200 perturbed runs that preserve the
+  // base verdict. Optional — null for holdcos (SOTP-shaped) and
+  // banks (residual-income-shaped). Surfaced by <ConfidenceRadar>.
+  confidence_sensitivity?: number | null
+
+  // T1.6 (2026-06-10) — 5th confidence pillar. Composite-agreement
+  // score: how tightly the composite-IV constituent estimators
+  // cluster (high = agree, low = wide spread). Optional — null
+  // when the composite path runs a single estimator. Surfaced by
+  // <ConfidenceRadar>.
+  confidence_composite_agreement?: number | null
 }
 
 // Phase C.3 (2026-05-25) — score breakdown for the "Why this score?"
