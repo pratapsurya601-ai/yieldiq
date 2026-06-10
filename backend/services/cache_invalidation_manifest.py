@@ -4182,6 +4182,63 @@ MANIFEST: list[dict] = [
             "invalidation — pure presentation polish."
         ),
     },
+    {
+        # ROOT CAUSE #10 + #13 bundle (2026-06-11) — two backend
+        # surface fixes that make the Peers tab and the Concall panel
+        # honest about what they know.
+        #
+        # #13: peer SCORE column on the "Compare with Peers" table was
+        # rendering "—" for every row even when the subject ticker's
+        # side-rail showed YIQ Score 40/100. Root cause: peers_service
+        # ._cached_score had a DB fallback for fair_value/mos_pct/
+        # verdict but yieldiq_score was explicitly "not persisted;
+        # cache-only for now". A peer not in the in-process cache
+        # window therefore had no score to render. Fix: persist
+        # yieldiq_score + grade alongside the FV row (migration
+        # 202606101845_fair_value_history_yieldiq_score.sql), have
+        # store_today_fair_value write them on every analysis tick,
+        # and read them in the DB fallback. Legacy rows carry NULL
+        # and render "—" until re-touched.
+        #
+        # #10: HDFCBANK Q1-FY26 concall showed transcript link but
+        # "(summary unavailable)" — populate_concall_summary stamped
+        # the placeholder on first failure and never retried. Fix:
+        # track ai_summary_attempts + escalate to a structured
+        # dead-letter (concall_ai_summaries_failed) after the third
+        # failure, switching the user-facing copy to "(summary
+        # generation failed — see transcript)". Operator path back to
+        # a populate is .github/workflows/concall_summary_retry.yml
+        # which uses flush_failed_summaries_for_tickers to NULL the
+        # placeholder so the next list_concalls re-enqueues populate.
+        #
+        # Additive backend writes only; existing analysis_cache fields
+        # are byte-identical. scope.fields=[] documents the additive-
+        # only nature; scope.tickers="*" marks the surface as
+        # universal (every analysed ticker now persists its score).
+        "version_id": "v_peer_score_concall_backfill_2026_06_11",
+        "title_public": (
+            "Peer comparison table now shows YieldIQ Score for each "
+            "peer; missing concall summaries can be backfilled via "
+            "retry workflow"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Peer SCORE column + concall summary retry workflow. Peer "
+            "scores are now persisted on every analyse so the Peers "
+            "tab can render them from the DB when the in-process "
+            "cache is cold (previously '—' on every row). Concall "
+            "summaries that failed silently are now tracked via an "
+            "attempt counter + dead-letter table; the operator can "
+            "retry specific tickers through a new workflow_dispatch "
+            "without paying for a full Phase G sweep. No engine math, "
+            "no field invalidation — additive write-hooks and an "
+            "additive read path."
+        ),
+    },
 ]
 
 

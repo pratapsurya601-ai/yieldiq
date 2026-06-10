@@ -280,6 +280,14 @@ _SEBI_BANNED_WORDS = (
 
 _SEBI_WITHHELD_MESSAGE = "(summary withheld pending review)"
 _SUMMARY_UNAVAILABLE_MESSAGE = "(summary unavailable)"
+# ROOT CAUSE #10 (2026-06-11): user-facing replacement for the
+# bare placeholder once a row has crossed the dead-letter threshold.
+# Read by the frontend ConcallPanel when ai_summary == this string.
+_SUMMARY_FAILED_MESSAGE = "(summary generation failed — see transcript)"
+# After this many attempts a row is escalated to
+# concall_ai_summaries_failed and the user-facing copy switches from
+# "(summary unavailable)" to "(summary generation failed — see transcript)".
+_SUMMARY_DEAD_LETTER_THRESHOLD = 3
 
 
 def _contains_banned_vocab(text: str) -> Optional[str]:
@@ -603,6 +611,54 @@ def _extract_pdf_text(pdf_bytes: bytes) -> str:
         return ""
 
 
+def _record_summary_failure(
+    session,
+    row,
+    reason: str,
+    detail: str | None = None,
+) -> None:
+    """Upsert a row into concall_ai_summaries_failed.
+
+    ROOT CAUSE #10 (2026-06-11): centralised dead-letter writer used
+    by populate_concall_summary's failure branches. Reason must match
+    the chk_concall_failure_reason CHECK constraint
+    (migration 202606101846); detail is free-text up to one log line.
+    """
+    try:
+        from backend.models.concalls import ConcallAiSummaryFailed
+        existing = (
+            session.query(ConcallAiSummaryFailed)
+            .filter_by(concall_id=row.id, reason=reason)
+            .first()
+        )
+        now = datetime.now(timezone.utc)
+        if existing is not None:
+            existing.attempts = (existing.attempts or 1) + 1
+            existing.last_failed_at = now
+            if detail:
+                existing.detail = detail
+        else:
+            session.add(ConcallAiSummaryFailed(
+                concall_id=row.id,
+                ticker=row.ticker,
+                period=_parse_period_from_subject(row.subject or "") or None,
+                filing_date=row.filing_date,
+                reason=reason,
+                detail=detail,
+                attempts=1,
+                first_failed_at=now,
+                last_failed_at=now,
+            ))
+    except Exception as exc:
+        # Never let the dead-letter bookkeeping crash the populate
+        # path — the placeholder write below is the user-facing recovery
+        # surface regardless.
+        logger.warning(
+            "_record_summary_failure could not persist for id=%s reason=%s: %s",
+            row.id, reason, exc,
+        )
+
+
 def populate_concall_summary(concall_id: int) -> None:
     """Populate ai_summary for a single concall_transcripts row.
 
@@ -610,8 +666,13 @@ def populate_concall_summary(concall_id: int) -> None:
       * Acquires the module-level semaphore so we never have more
         than _CONCALL_SUMMARY_CONCURRENCY Groq calls in flight.
       * If transcript_text is already cached, skip the PDF fetch.
-      * On any failure, persists the `(summary unavailable)` sentinel
-        so subsequent requests don't re-enter this code path.
+      * On any failure, increments ai_summary_attempts and persists
+        a placeholder so subsequent requests don't re-enter this code
+        path. After _SUMMARY_DEAD_LETTER_THRESHOLD attempts (default 3)
+        the row is escalated to concall_ai_summaries_failed and the
+        placeholder switches from "(summary unavailable)" to
+        "(summary generation failed — see transcript)" so the user-
+        facing copy degrades gracefully.
 
     No-op (logged) when the DB session factory or the row is missing.
     """
@@ -624,6 +685,24 @@ def populate_concall_summary(concall_id: int) -> None:
             concall_id,
         )
         return
+
+    def _finalise_failure(session, row, reason: str, detail: str | None = None):
+        """Stamp the row with a placeholder + bump the attempt counter.
+
+        Promotes to the dead-letter table + user-facing "failed" copy
+        once the row crosses the dead-letter threshold.
+        """
+        attempts = (row.ai_summary_attempts or 0) + 1
+        row.ai_summary_attempts = attempts
+        row.ai_summary_last_attempt_at = datetime.now(timezone.utc)
+        row.ai_summary_generated_at = datetime.now(timezone.utc)
+        if attempts >= _SUMMARY_DEAD_LETTER_THRESHOLD:
+            row.ai_summary = _SUMMARY_FAILED_MESSAGE
+            _record_summary_failure(session, row, reason, detail)
+        else:
+            row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
+        session.commit()
+
     try:
         session = _get_library_session()
         if session is None:
@@ -635,29 +714,39 @@ def populate_concall_summary(concall_id: int) -> None:
             if row is None:
                 logger.warning("populate_concall_summary: row missing id=%s", concall_id)
                 return
-            if row.ai_summary:
-                # Another worker beat us to it; nothing to do.
+            # Treat any non-empty + non-placeholder summary as final.
+            existing = (row.ai_summary or "").strip()
+            if existing and existing not in (
+                _SUMMARY_UNAVAILABLE_MESSAGE, _SUMMARY_FAILED_MESSAGE,
+            ):
+                # Another worker (or a prior successful populate) beat
+                # us to it; nothing to do.
                 return
 
             transcript_text = (row.transcript_text or "").strip()
             if not transcript_text:
                 if not row.pdf_url:
-                    # Nothing to summarise and nothing to fetch.
-                    row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
-                    row.ai_summary_generated_at = datetime.now(timezone.utc)
-                    session.commit()
+                    _finalise_failure(
+                        session, row,
+                        "pdf_extract_empty",
+                        "no pdf_url and no cached transcript_text",
+                    )
                     return
                 pdf_bytes = _fetch_pdf_bytes(row.pdf_url)
                 if not pdf_bytes:
-                    row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
-                    row.ai_summary_generated_at = datetime.now(timezone.utc)
-                    session.commit()
+                    _finalise_failure(
+                        session, row,
+                        "pdf_fetch_failed",
+                        f"_fetch_pdf_bytes returned None for {row.pdf_url}",
+                    )
                     return
                 transcript_text = _extract_pdf_text(pdf_bytes)
                 if not transcript_text or len(transcript_text) < 200:
-                    row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
-                    row.ai_summary_generated_at = datetime.now(timezone.utc)
-                    session.commit()
+                    _finalise_failure(
+                        session, row,
+                        "transcript_too_short",
+                        f"extracted_chars={len(transcript_text or '')}",
+                    )
                     return
                 # Cache the extracted text so a future Groq retry doesn't
                 # re-download + re-parse the PDF.
@@ -666,11 +755,36 @@ def populate_concall_summary(concall_id: int) -> None:
 
             result = summarise_concall_with_usage(transcript_text)
             if not result.summary:
-                row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
-            else:
+                _finalise_failure(
+                    session, row,
+                    "groq_unavailable",
+                    "summarise_concall_with_usage returned empty summary",
+                )
+                return
+            if result.summary == _SEBI_WITHHELD_MESSAGE:
+                # SEBI vocab tripped — record as a structured failure
+                # but still leave the visible withheld message in place.
                 row.ai_summary = result.summary
                 row.ai_summary_model = result.model or _LIBRARY_SUMMARY_MODEL
+                row.ai_summary_generated_at = datetime.now(timezone.utc)
+                row.ai_summary_last_attempt_at = datetime.now(timezone.utc)
+                row.ai_summary_attempts = (row.ai_summary_attempts or 0) + 1
+                if result.input_tokens or result.output_tokens:
+                    row.ai_input_tokens = result.input_tokens
+                    row.ai_output_tokens = result.output_tokens
+                    row.ai_cost_usd = result.cost_usd
+                _record_summary_failure(
+                    session, row, "sebi_withheld",
+                    "Groq output flagged by _contains_banned_vocab",
+                )
+                session.commit()
+                return
+
+            row.ai_summary = result.summary
+            row.ai_summary_model = result.model or _LIBRARY_SUMMARY_MODEL
             row.ai_summary_generated_at = datetime.now(timezone.utc)
+            row.ai_summary_last_attempt_at = datetime.now(timezone.utc)
+            row.ai_summary_attempts = (row.ai_summary_attempts or 0) + 1
             # Phase G-cost: persist token + USD usage. NULL when the
             # call short-circuited (transcript too short, Groq down) —
             # consistent with "we didn't pay, don't record a cost".
@@ -695,6 +809,78 @@ def populate_concall_summary(concall_id: int) -> None:
                 pass
     finally:
         _concall_summary_sem.release()
+
+
+def flush_failed_summaries_for_tickers(
+    tickers: list[str],
+    max_attempts: int = _SUMMARY_DEAD_LETTER_THRESHOLD,
+) -> dict:
+    """Clear placeholder ai_summary values so the next populate retries.
+
+    ROOT CAUSE #10 (2026-06-11): used by the
+    .github/workflows/concall_summary_retry.yml workflow_dispatch. For
+    each ticker in the input list, find concall_transcripts rows whose
+    ai_summary is one of the placeholder strings AND whose attempt
+    count is below ``max_attempts``, then NULL out ai_summary so the
+    next list_concalls call re-enqueues populate_concall_summary.
+
+    Rows whose attempts have crossed max_attempts are left alone — they
+    already live in the concall_ai_summaries_failed dead-letter and
+    the operator should investigate root cause before re-attempting.
+
+    Returns a per-ticker summary dict so the workflow can log each
+    outcome.
+    """
+    out: dict = {"per_ticker": {}, "total_flushed": 0, "total_skipped": 0}
+    session = _get_library_session()
+    if session is None:
+        logger.warning("flush_failed_summaries_for_tickers: no DB session")
+        return out
+    try:
+        from backend.models.concalls import ConcallTranscript
+        for raw in tickers:
+            full = _normalise_library_ticker(raw)
+            if not full:
+                continue
+            rows = (
+                session.query(ConcallTranscript)
+                .filter(ConcallTranscript.ticker == full)
+                .filter(ConcallTranscript.ai_summary.in_([
+                    _SUMMARY_UNAVAILABLE_MESSAGE,
+                    _SUMMARY_FAILED_MESSAGE,
+                ]))
+                .all()
+            )
+            flushed = skipped = 0
+            for r in rows:
+                if (r.ai_summary_attempts or 0) >= max_attempts:
+                    skipped += 1
+                    continue
+                r.ai_summary = None
+                r.ai_summary_generated_at = None
+                # Leave ai_summary_attempts intact so the next populate
+                # is still bounded; the workflow operator who reset the
+                # counter explicitly is the only path to a full retry.
+                flushed += 1
+            out["per_ticker"][raw] = {
+                "found": len(rows), "flushed": flushed, "skipped": skipped,
+            }
+            out["total_flushed"] += flushed
+            out["total_skipped"] += skipped
+        if out["total_flushed"] > 0:
+            session.commit()
+    except Exception as exc:
+        logger.warning("flush_failed_summaries_for_tickers failed: %s", exc)
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
+    return out
 
 
 def list_concalls(
@@ -752,11 +938,20 @@ def list_concalls(
         for r in rows:
             cached_summary = (r.ai_summary or "").strip() or None
             # Schedule lazy populate for rows that have a source PDF
-            # but no cached summary yet. We use background_tasks when
-            # available; otherwise the row simply returns None and a
-            # later request will trigger the populate.
-            if (
+            # but no cached summary AND haven't reached the dead-letter
+            # threshold yet. ROOT CAUSE #10 (2026-06-11): a row that
+            # carries _SUMMARY_FAILED_MESSAGE has already been escalated
+            # to the dead-letter table — re-enqueuing it on every page
+            # view would waste Groq budget. The retry workflow is the
+            # operator-controlled path back to a populate attempt.
+            attempts = r.ai_summary_attempts or 0
+            unattempted = (
                 cached_summary is None
+                or cached_summary == _SUMMARY_UNAVAILABLE_MESSAGE
+            )
+            if (
+                unattempted
+                and attempts < _SUMMARY_DEAD_LETTER_THRESHOLD
                 and r.pdf_url
                 and background_tasks is not None
             ):

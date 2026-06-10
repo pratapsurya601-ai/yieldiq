@@ -282,12 +282,19 @@ class PeersService:
                     pass
 
         # DB fallback: latest fair_value_history row for this ticker.
+        # ROOT CAUSE #13 (2026-06-11): yieldiq_score + grade are now
+        # persisted alongside fair_value/mos_pct/verdict (migration
+        # 202606101845). Legacy rows written before that migration
+        # carry NULL — the row is still returned (FV/MoS/verdict are
+        # useful), the score just falls through as None and the
+        # frontend renders `—` for that cell. As tickers are
+        # re-analysed the score auto-fills.
         if db is None:
             return empty
         try:
             from sqlalchemy import text as _t
             row = db.execute(_t("""
-                SELECT fair_value, mos_pct, verdict
+                SELECT fair_value, mos_pct, verdict, yieldiq_score, grade
                 FROM fair_value_history
                 WHERE ticker = :t
                 ORDER BY date DESC
@@ -295,15 +302,38 @@ class PeersService:
             """), {"t": t}).fetchone()
             if row is not None:
                 return {
-                    "yieldiq_score": None,  # not persisted; cache-only for now
-                    "grade": None,
+                    "yieldiq_score": int(row[3]) if row[3] is not None else None,
+                    "grade": row[4],
                     "fair_value": float(row[0]) if row[0] is not None else None,
                     "mos_pct": float(row[1]) if row[1] is not None else None,
                     "verdict": row[2],
                     "company_name": None,
                 }
         except Exception:
-            pass
+            # Pre-migration deploy: yieldiq_score column doesn't exist
+            # yet, fall back to the original 3-column query so the
+            # FV/MoS/verdict surface still works even if the migration
+            # hasn't been applied to this environment.
+            try:
+                from sqlalchemy import text as _t2
+                row = db.execute(_t2("""
+                    SELECT fair_value, mos_pct, verdict
+                    FROM fair_value_history
+                    WHERE ticker = :t
+                    ORDER BY date DESC
+                    LIMIT 1
+                """), {"t": t}).fetchone()
+                if row is not None:
+                    return {
+                        "yieldiq_score": None,
+                        "grade": None,
+                        "fair_value": float(row[0]) if row[0] is not None else None,
+                        "mos_pct": float(row[1]) if row[1] is not None else None,
+                        "verdict": row[2],
+                        "company_name": None,
+                    }
+            except Exception:
+                pass
         return empty
 
     def _build_row(
