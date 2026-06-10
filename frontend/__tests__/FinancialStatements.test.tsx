@@ -133,9 +133,12 @@ describe("FinancialStatements — all-null row hiding", () => {
 
     renderWithClient(<FinancialStatements ticker="TCS" currency="INR" />)
 
-    // Revenue row must appear (non-null in every period).
+    // Revenue row must appear (non-null in every period). Both the
+    // mobile-card fallback and the desktop table render the label so we
+    // expect >=1 match — getAllByText covers the dual-render case
+    // introduced in mobile-pr-c (2026-06-10).
     await waitFor(() => {
-      expect(screen.getByText("Revenue")).toBeInTheDocument()
+      expect(screen.getAllByText("Revenue").length).toBeGreaterThan(0)
     })
     // Gross Profit row must NOT appear — all-null filter dropped it.
     expect(screen.queryByText("Gross Profit")).not.toBeInTheDocument()
@@ -143,6 +146,37 @@ describe("FinancialStatements — all-null row hiding", () => {
     // same filter, same outcome. Pinning at least one to keep the
     // assertion explicit about the em-dash wall it prevents.
     expect(screen.queryByText("EBITDA")).not.toBeInTheDocument()
+  })
+})
+
+describe("FinancialStatements — mobile card fallback", () => {
+  // Mobile audit Issue 5 (P1): the desktop table is 460px+ wide on a 360px
+  // viewport and forces a horizontal-scroll affordance the panel never
+  // surfaced. The mobile fallback flips axis: each PERIOD becomes a card
+  // with metric rows stacked inside. Pin the mobile container exists, is
+  // role=list, and renders one card per year.
+  it("renders a mobile-cards container with one card per period (md-hidden)", async () => {
+    const years = [
+      mockYear("FY24", { revenue: 240000, net_income: 60000, eps_diluted: 78.5 }),
+      mockYear("FY23", { revenue: 215000, net_income: 55000, eps_diluted: 71.0 }),
+      mockYear("FY22", { revenue: 180000, net_income: 47000, eps_diluted: 60.0 }),
+    ]
+    getFinancialsMock.mockResolvedValue(buildResponse(years, "TCS"))
+
+    renderWithClient(<FinancialStatements ticker="TCS" currency="INR" />)
+
+    const mobileCards = await screen.findByTestId("financials-mobile-cards")
+    expect(mobileCards).toBeInTheDocument()
+    expect(mobileCards.getAttribute("role")).toBe("list")
+    // md:hidden — desktop visibility class is on the container.
+    expect(mobileCards.className).toMatch(/md:hidden/)
+    // One <div role="listitem"> per period.
+    const items = mobileCards.querySelectorAll('[role="listitem"]')
+    expect(items.length).toBe(3)
+    // Each card surfaces the period label.
+    expect(mobileCards.textContent).toContain("FY24")
+    expect(mobileCards.textContent).toContain("FY23")
+    expect(mobileCards.textContent).toContain("FY22")
   })
 })
 
@@ -169,9 +203,10 @@ describe("FinancialStatements — bank-aware row schema", () => {
 
     renderWithClient(<FinancialStatements ticker="HDFCBANK" currency="INR" />)
 
-    // Bank schema label IS in the DOM.
+    // Bank schema label IS in the DOM (rendered in both mobile cards +
+    // desktop table since mobile-pr-c — getAllByText covers both).
     await waitFor(() => {
-      expect(screen.getByText("Interest Earned")).toBeInTheDocument()
+      expect(screen.getAllByText("Interest Earned").length).toBeGreaterThan(0)
     })
     // Non-bank schema labels MUST NOT be in the DOM for banks.
     expect(screen.queryByText("Revenue")).not.toBeInTheDocument()

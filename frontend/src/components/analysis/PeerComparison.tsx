@@ -317,8 +317,100 @@ export default function PeerComparison({ ticker, currency }: Props) {
         )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto -mx-1">
+      {/* Mobile: stacked cards. Tablet+: full sortable table. Mirrors the
+          InlinePeerComparison pattern (sm:hidden / hidden sm:block split)
+          so phones don't get a horizontal-scroll 9-column wide table.
+          Mobile audit Issue 6 (P1), mobile-pr-c, 2026-06-10. */}
+      <div className="sm:hidden space-y-2">
+        {rows.map(row => {
+          const isMain = row.is_main
+          return (
+            <button
+              key={row.ticker}
+              type="button"
+              onClick={() => {
+                if (!isMain) router.push(`/analysis/${row.ticker}`)
+              }}
+              disabled={isMain}
+              className={cn(
+                "w-full text-left rounded-xl border p-3 transition-colors",
+                isMain
+                  ? "border-brand bg-brand-50/40 cursor-default"
+                  : "border-border bg-bg hover:border-brand hover:bg-surface",
+              )}
+            >
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  <TickerAvatar ticker={row.ticker} size="sm" />
+                  <span className="font-display text-sm font-semibold text-ink inline-flex items-center gap-1">
+                    {row.is_main && (
+                      <Star
+                        className="w-3 h-3 text-amber-500 fill-amber-500"
+                        aria-label="Main ticker"
+                      />
+                    )}
+                    {row.ticker.replace(".NS", "").replace(".BO", "")}
+                  </span>
+                </span>
+                <ScoreBadge score={row.yieldiq_score} grade={row.grade} />
+              </div>
+              <p className="text-[11px] text-caption truncate mb-2">
+                {row.company_name}
+              </p>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <dt className="text-caption">Fair Val</dt>
+                  <dd className="font-mono tabular-nums text-body">
+                    {fmtFV(row.fair_value, currency, ticker)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-caption">vs FV</dt>
+                  <dd
+                    className={cn(
+                      "font-mono tabular-nums font-medium",
+                      row.mos_pct != null && row.mos_pct > 0
+                        ? "text-green-600"
+                        : row.mos_pct != null && row.mos_pct < 0
+                          ? "text-red-500"
+                          : "text-caption",
+                    )}
+                  >
+                    {fmtMoS(row.mos_pct)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-caption">P/E</dt>
+                  <dd className="font-mono tabular-nums text-body">
+                    {fmtRatio(row.pe_ratio)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-caption">ROE</dt>
+                  <dd className="font-mono tabular-nums text-body">
+                    {fmtPct(row.roe_pct)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-caption">P/B</dt>
+                  <dd className="font-mono tabular-nums text-body">
+                    {fmtRatio(row.pb_ratio)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-caption">Mkt Cap</dt>
+                  <dd className="font-mono tabular-nums text-body">
+                    {fmtMarketCap(row.market_cap_cr, currency, ticker)}
+                  </dd>
+                </div>
+              </dl>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Table (tablet+) */}
+      <div className="hidden sm:block overflow-x-auto -mx-1">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border">
