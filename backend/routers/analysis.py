@@ -1148,6 +1148,129 @@ def _inject_derived_insights_model(result: "AnalysisResponse") -> "AnalysisRespo
     return result
 
 
+# ─────────────────────────────────────────────────────────────────
+# Cross-engine consensus signal inject (2026-06-10)
+# ─────────────────────────────────────────────────────────────────
+# Pulls every standalone estimator the composite saw — DCF, Multiples,
+# Wall Street, Three-stage, DDM, EPV, Probability-weighted — plus the
+# composite IV itself, and asks how many of them point in the SAME
+# DIRECTION vs the live price. Different question from
+# ``composite_intrinsic_value`` (a weighted-magnitude blend) and from
+# ``derived_insights.estimator_clustering`` (a magnitude-proximity
+# measure). When N of 7 agree, that is a stronger directional read
+# than any single estimator.
+#
+# MUST run AFTER:
+#   - ``_inject_multiples_fv_*``  (populates multiples_based_fv)
+#   - ``_inject_phase_b_estimators_*`` (populates 4 Phase-B slots)
+#   - ``_inject_composite_iv_*`` (populates composite_intrinsic_value)
+# The orchestrator runs it AFTER derived_insights so derived_insights
+# stays the last semantic-synthesis step; the consensus inject is a
+# raw counting derivation that doesn't depend on derived_insights and
+# vice-versa. Order between the two is irrelevant to correctness.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _consensus_estimator_values_from_dict(payload: dict) -> dict:
+    """Extract every standalone estimator value off the payload.
+
+    Returns a ``{slot: float|None}`` map suitable for passing to
+    ``consensus_signal_service.compute_consensus_signal``. Slot names
+    mirror those in ``_composite_inputs_from_dict`` so the consensus
+    surface and the composite surface stay aligned.
+
+    The composite intrinsic value itself is intentionally OMITTED —
+    it is a derived blend of the listed estimators, so counting it
+    would double-count. Counting only the constituents preserves the
+    "how many independent methodologies agree" semantics.
+    """
+    valuation = payload.get("valuation") or {}
+    insights = payload.get("insights") or {}
+    # Wall St analyst price-target mean — same precedence chain as
+    # ``_composite_inputs_from_dict``: structured consensus block first,
+    # then the loose legacy slot.
+    analyst_avg = None
+    consensus = insights.get("analyst_consensus")
+    if isinstance(consensus, dict):
+        pt = consensus.get("price_target") or {}
+        analyst_avg = pt.get("mean") or pt.get("median")
+    if analyst_avg is None:
+        analyst_avg = insights.get("wall_street_avg_target")
+    return {
+        "dcf": valuation.get("fair_value"),
+        "multiples": payload.get("multiples_based_fv"),
+        "analyst": analyst_avg,
+        "three_stage": payload.get("three_stage_fv"),
+        "ddm": payload.get("ddm_fv"),
+        "epv": payload.get("epv_per_share"),
+        "probability_weighted": payload.get("probability_weighted_fv"),
+    }
+
+
+def _inject_consensus_signal_dict(payload: dict) -> dict:
+    """Populate ``cross_engine_consensus`` on a dict payload.
+
+    See module-level comment for sequencing requirements. Pure
+    derivation — never raises, never touches I/O. On failure the
+    field is left absent so the frontend hides the badge.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.consensus_signal_service import (
+            build_estimator_breakdown,
+            compute_consensus_signal,
+            to_dict as _cs_to_dict,
+        )
+        valuation = payload.get("valuation") or {}
+        current_price = valuation.get("current_price")
+        estimator_values = _consensus_estimator_values_from_dict(payload)
+        signal = compute_consensus_signal(
+            estimator_values=estimator_values,
+            current_price=current_price or 0.0,
+        )
+        out = _cs_to_dict(signal)
+        # Fill the per-estimator breakdown using the same bucketing
+        # the headline used so the UI list matches the headline count.
+        out["estimator_breakdown"] = build_estimator_breakdown(
+            estimator_values=estimator_values,
+            current_price=current_price or 0.0,
+        )
+        payload["cross_engine_consensus"] = out
+    except Exception:
+        # Additive field only — never break the response.
+        pass
+    return payload
+
+
+def _inject_consensus_signal_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_consensus_signal_dict`.
+
+    Used on the cold-compute return path. Builds a focused dict view
+    of the relevant model fields, reuses the shared extractor, writes
+    the resulting dict back to ``result.cross_engine_consensus``.
+    """
+    try:
+        _val = result.valuation.model_dump() if result.valuation else {}
+        _insights = result.insights.model_dump() if result.insights else {}
+        _payload = {
+            "valuation": _val,
+            "insights": _insights,
+            "multiples_based_fv": getattr(result, "multiples_based_fv", None),
+            "three_stage_fv": getattr(result, "three_stage_fv", None),
+            "ddm_fv": getattr(result, "ddm_fv", None),
+            "epv_per_share": getattr(result, "epv_per_share", None),
+            "probability_weighted_fv": getattr(
+                result, "probability_weighted_fv", None
+            ),
+        }
+        _inject_consensus_signal_dict(_payload)
+        result.cross_engine_consensus = _payload.get("cross_engine_consensus")
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -1309,6 +1432,10 @@ async def get_analysis(
             # run AFTER composite (reads composite_components) and
             # AFTER Phase B (reads liquidation_per_share).
             _inject_derived_insights_dict(_out)
+            # Cross-engine consensus signal (2026-06-10) — additive,
+            # MUST run after composite + Phase-B so every estimator
+            # is reachable. Pure derivation; safe on every warm path.
+            _inject_consensus_signal_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
@@ -1321,6 +1448,7 @@ async def get_analysis(
         _inject_phase_b_estimators_dict(_out)
         _inject_composite_iv_dict(_out)
         _inject_derived_insights_dict(_out)
+        _inject_consensus_signal_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -1354,6 +1482,7 @@ async def get_analysis(
         _inject_phase_b_estimators_dict(_enc)
         _inject_composite_iv_dict(_enc)
         _inject_derived_insights_dict(_enc)
+        _inject_consensus_signal_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -1401,6 +1530,7 @@ async def get_analysis(
             _inject_phase_b_estimators_dict(_out)
             _inject_composite_iv_dict(_out)
             _inject_derived_insights_dict(_out)
+            _inject_consensus_signal_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -1611,6 +1741,11 @@ async def get_analysis(
         # + confidence + floor/ceiling + sector calibration. Runs
         # AFTER composite + Phase B on the cold-compute path.
         _inject_derived_insights_model(result)
+        # Cross-engine consensus signal (2026-06-10) — direction
+        # agreement count across DCF + Multiples + Wall St + four
+        # Phase-B estimators. Additive field; runs after composite +
+        # Phase B so every estimator is reachable.
+        _inject_consensus_signal_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

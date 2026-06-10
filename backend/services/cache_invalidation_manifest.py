@@ -3210,6 +3210,37 @@ MANIFEST: list[dict] = [
             "through this engine."
         ),
     },
+    {
+        # Cross-engine consensus signal (2026-06-10) — new additive
+        # field cross_engine_consensus on AnalysisResponse, populated
+        # at the router boundary by _inject_consensus_signal_dict /
+        # _inject_consensus_signal_model on every cache path. Counts
+        # how many of the 7+ standalone estimators (DCF, Multiples,
+        # Wall Street, Three-stage, DDM, EPV, Probability-weighted)
+        # point in the SAME DIRECTION vs the live price; surfaces a
+        # consensus level (very_high / high / moderate / low /
+        # dispersed) plus the leading direction. Complementary to
+        # composite_intrinsic_value (a weighted-magnitude blend) and
+        # derived_insights.estimator_clustering (a magnitude-
+        # proximity measure). Pure derivation — no DB / cache I/O,
+        # no change to any existing computed field. Read-validity
+        # gate: ["cross_engine_consensus"] tells the gate this
+        # entry shadows ONLY the new field; cached payloads remain
+        # otherwise valid and the inject populates the field on
+        # every read path.
+        "version_id": "v_cross_engine_consensus_signal_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["cross_engine_consensus"],
+        },
+        "rationale": (
+            "Cross-engine consensus signal — when N estimators agree "
+            "on direction vs price, mark as HIGH CONVICTION. "
+            "Outperformance play; competitors don't surface this. "
+            "Additive field only."
+        ),
+    },
 ]
 
 

@@ -862,6 +862,23 @@ class AnalysisResponse(BaseModel):
     # backend/services/reverse_dcf_service.compute_implied_assumptions.
     implied_assumptions: Optional[dict] = None
 
+    # Cross-engine consensus signal (2026-06-10): direction-agreement
+    # count across the 7+ standalone estimators (DCF, Multiples, Wall
+    # Street, Three-stage, DDM, EPV, Probability-weighted). Distinct
+    # from ``composite_intrinsic_value`` (weighted magnitude) and
+    # ``derived_insights.estimator_clustering`` (magnitude proximity);
+    # this slot answers the orthogonal question "how many estimators
+    # point in the same direction vs current price?". Populated by
+    # the router AFTER the composite + Phase-B inject chain so every
+    # estimator the composite saw is also reachable here. See
+    # backend/services/consensus_signal_service.py and the
+    # ``_inject_consensus_signal_*`` helpers. Shape:
+    # ``{direction_agreement_count, total_estimators,
+    #    direction_agreement_pct, magnitude_clustering_cv,
+    #    consensus_level, consensus_direction, headline,
+    #    sanity_warnings, estimator_breakdown}``.
+    cross_engine_consensus: Optional[dict] = None
+
 
 # ── The Honest Card response model ────────────────────────────
 class HonestCardOutput(BaseModel):

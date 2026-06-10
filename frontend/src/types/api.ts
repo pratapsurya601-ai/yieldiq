@@ -579,6 +579,29 @@ export interface AnalysisResponse {
     headline: string
   } | null
   /**
+   * Cross-engine consensus signal (2026-06-10): direction-agreement
+   * count across the 7+ standalone estimators (DCF, Multiples, Wall
+   * Street, Three-stage, DDM, EPV, Probability-weighted). Populated
+   * at the router boundary by `_inject_consensus_signal_*`. Distinct
+   * from `composite_intrinsic_value` (weighted magnitude) and from
+   * `derived_insights.estimator_clustering` (magnitude proximity);
+   * this slot is the directional vote tally. Consumers should
+   * import the matching TS types from
+   * components/analysis/ConsensusSignalBadge.tsx so the contract
+   * stays in one place. Optional + null on legacy cached payloads.
+   */
+  cross_engine_consensus?: {
+    direction_agreement_count?: number
+    total_estimators?: number
+    direction_agreement_pct?: number
+    magnitude_clustering_cv?: number | null
+    consensus_level?: string
+    consensus_direction?: string | null
+    headline?: string
+    sanity_warnings?: string[]
+    estimator_breakdown?: unknown[]
+  } | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of
