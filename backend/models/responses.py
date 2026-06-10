@@ -1105,6 +1105,31 @@ class HistoricalFinancialPeriod(BaseModel):
     # Heavy SBC names (platform IPOs, some IT) have meaningfully overstated reported FCF.
     sbc_adjusted_fcf: Optional[float] = None
     sbc_intensity_label: Optional[str] = None
+    # T4 batch (2026-06-10) — 4 additional accounting normalizations
+    # surfaced as additive Optional fields. Each is paired with an
+    # intensity label in {"negligible", "moderate", "material",
+    # "heavy", "unavailable"} so the FE can suppress the surfacing
+    # chip cleanly when the underlying source column is missing.
+    # Reported fields are byte-identical — these are read-only
+    # surfacings calibrated for the sectors most distorted by each
+    # accounting treatment (IFRS-16 = retail / airlines / hotels /
+    # telecom; R&D capitalization = pharma / IT / auto; excess cash =
+    # IT services; litigation = pharma / telecom / IT). Phase B
+    # (separate PR) can selectively wire these into DCF / EV inputs
+    # for tickers whose intensity label is "material" or "heavy".
+    #
+    # T4.2 IFRS-16 lease adjustment
+    ifrs16_adjusted_ev: Optional[float] = None
+    ifrs16_intensity_label: Optional[str] = None
+    # T4.3 R&D capitalization
+    rd_capitalized_value: Optional[float] = None
+    rd_intensity_label: Optional[str] = None
+    # T4.4 Excess cash adjustment
+    excess_cash_subtracted: Optional[float] = None
+    excess_cash_intensity_label: Optional[str] = None
+    # T4.9 Litigation provisions adjustment
+    litigation_adjusted_debt: Optional[float] = None
+    litigation_intensity_label: Optional[str] = None
 
 
 class HistoricalFinancialsResponse(BaseModel):
