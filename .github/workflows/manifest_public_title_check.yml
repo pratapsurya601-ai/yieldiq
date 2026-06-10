@@ -1,0 +1,51 @@
+name: Manifest public-title guard
+
+# ROOT-CAUSE #11 (2026-06-10) — permanent fix for the recurring
+# manifest title-jargon leak. Three prior sanitisation passes (#123,
+# #175, #188) hardened the rationale sanitiser; the leak still recurred
+# with NEW vocabulary forms (T-numbers, internal slugs, raw field
+# names, engineer-speak). The structural fix is a separate
+# author-supplied `title_public` field on every manifest entry, guarded
+# by a banned-pattern regex.
+#
+# This workflow is the CI half of the three-gate defense:
+#   Gate 1: load-time validator in cache_invalidation_manifest module
+#   Gate 2: runtime serializer sanitiser (public_manifest_entry → title)
+#   Gate 3: THIS workflow — blocks PRs that touch the manifest if any
+#           entry's title_public matches a banned pattern.
+#
+# Runs on every PR that touches the manifest file, the validator
+# script, or the guard helper itself. Fast (~5s) — no install beyond
+# python.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/services/cache_invalidation_manifest.py"
+      - "scripts/check_manifest_public_title.py"
+      - ".github/workflows/manifest_public_title_check.yml"
+  pull_request:
+    paths:
+      - "backend/services/cache_invalidation_manifest.py"
+      - "scripts/check_manifest_public_title.py"
+      - ".github/workflows/manifest_public_title_check.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: manifest-title-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run manifest title_public guard
+        run: python scripts/check_manifest_public_title.py
