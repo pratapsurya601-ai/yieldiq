@@ -28,6 +28,7 @@
 import Link from "next/link"
 import { useQuery, useQueries } from "@tanstack/react-query"
 import { BarChart3 } from "lucide-react"
+import PressScale from "@/components/motion/PressScale"
 import {
   getHoldingsLive,
   getStockSummary,
@@ -317,12 +318,14 @@ function EmptyState() {
       <p className="text-xs text-body mb-4 max-w-md mx-auto">
         Add stocks to your portfolio to see quality signals across your holdings.
       </p>
-      <Link
-        href="/search"
-        className="inline-flex items-center gap-1.5 bg-brand text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition"
-      >
-        Find stocks to add
-      </Link>
+      <PressScale>
+        <Link
+          href="/search"
+          className="inline-flex items-center gap-1.5 bg-brand text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition"
+        >
+          Find stocks to add
+        </Link>
+      </PressScale>
     </section>
   )
 }

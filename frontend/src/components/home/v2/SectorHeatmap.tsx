@@ -18,6 +18,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getSectorOverview } from "@/lib/api"
+import ShimmerSkeleton from "@/components/motion/ShimmerSkeleton"
 // Note: no dedicated /sectors/[slug] route exists yet, so we link to
 // the screener page (which has the broadest filter UI). TODO: when a
 // /sectors index lands, swap this back to sectorSlug-based deeplinks.
@@ -39,7 +40,12 @@ function Skeleton() {
       data-testid="sector-heatmap-skeleton"
     >
       {[...Array(13)].map((_, i) => (
-        <div key={i} className="h-20 bg-border/60 rounded-lg animate-pulse" />
+        <ShimmerSkeleton
+          key={i}
+          variant="block"
+          className="h-20 rounded-lg"
+          label="Loading sector"
+        />
       ))}
     </div>
   )

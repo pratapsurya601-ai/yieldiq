@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/authStore"
 import { Eye, Plus } from "lucide-react"
 import TickerAvatar from "@/components/common/TickerAvatar"
 import { Sparkline } from "@/components/common/Sparkline"
+import PressScale from "@/components/motion/PressScale"
 
 // Refresh cadence mirrors MarketsStrip: 5min during NSE hours, frozen
 // after-hours. Daily closes don't change intraday — the only intra-day
@@ -50,13 +51,15 @@ function EmptyState() {
       <p className="text-xs text-body mb-4">
         Track stocks you don&apos;t own yet. Get alerts when MoS crosses your threshold.
       </p>
-      <Link
-        href="/screener"
-        className="inline-flex items-center gap-1.5 bg-bg border border-border text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:border-brand transition"
-      >
-        <Plus className="w-3.5 h-3.5" />
-        Find stocks
-      </Link>
+      <PressScale>
+        <Link
+          href="/screener"
+          className="inline-flex items-center gap-1.5 bg-bg border border-border text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:border-brand transition"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Find stocks
+        </Link>
+      </PressScale>
     </div>
   )
 }

@@ -35,6 +35,7 @@ import TodaysMovers from "@/components/home/v2/TodaysMovers"
 import IndexDashboardsRow from "./IndexDashboardsRow"
 import SectorCohortGrid from "./SectorCohortGrid"
 import FlowsPanel from "./FlowsPanel"
+import Reveal from "@/components/motion/Reveal"
 
 export const metadata: Metadata = {
   title: "Markets — Indices, sectors, commodities | YieldIQ",
@@ -55,7 +56,11 @@ export default function MarketsHubPage() {
   return (
     <div className="min-h-screen bg-bg dark:bg-surface">
       {/* Hero — tightened copy per spec. */}
-      <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12 sm:py-16">
+      <Reveal
+        as="section"
+        direction="pop"
+        className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12 sm:py-16"
+      >
         <div className="max-w-5xl mx-auto px-4 text-center">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">
             Markets
@@ -64,7 +69,7 @@ export default function MarketsHubPage() {
             Indian indices, sectors, commodities — at a glance.
           </p>
         </div>
-      </section>
+      </Reveal>
 
       {/* MarketsStrip — non-sticky on this page, and with the hub link
           suppressed because clicking "Markets →" while ON /markets is a
