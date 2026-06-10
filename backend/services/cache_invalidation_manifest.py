@@ -324,6 +324,39 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # T3.6 Phase A (2026-06-10) — IT services overlay standalone
+        # service added at backend/services/it_services_overlay_service.py.
+        # Adjusts DCF FV for IT-specific risks generic DCF doesn't see:
+        # client concentration (top-5 client mix), vertical concentration
+        # (BFSI exposure), geo concentration (USD/Europe revenue mix),
+        # SBC intensity (per-tier norms layered on T4.1 #812 SBC dilution
+        # math), and growth quality (revenue growth vs headcount growth,
+        # margin compression). Compound multiplier bounded ~[0.74, 1.16].
+        #
+        # Phase A is standalone — no wiring into composite_iv_service or
+        # AnalysisResponse. Phase B (separate PR) will route IT_TICKERS
+        # through compute_it_overlay and surface the multiplier on the
+        # analysis page. scope.fields=[] documents that no cached field
+        # changes its output as a result of this PR; scope.tickers lists
+        # the 15 IT_TICKERS literally because the overlay is IT-specific.
+        "version_id": "v_t3_6_it_services_overlay_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM",
+                "PERSISTENT", "COFORGE", "MPHASIS", "CYIENT", "BIRLASOFT",
+                "ECLERX", "HAPPSTMNDS", "AFFLE", "TANLA",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.6 Phase A — IT services overlay adjusts DCF for client "
+            "concentration, geo concentration, vertical concentration, "
+            "SBC intensity, and growth quality. Builds on T4.1 SBC "
+            "dilution math; adds IT-specific factors generic DCF misses."
+        ),
+    },
+    {
         # T1.6 (2026-06-10) — added composite_agreement_score as the
         # 5th confidence pillar. Measures clustering vs. spread among
         # the constituent estimators that feed composite_intrinsic_value
