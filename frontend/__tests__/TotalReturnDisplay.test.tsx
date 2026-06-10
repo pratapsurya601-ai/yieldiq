@@ -163,6 +163,11 @@ describe("TotalReturnDisplay -- populated state", () => {
     await waitFor(() =>
       expect(getTotalReturnMock).toHaveBeenCalledWith("TCS", 5, 100000),
     )
+    // Wait for the period selector to be mounted (populated UI replaces
+    // the skeleton once data resolves).
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "10Y" })).toBeInTheDocument(),
+    )
     fireEvent.click(screen.getByRole("tab", { name: "10Y" }))
     await waitFor(() =>
       expect(getTotalReturnMock).toHaveBeenCalledWith("TCS", 10, 100000),

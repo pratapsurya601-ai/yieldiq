@@ -13,7 +13,7 @@
 //
 // SEBI-safe copy: descriptive only. We never say "buy"/"better"/"strong".
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
   LineChart,
@@ -125,7 +125,18 @@ export default function TotalReturnDisplay({
     staleTime: 6 * 60 * 60 * 1000,        // matches backend 6h cache
   })
 
-  const data: TotalReturnResponse | null = query.data ?? null
+  // Hold onto the last good payload across queryKey changes so toggling
+  // years (which is a different queryKey) doesn't flash the skeleton
+  // between periods. The chart updates as soon as the new data lands.
+  const lastGoodRef = useRef<TotalReturnResponse | null>(null)
+  useEffect(() => {
+    if (query.data) {
+      lastGoodRef.current = query.data
+    }
+  }, [query.data])
+
+  const data: TotalReturnResponse | null =
+    query.data ?? lastGoodRef.current ?? null
 
   const tickerLabel = useMemo(() => {
     if (companyName) return companyName
@@ -133,7 +144,11 @@ export default function TotalReturnDisplay({
   }, [companyName, ticker])
 
   // ── loading + error states ─────────────────────────────────────────
-  if (query.isLoading) {
+  // Only render the skeleton on the FIRST ever load — once we've seen
+  // any data, period-toggle refetches keep the populated UI visible
+  // (lastGoodRef holds the last-rendered payload across queryKey
+  // changes) to avoid skeleton flashes on every chip click.
+  if (query.isLoading && lastGoodRef.current === null) {
     return (
       <section
         aria-label="Total return vs price return"
