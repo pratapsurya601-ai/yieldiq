@@ -2680,6 +2680,55 @@ MANIFEST: list[dict] = [
             "PR per scope-management note in the brief."
         ),
     },
+    {
+        # T3.4 Phase A (2026-06-10) — RE developer cap-rate / NAV
+        # framework standalone service at
+        # backend/services/real_estate_developer_service.py.
+        # Indian listed real-estate DEVELOPERS (DLF, GODREJPROP,
+        # OBEROIRLTY, PRESTIGE, PHOENIXLTD, BRIGADE, SOBHA, MAHLIFE,
+        # SUNTECK, LODHA) are structurally distinct from listed REITs:
+        # they hold land banks (multi-decade book cost), forward-sales
+        # pipelines (off-statement leading revenue indicator), and
+        # completed rental annuity assets. Generic FCF-DCF mis-prices
+        # the cohort; cap-rate / NAV is the standard developer framing.
+        #
+        # NAV = land_bank * (realization - cost) * margin
+        #     + forward_sales pipeline * margin
+        #     + completed rental annuity / cap_rate
+        #     - net_debt
+        #     then / shares_outstanding.
+        #
+        # Segment-specific cap rates: residential 7%, commercial 8%,
+        # mixed 7.5%, luxury 6% (lower cap = higher multiple for
+        # stabilised premium assets).
+        #
+        # Phase A is standalone — no wiring into composite_iv_service
+        # or AnalysisResponse. Phase B (separate PR) will route
+        # RE_DEVELOPER_TICKERS through compute_developer_nav and
+        # surface NAV alongside generic DCF on the analysis page.
+        # scope.fields=[] documents that no cached field changes its
+        # output as a result of this PR; scope.tickers lists the 10
+        # developer tickers literally so Phase B's cache-version-check
+        # gate has a contemporaneous anchor.
+        "version_id": "v_t3_4_re_developer_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE",
+                "PHOENIXLTD", "BRIGADE", "SOBHA", "MAHLIFE",
+                "SUNTECK", "LODHA",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.4 Phase A — RE developer cap rate / NAV framework "
+            "(land bank + forward sales + rental perpetuity - net "
+            "debt) for the 10-ticker Indian developer cohort. "
+            "Distinct from the existing realty_valuation_service "
+            "(REIT/InvIT path). Phase A standalone; Phase B will "
+            "route developer tickers through compute_developer_nav."
+        ),
+    },
 ]
 
 
