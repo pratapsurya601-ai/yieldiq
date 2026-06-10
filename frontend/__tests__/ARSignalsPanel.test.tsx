@@ -523,3 +523,85 @@ describe("ARSignalsPanel — PR #613 extended fields", () => {
     expect(screen.queryByTestId("ar-section-strategic-priorities")).toBeNull()
   })
 })
+
+// ROOT CAUSE #9 — segment rows with unit_validated === false are
+// dropped from the display + a hidden-count caption renders.
+describe("ARSignalsPanel — ROOT CAUSE #9 unit-validation filter", () => {
+  const HDFCBANK_PAYLOAD: ARSignalsResponse = {
+    ...FULL_PAYLOAD,
+    signals: {
+      ...FULL_PAYLOAD.signals!,
+      segment_data: [
+        {
+          name: "Treasury",
+          revenue_cr: 62227,
+          ebit_cr: 4605,
+          fy: "FY25",
+          unit_validated: true,
+        },
+        {
+          name: "Retail Banking - Digital",
+          revenue_cr: 8.59,
+          ebit_cr: 0.04,
+          fy: "FY25",
+          unit_validated: false,
+          validation_reason: "revenue_share_implausible",
+        },
+        {
+          name: "Retail Banking - Non-Digital",
+          revenue_cr: 283426,
+          ebit_cr: 27309,
+          fy: "FY25",
+          unit_validated: true,
+        },
+      ],
+    },
+  }
+
+  it("hides rows where unit_validated is false", () => {
+    renderWithClient(
+      <ARSignalsPanel ticker="HDFCBANK" initialData={HDFCBANK_PAYLOAD} />,
+    )
+    const section = screen.getByTestId("ar-section-segments")
+    // Plausible rows render.
+    expect(within(section).getByText("Treasury")).toBeInTheDocument()
+    expect(
+      within(section).getByText("Retail Banking - Non-Digital"),
+    ).toBeInTheDocument()
+    // The 8.59 Cr row must be filtered out — its label NEVER
+    // appears anywhere in the rendered DOM.
+    expect(within(section).queryByText("Retail Banking - Digital")).toBeNull()
+  })
+
+  it("renders the hidden-count caption when at least one row is filtered", () => {
+    renderWithClient(
+      <ARSignalsPanel ticker="HDFCBANK" initialData={HDFCBANK_PAYLOAD} />,
+    )
+    const caption = screen.getByTestId("ar-segments-hidden-caption")
+    expect(caption.textContent).toContain("1 segment hidden")
+    expect(caption.textContent).toContain("extraction confidence too low")
+  })
+
+  it("does NOT render the caption when no rows are filtered", () => {
+    renderWithClient(<ARSignalsPanel ticker="RELIANCE" initialData={FULL_PAYLOAD} />)
+    expect(screen.queryByTestId("ar-segments-hidden-caption")).toBeNull()
+  })
+
+  it("rows without the unit_validated stamp default to visible (legacy compat)", () => {
+    const LEGACY_PAYLOAD: ARSignalsResponse = {
+      ...FULL_PAYLOAD,
+      signals: {
+        ...FULL_PAYLOAD.signals!,
+        segment_data: [
+          { name: "Pre-validator-era row", revenue_cr: 1000, ebit_cr: 100 },
+        ],
+      },
+    }
+    renderWithClient(
+      <ARSignalsPanel ticker="LEGACY" initialData={LEGACY_PAYLOAD} />,
+    )
+    const section = screen.getByTestId("ar-section-segments")
+    expect(within(section).getByText("Pre-validator-era row")).toBeInTheDocument()
+    expect(screen.queryByTestId("ar-segments-hidden-caption")).toBeNull()
+  })
+})
