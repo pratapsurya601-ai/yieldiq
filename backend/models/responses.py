@@ -806,6 +806,33 @@ class AnalysisResponse(BaseModel):
     # backend-stamped invariant + the method label.
     headline_fair_value: Optional[float] = None
     headline_fair_value_method: Optional[str] = None
+    # ── Score-vs-verdict divergence (ROOT CAUSE #6, 2026-06-10) ─────
+    # v_score_verdict_divergence_caption_2026_06_10 — additive
+    # transparency surface that explains when the YIQ Score
+    # (business-quality blend) and the Valuation Verdict
+    # (price-vs-intrinsic-value) point in different directions.
+    # Frontend renders an explainer caption when ``diverges`` is True
+    # and self-hides when the two signals align.
+    #
+    # Shape (see backend.services.score_verdict_divergence
+    # .compute_score_verdict_divergence):
+    #   {
+    #     "score_percentile": 40,
+    #     "verdict_signal":   "undervalued",
+    #     "diverges":         True,
+    #     "explanation":      "Quality blend reads 40 of 100 ..."
+    #   }
+    #
+    # Rule (kept module-level so it is auditable in code, not in
+    # docstrings):
+    #   diverges = True iff
+    #       (score <= QUALITY_WEAK_THRESHOLD   AND verdict in BULL_VERDICTS)
+    #    OR (score >= QUALITY_STRONG_THRESHOLD AND verdict in BEAR_VERDICTS)
+    #
+    # Purely ADDITIVE — pre-PR cached payloads and clients see this
+    # field as None. The frontend caption layer treats absence the
+    # same as ``diverges=False`` and renders nothing.
+    score_verdict_divergence: Optional[dict] = None
     # ── Composite Composition transparency (2026-06-10) ─────────────
     # v_composite_composition_transparency_2026_06_10 — additive
     # surface that explains WHY composite_intrinsic_value carries the

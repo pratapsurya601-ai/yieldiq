@@ -502,6 +502,47 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Score-vs-verdict divergence caption (ROOT CAUSE #6,
+        # 2026-06-10) — additive transparency surface that explains
+        # when the side-rail YIQ Score (business-quality blend) and
+        # the hero Verdict pill (price-vs-intrinsic-value) point in
+        # different directions. Backend stamps a new top-level
+        # ``AnalysisResponse.score_verdict_divergence`` dict with
+        # ``{score_percentile, verdict_signal, diverges, explanation}``
+        # — pure derivation from ``quality.yieldiq_score`` +
+        # ``valuation.verdict``, never changes either input. The
+        # frontend caption component reads ``diverges`` and self-hides
+        # when False; legacy cached payloads omit the field and the
+        # caption renders nothing.
+        #
+        # No engine math changes: the new field is a pure
+        # post-compute derivation. Existing cached fields are
+        # byte-identical. scope.fields=[] documents the additive-only
+        # nature; scope.tickers="*" marks the surface as universal
+        # (any ticker can land in the bull or bear divergence band).
+        "version_id": "v_score_verdict_divergence_caption_2026_06_10",
+        "title_public": (
+            "Caption explaining when Quality Score and Valuation "
+            "Verdict diverge — clarifies they measure different "
+            "questions"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Score-vs-verdict reconciler caption (ROOT CAUSE #6). "
+            "Adds a one-paragraph descriptive explainer that renders "
+            "only when the YIQ Score and the Valuation Verdict point "
+            "in opposite directions (e.g. HDFCBANK: Score 40, verdict "
+            "undervalued). Both readings are correct — quality and "
+            "valuation answer different questions. The caption "
+            "auto-hides when signals align. Additive backend field "
+            "only; no engine math invalidated."
+        ),
+    },
+    {
         # Total Return vs Price Return (2026-06-10) — additive public
         # endpoint /api/v1/public/total-return/{ticker} returning
         # cumulative price return, total return (dividend reinvestment

@@ -2900,6 +2900,47 @@ def _inject_headline_fair_value_model(
     return result
 
 
+def _inject_score_verdict_divergence_dict(payload: dict) -> dict:
+    """Populate ``score_verdict_divergence`` on a dict payload.
+
+    Reads ``quality.yieldiq_score`` + ``valuation.verdict`` and stamps
+    the reconciler dict so the frontend caption can render when the
+    two signals disagree. See
+    backend/services/score_verdict_divergence.py for the rule.
+    Field-additive. Never raises.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.score_verdict_divergence import divergence_from_payload
+        diverg = divergence_from_payload(payload)
+        if diverg is not None:
+            payload["score_verdict_divergence"] = diverg
+    except Exception:
+        # Additive field only — never break the response. The frontend
+        # caption layer treats absence the same as ``diverges=False``.
+        pass
+    return payload
+
+
+def _inject_score_verdict_divergence_model(
+    result: "AnalysisResponse",
+) -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_score_verdict_divergence_dict`."""
+    try:
+        from backend.services.score_verdict_divergence import (
+            compute_score_verdict_divergence,
+        )
+        score = getattr(result.quality, "yieldiq_score", None) if result.quality else None
+        verdict = getattr(result.valuation, "verdict", None) if result.valuation else None
+        diverg = compute_score_verdict_divergence(score, verdict)
+        if diverg is not None:
+            result.score_verdict_divergence = diverg
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -3070,6 +3111,10 @@ async def get_analysis(
             # peer / AI-Why / Chat / PDF. MUST run AFTER composite so
             # the composite_intrinsic_value slot is populated.
             _inject_headline_fair_value_dict(_out)
+            # ROOT CAUSE #6 (2026-06-10): score-vs-verdict divergence —
+            # additive transparency surface. Pure on quality + valuation;
+            # safe at any point after both are present on the dict.
+            _inject_score_verdict_divergence_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
@@ -3084,6 +3129,7 @@ async def get_analysis(
         _inject_derived_insights_dict(_out)
         _inject_consensus_signal_dict(_out)
         _inject_headline_fair_value_dict(_out)
+        _inject_score_verdict_divergence_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -3119,6 +3165,7 @@ async def get_analysis(
         _inject_derived_insights_dict(_enc)
         _inject_consensus_signal_dict(_enc)
         _inject_headline_fair_value_dict(_enc)
+        _inject_score_verdict_divergence_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -3168,6 +3215,7 @@ async def get_analysis(
             _inject_derived_insights_dict(_out)
             _inject_consensus_signal_dict(_out)
             _inject_headline_fair_value_dict(_out)
+            _inject_score_verdict_divergence_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -3387,6 +3435,9 @@ async def get_analysis(
         # source of truth for hero / caveat / FAQ / AI-Why / OG /
         # JSON-LD / peer / Chat / PDF. MUST run AFTER composite.
         _inject_headline_fair_value_model(result)
+        # ROOT CAUSE #6 (2026-06-10): score-vs-verdict divergence —
+        # additive transparency surface. Pure on quality + valuation.
+        _inject_score_verdict_divergence_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},
