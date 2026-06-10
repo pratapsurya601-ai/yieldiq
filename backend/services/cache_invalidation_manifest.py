@@ -2254,6 +2254,50 @@ MANIFEST: list[dict] = [
             "change; no cache invalidation needed."
         ),
     },
+    {
+        # T3.2 Phase A (2026-06-10): NBFC ROA-tree (DuPont) standalone
+        # valuation service in backend/services/nbfc_roa_service.py.
+        # Sector-specific framework for the 12 listed Indian NBFCs that
+        # are mis-valued by every existing engine (generic DCF collapses
+        # on negative FCF; bank cohort PB anchor wrong because no
+        # deposits; Tier-2 P/E peer median pools four structurally
+        # different sub-segments into noise).
+        #
+        # Engine factors a lending business's ROA into the canonical
+        # five-line decomposition (yield - cost-of-funds - credit cost
+        # - opex + fee income, then × leverage → ROE, then Gordon →
+        # fair P/B). Sub-segment defaults calibrated per the segment
+        # discussion in the brief: gold loan / vehicle finance /
+        # housing finance / consumer finance / SME / diversified / AMC.
+        #
+        # Phase A is standalone — no router wiring, no read-path entry
+        # in the analysis cache shape. Phase B (separate PR) routes
+        # the 12 tickers below through this engine and surfaces the
+        # ROA-tree breakdown on the analysis page.
+        #
+        # Empty fields list means _field_in_scope() returns False for
+        # any caller's fields_needed iterable, so this entry is
+        # effectively a documentation-only no-op for the read-validity
+        # gate — by design for Phase A.
+        "version_id": "v_t3_2_nbfc_roa_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN", "HDFCAMC",
+                "IIFL", "LICHSGFIN", "LTFH", "M&MFIN", "MANAPPURAM",
+                "MUTHOOTFIN", "POONAWALLA", "SHRIRAMFIN",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.2 Phase A — NBFC ROA tree (DuPont) standalone "
+            "valuation service. Sector-specific framework for non-bank "
+            "financials — gold loan / vehicle / housing / consumer / "
+            "diversified segments each with calibrated yield + credit "
+            "cost + opex defaults. Phase B routes the 11 NBFC tickers "
+            "through this engine."
+        ),
+    },
 ]
 
 
