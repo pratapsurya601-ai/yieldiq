@@ -3379,6 +3379,31 @@ MANIFEST: list[dict] = [
             "analysis hero."
         ),
     },
+    {
+        # Task #176-followup (2026-06-10) — Revenue Segment Breakdown
+        # panel. AlphaSpread + Tickertape both ship a business +
+        # geography revenue pie; we read the latest
+        # ar_signals.segment_data (populated by Anthropic-backed
+        # ar_intel_service) and reshape it into business + geo
+        # buckets via the new
+        # GET /api/v1/public/revenue-segments/{ticker} endpoint.
+        # Additive surface — no cached engine field changes its
+        # output, hence scope.fields=[] / scope.tickers=[]. The entry
+        # exists so the audit trail records the ship date.
+        "version_id": "v_revenue_segment_breakdown_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [],
+            "fields": [],
+        },
+        "rationale": (
+            "Revenue Segment Breakdown panel on the Financials tab. "
+            "Twin donut charts for business + geographic revenue "
+            "split, sourced from ar_signals.segment_data (latest AR "
+            "extraction). Renders an honest 'AR signals coming soon' "
+            "empty state when no extraction exists yet."
+        ),
+    },
 ]
 
 
