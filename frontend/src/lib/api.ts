@@ -1758,4 +1758,64 @@ export const getSectorHeatmap = (
     3600,
   )
 
+// ── Save-Note + Decision Tags (2026-06-10) ─────────────────────
+// Per-(user, ticker) markdown research journal + decision tag.
+// Backend: backend/routers/notes.py.
+//
+// Tag enum mirrors backend/services/notes_service.py — keep these in
+// lock-step. Source of truth lives in the Python service; this is a
+// client mirror so SaveNotePanel can render chips without an extra
+// round trip.
+export const DECISION_TAGS = [
+  "researching",
+  "watching",
+  "skipping",
+  "owned",
+  "sold",
+] as const
+export type DecisionTag = (typeof DECISION_TAGS)[number]
+
+export interface UserNote {
+  ticker: string
+  content_md: string
+  decision_tag: DecisionTag
+  created_at: string
+  updated_at: string
+}
+
+export interface UpsertNotePayload {
+  content_md: string
+  decision_tag: DecisionTag
+}
+
+// GET a single note. Returns null on 404 so callers can treat the
+// missing-row case as the "show empty composer" state without
+// pattern-matching axios error shapes.
+export const getNote = async (ticker: string): Promise<UserNote | null> => {
+  try {
+    const r = await api.get(`/api/v1/notes/${encodeURIComponent(ticker)}`)
+    return r.data as UserNote
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 404) return null
+    throw err
+  }
+}
+
+export const listNotes = (tag?: DecisionTag | null): Promise<UserNote[]> => {
+  const qs = tag ? `?tag=${encodeURIComponent(tag)}` : ""
+  return api.get(`/api/v1/notes/${qs}`).then(r => r.data)
+}
+
+export const upsertNote = (
+  ticker: string,
+  payload: UpsertNotePayload,
+): Promise<UserNote> =>
+  api
+    .post(`/api/v1/notes/${encodeURIComponent(ticker)}`, payload)
+    .then(r => r.data)
+
+export const deleteNote = (ticker: string): Promise<{ message: string }> =>
+  api.delete(`/api/v1/notes/${encodeURIComponent(ticker)}`).then(r => r.data)
+
 export default api

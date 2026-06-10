@@ -3433,6 +3433,36 @@ MANIFEST: list[dict] = [
             "empty state when no extraction exists yet."
         ),
     },
+    {
+        # Save-Note + Decision Tags (2026-06-10). AlphaSpread-style
+        # per-(user, ticker) research journal: rich-text markdown +
+        # decision tag (researching / watching / skipping / owned /
+        # sold). Mounted as a sidebar/collapsible on the analysis
+        # page; cross-ticker index at /notes filterable by tag.
+        #
+        # scope.fields=[] because the analysis-page payload is
+        # byte-identical — notes are an out-of-band per-user surface,
+        # not a derived field on the cached analysis. scope.tickers=[]
+        # because no recompute is required (existing cached rows are
+        # untouched). The entry exists to document the ship date on
+        # the audit trail so future archaeologists can correlate the
+        # new endpoint surface with the manifest.
+        "version_id": "v_save_notes_decision_tags_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [],
+            "fields": [],
+        },
+        "rationale": (
+            "Save-Note + Decision Tags — per-(user, ticker) markdown "
+            "research journal with a five-value decision tag enum "
+            "(researching / watching / skipping / owned / sold). "
+            "Power-user retention play; storage is JSONL behind the "
+            "/api/v1/notes/* router; analysis-page sidebar panel + "
+            "cross-ticker /notes index page consume it. No engine or "
+            "cached-payload changes."
+        ),
+    },
 ]
 
 

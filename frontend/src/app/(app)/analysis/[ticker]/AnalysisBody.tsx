@@ -55,6 +55,10 @@ import {
 } from "@/lib/verdict-colors"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
+// Save-Note + Decision Tags (2026-06-10) — power-user retention.
+// Per-(user, ticker) markdown journal + decision tag. Collapsed by
+// default so it doesn't crowd the fold on first paint.
+import SaveNotePanel from "@/components/analysis/SaveNotePanel"
 // PR-3 (acquisition four-hero retire): ConfidenceIndicators is removed
 // from the analysis page render path. Its three score chips
 // (data_quality / model_confidence / valuation_stability) and the
@@ -2254,6 +2258,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         <Reveal direction="left" delay={160}>
           <AnalyticalNotes notes={data.analytical_notes} />
         </Reveal>
+
+        {/* Save-Note + Decision Tags (2026-06-10) — power-user
+            retention. Per-(user, ticker) markdown journal + decision
+            tag (researching/watching/skipping/owned/sold). Collapsed
+            by default so it doesn't crowd the deep-dive content; the
+            #notes hash on /notes index deep-links scrolls here. */}
+        <div id="notes" className="scroll-mt-20">
+          <Reveal direction="left" delay={200}>
+            <SaveNotePanel ticker={ticker} />
+          </Reveal>
+        </div>
 
         <Reveal direction="up" delay={0}>
           <AnalysisTabs

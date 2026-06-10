@@ -225,6 +225,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
 # Task #131 (2026-06-10): MoS-band alert subscriptions (retention play)
 from backend.routers import mos_band_alerts as mos_band_alerts_router
+# Save-note + decision-tags (2026-06-10): per-ticker rich-text notes
+# tagged researching/watching/skipping/owned/sold. Power-user retention
+# play — analysis-page sidebar + cross-ticker /notes index.
+from backend.routers import notes as notes_router
 from backend.routers import payments, pipeline, email, referral, admin, public, tax, concall
 # Phase A.2.1 (2026-05-23): admin data-quality dashboard endpoint
 from backend.routers import admin_data_quality as admin_data_quality_router
@@ -940,6 +944,7 @@ app.include_router(portfolio.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(mos_band_alerts_router.router)
+app.include_router(notes_router.router)
 app.include_router(market.router)
 app.include_router(payments.router)
 # Day-49: student-verify upload + admin review endpoints
