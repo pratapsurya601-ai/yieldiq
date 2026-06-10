@@ -12,11 +12,25 @@
  *      and updates the active highlight.
  *   5. IntersectionObserver-driven active tracking: when a different
  *      section enters the activation band, the highlight follows.
- *   6. Mobile floating button + slide-in panel: button toggles the
- *      panel; clicking a panel item closes the panel and scrolls.
+ *   6. Floating button + slide-in panel: button toggles the panel;
+ *      clicking a panel item closes the panel and scrolls.
  *   7. Renders nothing when no sections are discovered.
  *   8. Honors the `toc-sections-changed` window event by re-scanning
  *      the DOM (covers tab-swap remounts).
+ *   9. fix/sticky-toc-overlap-with-side-rail (2026-06-11): the
+ *      desktop rail uses the `2xl:block` responsive prefix (was
+ *      `xl:block`) so it stays hidden in the 1280-1535px range
+ *      where the HonestHero side rail still occupies the right
+ *      edge of the centered content container.
+ *  10. fix/sticky-toc-overlap-with-side-rail (2026-06-11): the
+ *      floating "Sections" button uses `2xl:hidden` (was
+ *      `md:hidden`) so the navigator remains reachable at md/lg/xl
+ *      viewports without overlap.
+ *  11. fix/sticky-toc-overlap-with-side-rail (2026-06-11): the
+ *      desktop rail is positioned via an inline `right: max(...)`
+ *      style that pushes it OUTSIDE the 1152px content container's
+ *      right edge — guarantees no overlap with the HonestHero
+ *      sticky side rail at the 2xl breakpoint.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { render, screen, act, fireEvent } from "@testing-library/react"
@@ -261,6 +275,77 @@ describe("StickyTableOfContents", () => {
       container.querySelector("[data-testid='sticky-toc-mobile-button']"),
     ).toBeNull()
   })
+
+  // ── fix/sticky-toc-overlap-with-side-rail (2026-06-11) ────────────
+  //
+  // Three responsive-behaviour pins covering the overlap fix. JSDOM
+  // does not evaluate CSS media queries during render, so we assert
+  // on the className the component emits — the same class names
+  // Tailwind compiles into the actual breakpoint rules.
+
+  it(
+    "fix-toc-overlap: desktop rail is gated on `2xl:block`, not `xl:block`, " +
+      "so it stays hidden at md/lg/xl viewports where the HonestHero " +
+      "side rail still owns the right edge",
+    async () => {
+      setupSectionsInDOM()
+      render(<StickyTableOfContents sections={sections} />)
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const desktop = screen.getByTestId("sticky-toc-desktop")
+      const cls = desktop.className
+      expect(cls).toContain("2xl:block")
+      // Hard-pin the negative: the previous `xl:block` (1280px) value
+      // is what caused the overlap. Catch any regression that re-
+      // introduces it.
+      expect(cls).not.toMatch(/(^|\s)xl:block(\s|$)/)
+      expect(cls).toContain("hidden")
+    },
+  )
+
+  it(
+    "fix-toc-overlap: floating button is gated on `2xl:hidden` so it " +
+      "remains reachable at md/lg/xl viewports (1024-1535px) where " +
+      "the desktop rail is suppressed",
+    async () => {
+      setupSectionsInDOM()
+      render(<StickyTableOfContents sections={sections} />)
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const fab = screen.getByTestId("sticky-toc-mobile-button")
+      const cls = fab.className
+      expect(cls).toContain("2xl:hidden")
+      // Previous `md:hidden` (768px) hid the navigator entirely in
+      // the 768-1535px range. Catch a regression that re-introduces it.
+      expect(cls).not.toMatch(/(^|\s)md:hidden(\s|$)/)
+    },
+  )
+
+  it(
+    "fix-toc-overlap: desktop rail's `right` is computed via `max(...)` " +
+      "so the rail sits OUTSIDE the centered max-w-6xl content " +
+      "container — prevents overlap with the HonestHero sticky " +
+      "side rail at 2xl",
+    async () => {
+      setupSectionsInDOM()
+      render(<StickyTableOfContents sections={sections} />)
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const desktop = screen.getByTestId("sticky-toc-desktop") as HTMLElement
+      // React passes inline styles through to the DOM `style` attribute.
+      // Read the raw attribute (not `.style.right`) so jsdom's CSSOM
+      // limitations on unsupported value syntax do not swallow the test.
+      const styleAttr = desktop.getAttribute("style") ?? ""
+      expect(styleAttr).toMatch(/right:\s*max\(/)
+      expect(styleAttr).toMatch(/50vw/)
+      // The hard-coded Tailwind `right-6` of the original placement
+      // would re-introduce the overlap. Catch any regression.
+      expect(desktop.className).not.toMatch(/(^|\s)right-6(\s|$)/)
+    },
+  )
 
   it("re-scans the DOM on the toc-sections-changed window event", async () => {
     // Start with two sections, then add a third and dispatch the
