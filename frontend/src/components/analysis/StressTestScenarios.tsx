@@ -121,7 +121,7 @@ export const SCENARIOS: StressScenario[] = [
     id: "2013_taper",
     name: "2013 Taper Tantrum",
     description:
-      "FII outflows on Fed tapering hints, rupee fell 20%, FX-sensitive sectors compressed. IT services were a net beneficiary of weaker INR.",
+      "FII outflows on Fed tapering hints, rupee fell 20%, FX-sensitive sectors compressed. IT services benefited from a softer INR.",
     multipliers: {
       Bank: 0.8,
       "Private Bank": 0.82,
