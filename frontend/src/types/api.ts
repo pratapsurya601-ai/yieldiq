@@ -501,6 +501,45 @@ export interface AnalysisResponse {
   multiples_based_fv?: number | null
   multiples_method?: "pe" | "pb" | "ev_ebitda" | null
   /**
+   * T5.10 — per-engine valuation methods panel (engine-refinement
+   * transparency surface). All fields are OPTIONAL and gracefully
+   * absent on legacy / pre-T1.1 / pre-PR-#803 cached payloads. The
+   * <ValuationMethodsPanel /> renders only the methods whose value is
+   * non-null; everything else collapses into the "not applicable for
+   * this ticker" footnote.
+   *
+   * `composite_intrinsic_value` — T1.1 weighted-average of DCF +
+   *   Peer Multiples + Wall Street consensus. `composite_components`
+   *   carries the per-input contribution + the method tag used.
+   *
+   * `three_stage_fv` / `ddm_fv` / `epv_per_share` /
+   * `liquidation_per_share` / `probability_weighted_fv` — Phase B
+   *   (#803) standalone-service outputs. Null when the ticker does
+   *   not meet the service's applicability gate (e.g. DDM requires
+   *   payout >= 30% and a 5y dividend streak; Liquidation excludes
+   *   asset-light / financial businesses).
+   *
+   * The companion `*_method` strings document which sub-flavour of
+   * each model produced the figure (e.g. "two_stage", "h_model",
+   * "gordon", "explicit_fade"). Surfaced to the user via the panel's
+   * method-tag tooltip.
+   */
+  composite_intrinsic_value?: number | null
+  composite_components?: {
+    method?: string | null
+    dcf_weight?: number | null
+    multiples_weight?: number | null
+    consensus_weight?: number | null
+  } | null
+  three_stage_fv?: number | null
+  three_stage_method?: string | null
+  ddm_fv?: number | null
+  ddm_method?: string | null
+  epv_per_share?: number | null
+  liquidation_per_share?: number | null
+  probability_weighted_fv?: number | null
+  probability_weighted_method?: string | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of

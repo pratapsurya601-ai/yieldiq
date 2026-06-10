@@ -64,6 +64,7 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 // side rail at ≥1024 and into <MobileScoreStrip> below 1024. ScoreCard.tsx
 // and StickyScorecard.tsx are deleted in this PR.
 import HonestHero from "@/components/analysis/HonestHero"
+import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
 import MobileScoreStrip from "@/components/analysis/MobileScoreStrip"
 import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
@@ -1281,6 +1282,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "Valuation",
       content: (
         <div className="space-y-4">
+          {/* T5.10 — per-engine valuation methods panel. Surfaces every
+              independent estimate the engine produced (Composite, DCF,
+              Multiples, Wall Street, plus the Phase B services once
+              they land). Renders only the methods that returned a
+              value; everything else collapses into a footnote. */}
+          <ValuationMethodsPanel data={data} />
           {scenarioBlock}
           {sensitivityBlock}
           {valuation.dcf_reliable && valuation.fair_value > 0 ? (
