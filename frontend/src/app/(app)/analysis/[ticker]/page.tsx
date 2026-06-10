@@ -133,7 +133,7 @@ export default async function AnalysisPage({
     // bottom nav (Navbar.tsx:118, ~64px + env(safe-area-inset-bottom))
     // so the final TrustFooter / SEBI disclaimer is not hidden behind
     // it. SEBI compliance copy partially covered is a regulatory
-    // concern, not just an aesthetic one. md+ has no bottom nav.
+    // matter, not just an aesthetic one. md+ has no bottom nav.
     <div className="pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0">
       {prism && (
         <JsonLd
