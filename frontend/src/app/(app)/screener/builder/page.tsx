@@ -221,9 +221,10 @@ function SmartScreenerInner() {
   // hitting the network. Returned shape matches SmartScreenerRequest
   // on the backend.
   const apiCriteria = useMemo(() => {
+    type ApiCriterion = { field: string; op: string; value: number | string }
     return criteria
       .filter((c) => c.field && c.value !== "" && c.value != null)
-      .map((c) => {
+      .map((c): ApiCriterion | null => {
         const f = fieldByKey.get(c.field)
         if (f && f.type === "number") {
           const n = Number(c.value)
@@ -232,7 +233,7 @@ function SmartScreenerInner() {
         }
         return { field: c.field, op: c.op, value: c.value }
       })
-      .filter((c): c is { field: string; op: string; value: number | string } => c !== null)
+      .filter((c): c is ApiCriterion => c !== null)
   }, [criteria, fieldByKey])
 
   // Live count — runs on every criteria/sector edit, debounced via
