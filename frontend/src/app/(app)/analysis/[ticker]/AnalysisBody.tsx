@@ -65,6 +65,7 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 // and StickyScorecard.tsx are deleted in this PR.
 import HonestHero from "@/components/analysis/HonestHero"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
+import EarningsImpactSimulator from "@/components/analysis/EarningsImpactSimulator"
 import DerivedInsightsPanel, {
   type DerivedInsights as DerivedInsightsShape,
 } from "@/components/analysis/DerivedInsightsPanel"
@@ -1310,6 +1311,19 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               they land). Renders only the methods that returned a
               value; everything else collapses into a footnote. */}
           <ValuationMethodsPanel data={data} />
+          {/* T6.4 — what-if calculator. Collapsible (closed by default)
+              so it doesn't dominate the Valuation tab; lets users drag
+              four levers to see how the DCF Fair Value would shift
+              under a linear sensitivity approximation. */}
+          {valuation.dcf_reliable && valuation.fair_value > 0 ? (
+            <EarningsImpactSimulator
+              ticker={data.ticker}
+              currency={company.currency}
+              baseFairValue={valuation.fair_value}
+              baseWacc={valuation.wacc}
+              baseTerminalGrowth={valuation.terminal_growth}
+            />
+          ) : null}
           {scenarioBlock}
           {sensitivityBlock}
           {valuation.dcf_reliable && valuation.fair_value > 0 ? (
