@@ -9,7 +9,7 @@
 // backend/services/analysis/peer_context.py. When percentile data is
 // thin (n < 3 peers) the slider falls back to a naked value display.
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
 export interface MetricWithContextProps {
@@ -53,6 +53,27 @@ export default function MetricWithContext({
   className,
 }: MetricWithContextProps) {
   const [hovered, setHovered] = useState(false)
+  // Flip the tooltip ABOVE the row when there isn't enough room below
+  // (mobile audit issue #7 — KPI tiles near the viewport bottom would
+  // render the tooltip off-screen on small viewports).
+  const [flipUp, setFlipUp] = useState(false)
+  const rowRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!hovered) return
+    const row = rowRef.current
+    if (!row) return
+    const rect = row.getBoundingClientRect()
+    // Single-line tooltip; conservative height includes padding +
+    // wrap on narrow phones.
+    const TOOLTIP_HEIGHT = 40
+    const COLLISION_PAD = 12
+    const viewportH =
+      typeof window !== "undefined" ? window.innerHeight : 768
+    const spaceBelow = viewportH - rect.bottom - COLLISION_PAD
+    const spaceAbove = rect.top - COLLISION_PAD
+    setFlipUp(spaceBelow < TOOLTIP_HEIGHT && spaceAbove > spaceBelow)
+  }, [hovered])
 
   // Derive the slider range. If P5/P95 aren't supplied, pad the median
   // by ±60% so the marker still moves visibly.
@@ -138,6 +159,7 @@ export default function MetricWithContext({
 
   return (
     <div
+      ref={rowRef}
       className={cn(
         "flex flex-wrap items-center gap-x-3 gap-y-1 text-sm group relative",
         className,
@@ -210,11 +232,17 @@ export default function MetricWithContext({
         sector median {format(peerMedian)}
       </span>
 
-      {/* Hover tooltip */}
+      {/* Hover tooltip — flips ABOVE the row when the viewport bottom
+          is too close (mobile audit issue #7). */}
       {hovered && (
         <div
           role="tooltip"
-          className="absolute top-full left-0 mt-1 z-10 bg-ink text-bg text-[11px] px-2 py-1 rounded shadow whitespace-nowrap"
+          data-flip={flipUp ? "up" : "down"}
+          className={cn(
+            "absolute left-0 z-10 bg-ink text-bg text-[11px] px-2 py-1",
+            "rounded shadow whitespace-nowrap",
+            flipUp ? "bottom-full mb-1" : "top-full mt-1",
+          )}
         >
           {tooltip}
         </div>

@@ -102,6 +102,7 @@ function Popover({
   explanation,
   backend,
   alignRight,
+  flipUp,
 }: {
   id: string
   explanation: MetricExplanation
@@ -113,6 +114,14 @@ function Popover({
    */
   backend: FormulaInfo | null
   alignRight: boolean
+  /**
+   * When true, render the popover ABOVE the trigger (bottom-full mb-2)
+   * instead of below. Set by collision detection in the parent — when
+   * the trigger is close to the bottom of the viewport, opening
+   * downward would clip the popover off-screen on mobile. See
+   * tmp/mobile_audit_2026_06_10.md issue #7.
+   */
+  flipUp: boolean
 }) {
   const formulaText = backend?.formula ?? explanation.formula
   const oneLineText = backend?.explanation ?? explanation.oneLine
@@ -122,8 +131,10 @@ function Popover({
     <div
       id={id}
       role="tooltip"
+      data-flip={flipUp ? "up" : "down"}
       className={cn(
-        "absolute top-full mt-2 z-50 w-72 max-w-[calc(100vw-2rem)]",
+        "absolute z-50 w-72 max-w-[calc(100vw-2rem)]",
+        flipUp ? "bottom-full mb-2" : "top-full mt-2",
         "rounded-lg border border-border bg-surface shadow-lg",
         "p-3 text-left",
         // Normal text colours (inherit from .text-ink / .text-caption)
@@ -169,6 +180,7 @@ export default function MetricTooltip({
   const backendFormula = useBackendFormula(metricKey)
   const [open, setOpen] = useState(false)
   const [alignRight, setAlignRight] = useState(false)
+  const [flipUp, setFlipUp] = useState(false)
   const wrapperRef = useRef<HTMLSpanElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const popoverId = useId()
@@ -177,6 +189,13 @@ export default function MetricTooltip({
   // trigger sits in the viewport. Runs once per open event — we don't
   // observe resize, but we do re-check on each open which covers the
   // phone-rotation case.
+  //
+  // Also flips the popover ABOVE the trigger when there isn't enough
+  // room below — the audit (tmp/mobile_audit_2026_06_10.md issue #7)
+  // found that KPI tooltips near the bottom of the viewport rendered
+  // off-screen on mobile because the popover only ever opened
+  // downward. Estimated popover height is conservative — we'd rather
+  // flip up unnecessarily than clip.
   useEffect(() => {
     if (!open) return
     const trigger = triggerRef.current
@@ -184,11 +203,23 @@ export default function MetricTooltip({
     const rect = trigger.getBoundingClientRect()
     // Popover width = w-72 = 18rem = 288px (+ small margin)
     const POPOVER_WIDTH = 300
+    // Conservative height estimate for a populated explainer card
+    // (title + one-line + formula + good + optional sector note).
+    const POPOVER_HEIGHT = 220
+    const COLLISION_PAD = 16
     const viewportW =
       typeof window !== "undefined" ? window.innerWidth : 1024
+    const viewportH =
+      typeof window !== "undefined" ? window.innerHeight : 768
     // If the popover would spill over the right edge when left-aligned
     // to the trigger, flip to right-aligned instead.
     setAlignRight(rect.left + POPOVER_WIDTH > viewportW)
+    // Available space below the trigger vs above. Flip up only when
+    // below is too tight AND above has more room — otherwise stay
+    // down (the default in non-clipping cases).
+    const spaceBelow = viewportH - rect.bottom - COLLISION_PAD
+    const spaceAbove = rect.top - COLLISION_PAD
+    setFlipUp(spaceBelow < POPOVER_HEIGHT && spaceAbove > spaceBelow)
   }, [open])
 
   // Escape to close + tap-outside to close
@@ -282,6 +313,7 @@ export default function MetricTooltip({
           explanation={synthExplanation}
           backend={backendFormula}
           alignRight={alignRight}
+          flipUp={flipUp}
         />
       )}
     </span>

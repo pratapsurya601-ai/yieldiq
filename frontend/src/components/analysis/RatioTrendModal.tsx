@@ -94,14 +94,28 @@ export default function RatioTrendModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 bg-black/50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ratio-trend-modal-title"
       onClick={onClose}
     >
+      {/*
+        Mobile (default): slide-up bottom sheet pinned to viewport bottom
+        with a rounded top edge — the same pattern used by
+        ShareReportCard so the modal layer is consistent across the app.
+        Tablet+ (md:): float centered card with breathing room.
+
+        See tmp/mobile_audit_2026_06_10.md issue #2.
+      */}
       <div
-        className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl max-h-[90vh] overflow-auto"
+        className="
+          absolute left-0 right-0 bottom-0 w-full max-h-[92vh] overflow-auto
+          bg-surface border-t border-border rounded-t-2xl shadow-xl
+          md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto
+          md:-translate-x-1/2 md:-translate-y-1/2
+          md:w-full md:max-w-xl md:max-h-[90vh] md:rounded-2xl md:border
+        "
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between p-4 border-b border-border">
