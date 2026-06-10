@@ -258,8 +258,11 @@ class TestHoldcoUnderlyingsJSONShape:
         )
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-        # _meta is the only allowed non-ticker key.
-        keys = [k for k in data.keys() if k != "_meta"]
+        # _meta and _sotp_data are the allowed non-ticker keys.
+        # (_sotp_data was added in T1.4 Phase A as the rich SOTP
+        # block; its OWN inner keys are still ticker-shaped and are
+        # validated separately in test_holdco_sotp_service.py.)
+        keys = [k for k in data.keys() if k not in ("_meta", "_sotp_data")]
         # Otherwise the holdco branch in peers_service /
         # eli15_thesis_service would emit a constituent list for
         # a ticker that is NOT classified as a holdco by the rest
@@ -278,7 +281,11 @@ class TestHoldcoUnderlyingsJSONShape:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         for k, v in data.items():
-            if k == "_meta":
+            # _meta is descriptive metadata; _sotp_data is the rich
+            # SOTP block added in T1.4 Phase A (validated separately
+            # in test_holdco_sotp_service.py). Both are intentional
+            # non-list siblings of the legacy ticker→list shape.
+            if k in ("_meta", "_sotp_data"):
                 continue
             assert isinstance(v, list)
             for sym in v:

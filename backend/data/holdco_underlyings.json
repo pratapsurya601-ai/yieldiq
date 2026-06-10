@@ -1,14 +1,21 @@
 {
   "_meta": {
-    "version": "v_holdco_underlyings_2026_06_09",
-    "description": "Per-holdco mapping to the underlying listed operating businesses whose value drives the holdco NAV. Used by the analysis page to surface 'Underlying holdings' in place of a peer cohort for pure holding companies (DCF on the holdco itself is meaningless — SOTP on the underlying is the right framework). Tickers are NSE bare symbols (no .NS suffix). Empty list = constituents are unlisted / private (still classified as holdco; just no link-out is provided).",
+    "version": "v_holdco_underlyings_2026_06_10",
+    "description": "Per-holdco mapping to the underlying listed operating businesses whose value drives the holdco NAV. Used by (a) the analysis page to surface 'Underlying holdings' in place of a peer cohort for pure holding companies, and (b) backend/services/holdco_sotp_service.py to compute Sum-of-the-Parts valuations. Tickers are NSE bare symbols (no .NS suffix). Empty list = constituents are unlisted / private (still classified as holdco; just no link-out is provided).",
     "source": "NSE filings + financial press coverage of pure investment companies (2026-06-09).",
     "caveats": [
       "The list is not exhaustive — promoter group cross-holdings and small unlisted stakes are intentionally omitted to keep the surface focused on what a retail user can themselves analyze.",
       "When a holdco's primary underlying is itself unlisted, the array is empty rather than seeded with a parent group name — emitting an unlisted symbol would break the link-out.",
-      "Maintained in sync with backend/services/analysis/constants.py::HOLDING_COMPANIES — every key here MUST also be in HOLDING_COMPANIES (test guards this)."
-    ]
+      "Maintained in sync with backend/services/analysis/constants.py::HOLDING_COMPANIES — every key here MUST also be in HOLDING_COMPANIES (test guards this).",
+      "T1.4 Phase A (2026-06-10) added a parallel `_sotp_data` block carrying per-holdco stake percentages, sector-tuned discount defaults, and Phase A status. The top-level ticker keys still resolve to a flat list of underlying tickers for backward compatibility with peers_service / eli15_thesis_service / the legacy JSON-shape test.",
+      "Stake percentages in `_sotp_data` are best-effort plausibility estimates drawn from public FY25 disclosures and are NOT a substitute for an annual refresh from primary sources (BSE shareholding filings, annual reports). Treat them as data shape, not as production ground truth — accuracy ingestion is a separate task."
+    ],
+    "shape_versions": {
+      "v1_legacy": "Top-level keys map to a flat list of underlying NSE tickers (e.g. \"BAJAJHLDNG\": [\"BAJAJ-AUTO\", \"BAJFINANCE\", \"BAJAJFINSV\"]). Consumed by backend/services/peers_service.py::_maybe_holdco_underlyings and backend/services/eli15_thesis_service.py::_lookup_holdco_underlyings.",
+      "v2_sotp": "Parallel `_sotp_data` block keyed by the same holdco tickers, each carrying { underlyings: [{ticker, stake_pct, is_listed}], default_discount_pct, note }. Consumed by backend/services/holdco_sotp_service.py (T1.4 Phase B will wire this into composite_iv_service.py)."
+    }
   },
+
   "BAJAJHLDNG": ["BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV"],
   "TATAINVEST": ["TCS", "TATAMOTORS", "TATASTEEL", "TATAPOWER", "TITAN"],
   "MAHSCOOTER": ["BAJFINANCE", "BAJAJFINSV", "BAJAJ-AUTO"],
@@ -21,5 +28,129 @@
   "NETWORK18": [],
   "GAYAHWS": [],
   "MOIL": [],
-  "GRASIM": ["ULTRACEMCO"]
+  "GRASIM": ["ULTRACEMCO"],
+
+  "_sotp_data": {
+    "_note": "Per-holdco SOTP inputs. Stake percentages are plausibility estimates as of FY25 disclosures; needs annual refresh from primary sources. default_discount_pct mirrors get_sector_holdco_discount in holdco_sotp_service.py — duplicated here so the seed is self-describing without needing to import the service.",
+
+    "BAJAJHLDNG": {
+      "underlyings": [
+        {"ticker": "BAJAJ-AUTO", "stake_pct": 33.43, "is_listed": true},
+        {"ticker": "BAJFINANCE", "stake_pct": 35.81, "is_listed": true},
+        {"ticker": "BAJAJFINSV", "stake_pct": 38.30, "is_listed": true}
+      ],
+      "default_discount_pct": 22.0,
+      "note": "Bajaj Holdings & Investment. Three Bajaj-group financial / industrial subs. Stake percentages need verification against FY25 BSE shareholding filings."
+    },
+
+    "TATAINVEST": {
+      "underlyings": [
+        {"ticker": "TCS", "stake_pct": 0.30, "is_listed": true},
+        {"ticker": "TATAMOTORS", "stake_pct": 1.20, "is_listed": true},
+        {"ticker": "TATASTEEL", "stake_pct": 1.50, "is_listed": true},
+        {"ticker": "TATAPOWER", "stake_pct": 2.10, "is_listed": true},
+        {"ticker": "TITAN", "stake_pct": 0.80, "is_listed": true},
+        {"ticker": "TATACHEM", "stake_pct": 1.70, "is_listed": true}
+      ],
+      "default_discount_pct": 28.0,
+      "note": "Tata Investment Corporation. Diversified Tata-group basket — stakes are typically small (< 2%) but the aggregate NAV is meaningful because the underlying mcaps are very large."
+    },
+
+    "MAHSCOOTER": {
+      "underlyings": [
+        {"ticker": "BAJFINANCE", "stake_pct": 3.41, "is_listed": true},
+        {"ticker": "BAJAJFINSV", "stake_pct": 3.19, "is_listed": true},
+        {"ticker": "BAJAJ-AUTO", "stake_pct": 2.40, "is_listed": true}
+      ],
+      "default_discount_pct": 22.0,
+      "note": "Maharashtra Scooters — Bajaj-group second-tier holdco. Smaller stakes than BAJAJHLDNG."
+    },
+
+    "PILANIINVS": {
+      "underlyings": [
+        {"ticker": "GRASIM", "stake_pct": 3.50, "is_listed": true},
+        {"ticker": "ULTRACEMCO", "stake_pct": 1.80, "is_listed": true},
+        {"ticker": "ABCAPITAL", "stake_pct": 2.10, "is_listed": true}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "Pilani Investment & Industries — Birla-group holdco. Holds stakes in Aditya Birla group flagship listed entities."
+    },
+
+    "KAMAHOLD": {
+      "underlyings": [
+        {"ticker": "SRF", "stake_pct": 50.41, "is_listed": true}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "Kama Holdings — SRF promoter vehicle. Single concentrated stake makes NAV-to-CMP discount the dominant driver."
+    },
+
+    "SUMMITSEC": {
+      "underlyings": [
+        {"ticker": "MOTILALOFS", "stake_pct": 1.20, "is_listed": true},
+        {"ticker": "JMFINANCIL", "stake_pct": 0.90, "is_listed": true}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "Summit Securities — small financial-sector holdco. Stakes are illustrative; original seed had no underlyings — these are placeholder estimates that should be replaced with actual disclosure data before relying on the SOTP."
+    },
+
+    "WILLIAMAGR": {
+      "underlyings": [
+        {"ticker": "MCLEODRUSS", "stake_pct": 47.50, "is_listed": true},
+        {"ticker": "EVEREADY", "stake_pct": 0.0, "is_listed": false}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "Williamson Magor — Eveready / McLeod holdco. Eveready stake is unlisted in this seed (its listing status changed historically); flagged is_listed=false so Phase A skips it from the aggregate."
+    },
+
+    "MCLEODRUSS": {
+      "underlyings": [
+        {"ticker": "MCLEODRUSS_TEAESTATES", "stake_pct": 100.0, "is_listed": false}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "McLeod Russel — tea-estate holdco. Underlying tea estates are unlisted operating units; Phase A skips with a warning. Production needs book-value fallback for unlisted underlyings."
+    },
+
+    "NDTV": {
+      "underlyings": [
+        {"ticker": "NDTV_CONTENT", "stake_pct": 100.0, "is_listed": false}
+      ],
+      "default_discount_pct": 35.0,
+      "note": "New Delhi Television — media holdco. All underlying operating units (content production, broadcasting) are unlisted; Phase A returns method=unavailable for NDTV until book-value fallback ships."
+    },
+
+    "NETWORK18": {
+      "underlyings": [
+        {"ticker": "TV18BRDCST", "stake_pct": 51.20, "is_listed": false},
+        {"ticker": "HATHWAY", "stake_pct": 65.40, "is_listed": true}
+      ],
+      "default_discount_pct": 35.0,
+      "note": "Network18 Media — Reliance media holdco. TV18 listing status varies by group reorganizations; HATHWAY (cable) is listed."
+    },
+
+    "GAYAHWS": {
+      "underlyings": [
+        {"ticker": "GAYAHWS_TOLLROADS", "stake_pct": 100.0, "is_listed": false}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "Gayatri Highways — toll-road SPV holdco. Underlying toll concessions are unlisted SPVs; Phase A returns method=unavailable."
+    },
+
+    "MOIL": {
+      "underlyings": [
+        {"ticker": "MOIL_MANGANESE_MINES", "stake_pct": 100.0, "is_listed": false}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "MOIL — classified as holdco in the source set due to manganese mine leasing structure, but in practice operates rather than purely holds. Phase A returns method=unavailable; if MOIL is reclassified as an operating company (out of HOLDING_COMPANIES), this entry becomes dead and can be dropped."
+    },
+
+    "GRASIM": {
+      "underlyings": [
+        {"ticker": "ULTRACEMCO", "stake_pct": 57.20, "is_listed": true},
+        {"ticker": "ABCAPITAL", "stake_pct": 54.10, "is_listed": true},
+        {"ticker": "GRASIM_VSF", "stake_pct": 100.0, "is_listed": false}
+      ],
+      "default_discount_pct": 30.0,
+      "note": "Grasim Industries — Aditya Birla conglomerate holdco. UltraTech (cement) and Aditya Birla Capital (financial services) are the major listed stakes; standalone VSF (viscose) and other businesses are unlisted operating segments. SOTP rather than DCF is the right frame because the UltraTech stake alone dominates the NAV."
+    }
+  }
 }
