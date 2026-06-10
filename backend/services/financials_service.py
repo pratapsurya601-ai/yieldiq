@@ -122,6 +122,13 @@ class _Row:
     cfo: float | None = None                 # operating_cf
     capex: float | None = None
     free_cash_flow: float | None = None
+    # T4.1 (2026-06-10) — Stock-Based Compensation, Crores.
+    # Tolerantly populated when the cashflow ingestion carries an SBC
+    # column (yfinance / NSE_XBRL); None when missing. Fed to
+    # sbc_dilution_service.compute_sbc_adjustment in _build_year so
+    # the response can carry sbc_adjusted_fcf + sbc_intensity_label
+    # additively (reported free_cash_flow is unchanged).
+    sbc_expense: float | None = None
     # Bank format (Schedule III Division I — NSE/NSE_XBRL ingest only)
     # Added 2026-06-07 by fix/financials-source-priority. Banks
     # populate these instead of the GAAP gross_profit / ebit /
@@ -508,6 +515,17 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
             cfo=_safe_float(cf.get("operating_cf")),
             capex=_safe_float(cf.get("capex")),
             free_cash_flow=_safe_float(cf.get("free_cash_flow")),
+            # T4.1 — SBC expense. We don't currently project an SBC
+            # column out of the cashflow query, so this defaults to
+            # None for every DB-sourced row today. The lookup is
+            # written tolerantly (``cf.get(...)`` falls back through
+            # two common column names) so when the ingestion is
+            # extended to carry SBC the wiring is already in place
+            # and no further code change is needed here.
+            sbc_expense=_safe_float(
+                cf.get("stock_based_compensation")
+                or cf.get("sbc")
+            ),
             # Bank format (Schedule III Division I)
             interest_earned=_safe_float(inc.get("interest_earned")),
             interest_expended=_safe_float(inc.get("interest_expended")),
@@ -634,6 +652,50 @@ def _yfinance_fallback(ticker_ns: str, years: int) -> list[_Row]:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# T4.1 (2026-06-10) — SBC dilution adjustment helpers.
+#
+# The full Munger-style adjustment (forward dilution from issuance,
+# intensity classification, sanity warnings) lives in
+# ``backend/services/sbc_dilution_service`` and is unit-tested
+# separately. Here we only need the two outputs that go onto the
+# per-period response dict: an adjusted FCF figure and the coarse
+# intensity bucket. Both return ``None`` when the SBC column is
+# unavailable for the row so the FE can suppress the chip cleanly.
+# ──────────────────────────────────────────────────────────────────────────
+def _sbc_adjusted_fcf(row: _Row) -> float | None:
+    """reported_fcf − sbc_expense, or None when either input missing."""
+    if row.free_cash_flow is None or row.sbc_expense is None:
+        return None
+    try:
+        return round(float(row.free_cash_flow) - float(row.sbc_expense), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sbc_intensity_label(row: _Row) -> str | None:
+    """Coarse intensity bucket for the SBC-vs-FCF ratio.
+
+    Returns None when SBC is missing or reported FCF is non-positive
+    (the ratio is undefined). This is the same gate as
+    ``classify_sbc_intensity`` upstream, surfaced here so the
+    financials reader doesn't need to import the full service for
+    the common short-circuit.
+    """
+    if row.free_cash_flow is None or row.sbc_expense is None:
+        return None
+    try:
+        fcf = float(row.free_cash_flow)
+        sbc = float(row.sbc_expense)
+    except (TypeError, ValueError):
+        return None
+    if fcf <= 0:
+        return None
+    from backend.services.sbc_dilution_service import classify_sbc_intensity
+    pct = (sbc / fcf) * 100.0
+    return classify_sbc_intensity(pct)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Year builder (response shape)
 # ──────────────────────────────────────────────────────────────────────────
 def _build_year(row: _Row, prev: _Row | None,
@@ -723,6 +785,19 @@ def _build_year(row: _Row, prev: _Row | None,
         "capex": row.capex,
         "free_cash_flow": row.free_cash_flow,
         "fcf_margin_pct": fcf_margin_pct,
+
+        # T4.1 (2026-06-10) — Munger-style SBC dilution adjustment.
+        # Both fields are ADDITIVE: ``free_cash_flow`` above is the
+        # reported GAAP figure and is intentionally unchanged so DCF
+        # and every downstream consumer continue to read what they
+        # always read (canary-safe). When the cashflow ingestion
+        # doesn't carry an SBC column yet (the common case as of
+        # 2026-06-10) both fields surface ``None`` rather than fake
+        # zero numbers — that's how the FE knows to suppress the
+        # SBC-adjustment chip for that ticker.
+        "sbc_expense": row.sbc_expense,
+        "sbc_adjusted_fcf": _sbc_adjusted_fcf(row),
+        "sbc_intensity_label": _sbc_intensity_label(row),
 
         # Bank format (Schedule III Division I) — only populated for
         # banks; null for non-banks. Added 2026-06-07 by

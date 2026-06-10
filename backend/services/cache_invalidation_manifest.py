@@ -2440,6 +2440,36 @@ MANIFEST: list[dict] = [
             "oil & gas tickers through this engine."
         ),
     },
+    {
+        # T4.1 Phase A — Stock-Based Compensation dilution adjustment
+        # surfaced as ADDITIVE fields on the historical-financials
+        # payload (sbc_adjusted_fcf + sbc_intensity_label). Reported
+        # ``free_cash_flow`` is unchanged, so DCF and every downstream
+        # consumer continue to read the GAAP figure — canary-safe by
+        # construction. Charlie Munger framework: SBC is a real cash-
+        # equivalent expense paid in equity, and most published EPS /
+        # FCF / PE numbers ignore the dilutive cost. Phase A surfaces
+        # the honesty signal; Phase B (separate PR) will switch the
+        # DCF input from reported_fcf to adjusted_fcf for tickers
+        # whose ``sbc_intensity_label`` is "heavy" (platform IPOs:
+        # ZOMATO, NYKAA, PAYTM, PBFINTECH, DELHIVERY, etc.).
+        "version_id": "v_t4_1_sbc_dilution_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "sbc_adjusted_fcf",
+                "sbc_intensity_label",
+            ],
+        },
+        "rationale": (
+            "T4.1 — SBC dilution adjustment as additive financials "
+            "field. Reported fcf field unchanged (DCF still reads "
+            "reported). Surfaces honesty signal for platform IPO / "
+            "heavy-SBC names. Phase B can switch DCF to read "
+            "adjusted_fcf for tickers where intensity is 'heavy'."
+        ),
+    },
 ]
 
 

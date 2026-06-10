@@ -1098,6 +1098,13 @@ class HistoricalFinancialPeriod(BaseModel):
     fcf_margin: Optional[float] = None
     revenue_growth_yoy: Optional[float] = None
     pat_growth_yoy: Optional[float] = None
+    # T4.1 (2026-06-10): SBC dilution adjustment.
+    # Reported FCF is the GAAP figure; sbc_adjusted_fcf subtracts stock-based comp
+    # expense (Charlie Munger framework: SBC is a real cost paid in equity).
+    # sbc_intensity_label flags whether this matters: negligible / moderate / material / heavy.
+    # Heavy SBC names (platform IPOs, some IT) have meaningfully overstated reported FCF.
+    sbc_adjusted_fcf: Optional[float] = None
+    sbc_intensity_label: Optional[str] = None
 
 
 class HistoricalFinancialsResponse(BaseModel):
