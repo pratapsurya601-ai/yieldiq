@@ -81,6 +81,7 @@ import SaveNotePanel from "@/components/analysis/SaveNotePanel"
 // and StickyScorecard.tsx are deleted in this PR.
 import HonestHero from "@/components/analysis/HonestHero"
 import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
+import TaxEfficiencyCalculator from "@/components/analysis/TaxEfficiencyCalculator"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
 import SectorHeatmapMini from "@/components/analysis/SectorHeatmapMini"
 import AnalystConsensusReframePanel from "@/components/analysis/AnalystConsensusReframePanel"
@@ -1401,6 +1402,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               they land). Renders only the methods that returned a
               value; everything else collapses into a footnote. */}
           <ValuationMethodsPanel data={data} />
+          {/* Tax Efficiency by Holding Period (2026-06-10) — pure-frontend
+              interactive calculator. Shows STCG (<12mo, 15%) vs LTCG
+              (≥12mo, 10% above ₹1L exemption) post-tax return on a
+              user-chosen entry/exit/quantity, with a 0–36 month
+              holding-period slider. Lives directly below
+              ValuationMethodsPanel so the user can fold tax drag into
+              the per-method valuations they just inspected. Math is
+              isolated in @/lib/tax-india for reuse + unit tests. */}
+          <TaxEfficiencyCalculator
+            ticker={data.ticker}
+            currency={company.currency}
+            currentPrice={valuation.current_price}
+            entryDefault={valuation.current_price}
+          />
           {/* Sector Heatmap Mini (2026-06-10) — novel cohort tile-grid
               visualization, sized by market cap and colored by MoS.
               Mounted directly below ValuationMethodsPanel so users
