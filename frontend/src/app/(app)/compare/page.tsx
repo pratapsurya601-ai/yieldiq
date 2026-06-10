@@ -42,6 +42,9 @@ import { SCORE_COLOR, VERDICT_COLORS } from "@/lib/constants"
 import type { Verdict } from "@/types/api"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
 import TickerAvatar from "@/components/common/TickerAvatar"
+import { HoverCard, RevealStagger } from "@/components/motion"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { DURATION, cssEase } from "@/lib/motion/timing"
 
 const MAX_STOCKS = 5
 const MIN_STOCKS = 2
@@ -85,8 +88,10 @@ function AddStockInput({
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState<SearchResult[]>([])
   const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const reducedAddStock = useReducedMotion()
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -129,25 +134,45 @@ function AddStockInput({
     )
   }
 
+  // Motion (2026-06-11): wrapper-level focus glow on the input. The
+  // input itself keeps its existing focus-ring (accessibility cue);
+  // the glow is a soft 4px halo around it that reads as "the form is
+  // listening". Reduced-motion skips the transition.
+  const inputWrapperStyle: React.CSSProperties = reducedAddStock
+    ? {}
+    : {
+        transition: `box-shadow ${DURATION.fast}ms ${cssEase("out")}`,
+        boxShadow: focused
+          ? "0 0 0 4px rgba(59, 130, 246, 0.18)"
+          : "0 0 0 0 rgba(59, 130, 246, 0)",
+        borderRadius: "0.75rem",
+      }
+
   return (
     <div ref={wrapperRef} className="relative">
-      <svg
-        className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-caption pointer-events-none"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-      </svg>
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onFocus={() => suggestions.length > 0 && setOpen(true)}
-        placeholder="Add stock... (e.g. INFY)"
-        className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
+      <div style={inputWrapperStyle} data-motion="compare-search-glow">
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-caption pointer-events-none"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => {
+            setFocused(true)
+            if (suggestions.length > 0) setOpen(true)
+          }}
+          onBlur={() => setFocused(false)}
+          placeholder="Add stock... (e.g. INFY)"
+          className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
       {open && suggestions.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-bg dark:bg-surface border border-border rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
           {suggestions.map((s) => (
@@ -654,9 +679,15 @@ function CompareContent() {
         </p>
       </div>
 
-      {/* Ticker chips */}
+      {/* Ticker chips. Motion: 50ms stagger on the row. Use a stable
+          key derived from the ticker list so an existing chip doesn't
+          re-trigger its entrance when an unrelated chip is added. */}
       {tickers.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <RevealStagger
+          key={`ticker-chips-${tickers.length}`}
+          className="flex flex-wrap gap-2"
+          staggerMs={50}
+        >
           {tickers.map((t) => (
             <span
               key={t}
@@ -674,7 +705,7 @@ function CompareContent() {
               </button>
             </span>
           ))}
-        </div>
+        </RevealStagger>
       )}
 
       {/* Add input */}
@@ -719,7 +750,14 @@ function CompareContent() {
               )}
             </p>
           )}
-          <div className="flex flex-wrap gap-2">
+          {/* Motion: stagger peer-suggestion chips on entrance.
+              Keyed by the suggestion-set hash so a new peer list
+              re-fires the stagger when the first ticker changes. */}
+          <RevealStagger
+            key={`peer-suggestions-${peerSuggestions.map((p) => p.ticker).join("|")}`}
+            className="flex flex-wrap gap-2"
+            staggerMs={50}
+          >
             {peerSuggestions.map((p) => {
               // Day-86: build a "departs from cohort" tooltip listing the
               // metrics that flagged the peer. Neutral SEBI-safe wording.
@@ -752,7 +790,7 @@ function CompareContent() {
                 </button>
               )
             })}
-          </div>
+          </RevealStagger>
         </div>
       )}
 
@@ -832,26 +870,40 @@ function CompareContent() {
                 Metric
               </span>
               {orderedStocks.map((s) => (
-                <div key={s.ticker} className="text-center min-w-0">
-                  <div className="flex items-center justify-center gap-1.5 mb-1">
-                    <TickerAvatar ticker={s.ticker} size="md" />
+                // Motion: HoverCard on the per-stock header column —
+                // hovers lift the entire header block (logo + name +
+                // ticker) so it reads as a single interactive group.
+                // Reduced-motion keeps the shadow feedback.
+                <HoverCard key={s.ticker} className="rounded-lg">
+                  <div className="text-center min-w-0">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
+                      <TickerAvatar ticker={s.ticker} size="md" />
+                    </div>
+                    <Link
+                      href={`/analysis/${s.ticker}`}
+                      className="text-sm font-semibold text-ink hover:text-blue-600 transition truncate block"
+                      title={s.company_name}
+                    >
+                      {s.company_name}
+                    </Link>
+                    <p className="text-[11px] text-caption font-mono">
+                      {displayTicker(s.ticker)}
+                    </p>
                   </div>
-                  <Link
-                    href={`/analysis/${s.ticker}`}
-                    className="text-sm font-semibold text-ink hover:text-blue-600 transition truncate block"
-                    title={s.company_name}
-                  >
-                    {s.company_name}
-                  </Link>
-                  <p className="text-[11px] text-caption font-mono">
-                    {displayTicker(s.ticker)}
-                  </p>
-                </div>
+                </HoverCard>
               ))}
             </div>
 
-            {/* Body rows w/ section headers */}
-            <div className="divide-y divide-gray-50">
+            {/* Body rows w/ section headers. Motion (2026-06-11):
+                stagger the row entrance at 30ms — tight enough that
+                the cascade reads as a single sweep, slow enough that
+                the eye registers row order. Keyed by orderedStocks
+                length so a stock-count change re-fires the entrance. */}
+            <RevealStagger
+              key={`compare-rows-${orderedStocks.length}`}
+              className="divide-y divide-gray-50"
+              staggerMs={30}
+            >
               {rowSpecs.map((spec, idx) => {
                 const sectionAfter = SECTION_BOUNDS.find((b) => b.after === spec.label)
                 return (
@@ -865,7 +917,7 @@ function CompareContent() {
                   </div>
                 )
               })}
-            </div>
+            </RevealStagger>
           </div>
 
           {/* Mobile — stacked per-stock cards */}

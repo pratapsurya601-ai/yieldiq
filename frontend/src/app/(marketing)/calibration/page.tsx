@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { Reveal } from "@/components/motion"
+import CalibrationSectorsTable from "./CalibrationSectorsTable"
 
 /**
  * /calibration — Per-sector backtest accuracy public page (T1.2).
@@ -69,22 +71,9 @@ type CalibrationPayload = {
   }
 }
 
-function sectorSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-}
-
-function fmtPct(v: number | null | undefined, signed = false): string {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—"
-  if (signed) {
-    const sign = v > 0 ? "+" : ""
-    return `${sign}${v.toFixed(1)}%`
-  }
-  return `${v.toFixed(1)}%`
-}
+// sectorSlug / fmtPct moved into CalibrationSectorsTable (2026-06-11)
+// — the page no longer renders rows directly so the helpers are
+// owned by the row component that uses them.
 
 async function fetchCalibration(): Promise<CalibrationPayload | null> {
   try {
@@ -127,114 +116,77 @@ export default async function CalibrationPage() {
         </p>
       </section>
 
-      {/* Table or empty state */}
+      {/* Table or empty state.
+          Motion (2026-06-11): table → CalibrationSectorsTable client
+          component that owns the per-row stagger + per-row HoverCard
+          treatment without breaking table semantics. Empty state
+          wrapped in <Reveal> so the "still being built" callout
+          fades in instead of snapping. */}
       <section className="max-w-5xl mx-auto px-4 pb-10">
         {sectors.length > 0 ? (
-          <div className="overflow-x-auto rounded-xl border border-[color:var(--color-border)]">
-            <table className="w-full text-sm">
-              <thead className="bg-[color:var(--color-surface)] text-[color:var(--color-caption)] text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="text-left px-4 py-3">Sector</th>
-                  <th className="text-right px-4 py-3">Tickers</th>
-                  <th className="text-right px-4 py-3">Observations</th>
-                  <th className="text-right px-4 py-3">
-                    Median |Error|
-                  </th>
-                  <th className="text-right px-4 py-3">P90 |Error|</th>
-                  <th className="text-right px-4 py-3">
-                    Direction Accuracy
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-[color:var(--color-bg)]">
-                {sectors.map((s) => (
-                  <tr
-                    key={s.sector}
-                    className="border-t border-[color:var(--color-border)]"
-                  >
-                    <td className="px-4 py-3 text-[color:var(--color-ink)]">
-                      <Link
-                        href={`/calibration/${sectorSlug(s.sector)}`}
-                        className="underline-offset-2 hover:underline"
-                      >
-                        {s.sector}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[color:var(--color-body)]">
-                      {s.ticker_count}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[color:var(--color-body)]">
-                      {s.observation_count}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[color:var(--color-ink)]">
-                      {fmtPct(s.median_abs_error_pct)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[color:var(--color-body)]">
-                      {fmtPct(s.p90_abs_error_pct)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[color:var(--color-ink)]">
-                      {fmtPct(s.direction_accuracy_pct)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CalibrationSectorsTable sectors={sectors} />
         ) : (
-          <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-sm">
-            <p className="font-semibold text-[color:var(--color-ink)] mb-2">
-              Calibration coverage is still being built
-            </p>
-            <p className="text-[color:var(--color-caption)] leading-relaxed">
-              We need at least {meta?.min_observations ?? 30} observations
-              per sector before we publish a calibration number — anything
-              less is noise. Coverage grows as the nightly fair-value
-              history accumulates. Check back in a few weeks.
-            </p>
-          </div>
+          <Reveal>
+            <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-sm">
+              <p className="font-semibold text-[color:var(--color-ink)] mb-2">
+                Calibration coverage is still being built
+              </p>
+              <p className="text-[color:var(--color-caption)] leading-relaxed">
+                We need at least {meta?.min_observations ?? 30} observations
+                per sector before we publish a calibration number — anything
+                less is noise. Coverage grows as the nightly fair-value
+                history accumulates. Check back in a few weeks.
+              </p>
+            </div>
+          </Reveal>
         )}
       </section>
 
-      {/* What this means */}
+      {/* What this means.
+          Motion (2026-06-11): <Reveal> primitive — fades in on
+          viewport entry. Same primitive as the empty-state callout,
+          so both callouts share the same entrance curve. */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
-        <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-sm space-y-3">
-          <p>
-            <span className="font-medium text-[color:var(--color-ink)]">
-              What does this mean?
-            </span>{" "}
-            Median |Error| is the typical FV-to-actual-price gap.
-            Direction Accuracy is how often our 90-day-out verdict matched
-            the actual price movement direction. Both metrics improve
-            with more observations.
-          </p>
-          <p>
-            <span className="font-medium text-[color:var(--color-ink)]">
-              How it&rsquo;s computed.
-            </span>{" "}
-            For each (ticker, day) row in the fair-value history table,
-            we compare the engine&rsquo;s fair value to the actual market
-            price on that day, and to the actual price ~90 days later.
-            The median, 90th percentile, and direction-hit rate are
-            aggregated per sector.
-          </p>
-          <p>
-            <span className="font-medium text-[color:var(--color-ink)]">
-              What&rsquo;s excluded.
-            </span>{" "}
-            {meta?.quarantine_policy ||
-              "Pre-manifest-epoch rows and step-unverified rows are excluded by the at-rest quarantine gate."}
-          </p>
-          {meta ? (
-            <p className="text-xs text-[color:var(--color-caption)]">
-              Generated at{" "}
-              {new Date(meta.generated_at).toISOString().slice(0, 16)}Z
-              {" · "}
-              {meta.sector_count} sector
-              {meta.sector_count === 1 ? "" : "s"} above the{" "}
-              {meta.min_observations}-observation threshold
+        <Reveal>
+          <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-sm space-y-3">
+            <p>
+              <span className="font-medium text-[color:var(--color-ink)]">
+                What does this mean?
+              </span>{" "}
+              Median |Error| is the typical FV-to-actual-price gap.
+              Direction Accuracy is how often our 90-day-out verdict matched
+              the actual price movement direction. Both metrics improve
+              with more observations.
             </p>
-          ) : null}
-        </div>
+            <p>
+              <span className="font-medium text-[color:var(--color-ink)]">
+                How it&rsquo;s computed.
+              </span>{" "}
+              For each (ticker, day) row in the fair-value history table,
+              we compare the engine&rsquo;s fair value to the actual market
+              price on that day, and to the actual price ~90 days later.
+              The median, 90th percentile, and direction-hit rate are
+              aggregated per sector.
+            </p>
+            <p>
+              <span className="font-medium text-[color:var(--color-ink)]">
+                What&rsquo;s excluded.
+              </span>{" "}
+              {meta?.quarantine_policy ||
+                "Pre-manifest-epoch rows and step-unverified rows are excluded by the at-rest quarantine gate."}
+            </p>
+            {meta ? (
+              <p className="text-xs text-[color:var(--color-caption)]">
+                Generated at{" "}
+                {new Date(meta.generated_at).toISOString().slice(0, 16)}Z
+                {" · "}
+                {meta.sector_count} sector
+                {meta.sector_count === 1 ? "" : "s"} above the{" "}
+                {meta.min_observations}-observation threshold
+              </p>
+            ) : null}
+          </div>
+        </Reveal>
       </section>
 
       {/* Disclosure */}

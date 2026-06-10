@@ -14,6 +14,8 @@ import Link from "next/link"
 
 import { fetchFundListSSR } from "@/lib/api"
 import type { FundListItem, FundRiskometerLevel } from "@/types/api"
+import { HoverCard, RevealStagger } from "@/components/motion"
+import FundsSearchInput from "./FundsSearchInput"
 
 export const revalidate = 300
 
@@ -28,35 +30,41 @@ const RISKOMETER_COLORS: Record<FundRiskometerLevel, { bg: string; text: string;
 
 function FundCard({ fund }: { fund: FundListItem }) {
   const risk = fund.riskometer_level ? RISKOMETER_COLORS[fund.riskometer_level] : null
+  // Motion (2026-06-11): wrap each card in <HoverCard> so the hover
+  // lift + soft shadow primitive replaces the inline hover:shadow-sm.
+  // The Link still owns the navigation behaviour; HoverCard is a
+  // styling wrapper that does not introduce a button or trap clicks.
   return (
-    <Link
-      href={`/funds/${encodeURIComponent(fund.scheme_code)}`}
-      className="block rounded-lg border border-gray-200 bg-white p-4 transition hover:border-gray-300 hover:shadow-sm"
-    >
-      <div className="text-xs text-gray-500">{fund.amc}</div>
-      <div className="mt-1 line-clamp-2 text-sm font-semibold text-gray-900">
-        {fund.scheme_name}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {fund.category ? (
-          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
-            {fund.category}
-          </span>
-        ) : null}
-        {risk ? (
-          <span
-            className={`rounded-full ${risk.bg} ${risk.text} px-2 py-0.5 text-[11px] font-medium`}
-          >
-            {risk.label}
-          </span>
-        ) : null}
-        {fund.plan ? (
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
-            {fund.plan}
-          </span>
-        ) : null}
-      </div>
-    </Link>
+    <HoverCard className="rounded-lg">
+      <Link
+        href={`/funds/${encodeURIComponent(fund.scheme_code)}`}
+        className="block rounded-lg border border-gray-200 bg-white p-4"
+      >
+        <div className="text-xs text-gray-500">{fund.amc}</div>
+        <div className="mt-1 line-clamp-2 text-sm font-semibold text-gray-900">
+          {fund.scheme_name}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {fund.category ? (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+              {fund.category}
+            </span>
+          ) : null}
+          {risk ? (
+            <span
+              className={`rounded-full ${risk.bg} ${risk.text} px-2 py-0.5 text-[11px] font-medium`}
+            >
+              {risk.label}
+            </span>
+          ) : null}
+          {fund.plan ? (
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+              {fund.plan}
+            </span>
+          ) : null}
+        </div>
+      </Link>
+    </HoverCard>
   )
 }
 
@@ -75,18 +83,11 @@ export default async function FundsLanding() {
         </p>
       </header>
 
-      <form action="/search" method="GET" className="mb-6">
-        <label htmlFor="fund-search" className="sr-only">
-          Search funds
-        </label>
-        <input
-          id="fund-search"
-          name="q"
-          type="search"
-          placeholder="Search by scheme name or AMC..."
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
-        />
-      </form>
+      {/* FundsSearchInput is a client component that wraps the same
+          GET form but adds a focus-state glow ring. The semantics
+          (form action="/search", input name="q") are unchanged so
+          server-side search routing still works. */}
+      <FundsSearchInput />
 
       {funds.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
@@ -97,11 +98,18 @@ export default async function FundsLanding() {
           <div className="mb-3 text-xs text-gray-500">
             Showing {funds.length} of {total} schemes.
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Motion: tight 15ms stagger for the grid — funds lists can
+              be long and a longer stagger compounds into a visible
+              wait. RevealStagger short-circuits to the final state for
+              reduced-motion users. */}
+          <RevealStagger
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            staggerMs={15}
+          >
             {funds.map((f) => (
               <FundCard key={f.scheme_code} fund={f} />
             ))}
-          </div>
+          </RevealStagger>
         </>
       )}
 

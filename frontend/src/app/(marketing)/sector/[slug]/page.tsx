@@ -7,6 +7,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import SectorTable from "./SectorTable"
+import { NumberFlip, RevealStagger } from "@/components/motion"
 import {
   SECTOR_PAGE_SLUGS,
   SECTOR_DISPLAY,
@@ -83,15 +84,9 @@ async function fetchSector(slug: string): Promise<SectorPayload | null> {
   }
 }
 
-function pct(n: number | null, digits = 1): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
-  return `${n.toFixed(digits)}%`
-}
-
-function num(n: number | null, digits = 2): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
-  return n.toFixed(digits)
-}
+// pct/num helpers removed 2026-06-11 — Stat now uses <NumberFlip>
+// directly, which formats and animates in one component. Pages that
+// need a non-animated string still have lib/utils formatters.
 
 export default async function SectorPage(
   { params }: { params: Promise<{ slug: string }> }
@@ -150,30 +145,66 @@ export default async function SectorPage(
           em-dash next to populated tiles (audit 2026-05-26 P1). Tickers
           is always populated for any cohort that loads at all; the
           financial medians can legitimately be null when the underlying
-          provider lags. */}
-      <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-        <Stat label="Tickers" value={String(data.aggregates.ticker_count)} />
+          provider lags.
+
+          Motion (2026-06-11): RevealStagger entrance + NumberFlip on
+          each tile's numeric value. The flip honors reduced-motion via
+          the primitive's internal hook. */}
+      <RevealStagger
+        as="section"
+        className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8"
+        staggerMs={60}
+      >
+        <Stat
+          label="Tickers"
+          numericValue={data.aggregates.ticker_count}
+          decimals={0}
+        />
         {data.aggregates.median_mos_pct !== null && data.aggregates.median_mos_pct !== undefined && (
-          <Stat label="Median MoS" value={pct(data.aggregates.median_mos_pct)} />
+          <Stat
+            label="Median MoS"
+            numericValue={data.aggregates.median_mos_pct}
+            decimals={1}
+            suffix="%"
+          />
         )}
         {data.aggregates.median_score !== null && data.aggregates.median_score !== undefined && (
-          <Stat label="Median score" value={num(data.aggregates.median_score, 0)} />
+          <Stat
+            label="Median score"
+            numericValue={data.aggregates.median_score}
+            decimals={0}
+          />
         )}
         {data.aggregates.median_pe !== null && data.aggregates.median_pe !== undefined && (
-          <Stat label="Median P/E" value={num(data.aggregates.median_pe, 1)} />
+          <Stat
+            label="Median P/E"
+            numericValue={data.aggregates.median_pe}
+            decimals={1}
+          />
         )}
         {data.aggregates.median_roe !== null && data.aggregates.median_roe !== undefined && (
-          <Stat label="Median ROE" value={pct(data.aggregates.median_roe)} />
+          <Stat
+            label="Median ROE"
+            numericValue={data.aggregates.median_roe}
+            decimals={1}
+            suffix="%"
+          />
         )}
-      </section>
+      </RevealStagger>
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-ink mb-3">Verdict distribution</h2>
-        <div className="flex flex-wrap gap-3 text-sm">
+        {/* Motion: stagger the three verdict pills in. staggerMs is
+            tight (40ms) — three chips feel sluggish on a longer stagger. */}
+        <RevealStagger
+          className="flex flex-wrap gap-3 text-sm"
+          staggerMs={40}
+          direction="up"
+        >
           <Pill kind="undervalued" count={verdictDist.undervalued ?? 0} />
           <Pill kind="fairly_valued" count={verdictDist.fairly_valued ?? 0} />
           <Pill kind="overvalued" count={verdictDist.overvalued ?? 0} />
-        </div>
+        </RevealStagger>
       </section>
 
       <section className="mb-8">
@@ -208,11 +239,30 @@ export default async function SectorPage(
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  numericValue,
+  decimals,
+  suffix,
+}: {
+  label: string
+  numericValue: number
+  decimals: number
+  suffix?: string
+}) {
+  // Motion (2026-06-11): NumberFlip tweens the value on first view.
+  // Reduced-motion users see the static number — the primitive
+  // skips the tween internally.
   return (
     <div className="rounded border border-gray-200 bg-white px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-caption">{label}</div>
-      <div className="text-lg font-semibold text-ink tabular-nums">{value}</div>
+      <div className="text-lg font-semibold text-ink tabular-nums">
+        <NumberFlip
+          value={numericValue}
+          decimals={decimals}
+          suffix={suffix ?? ""}
+        />
+      </div>
     </div>
   )
 }
@@ -227,7 +277,8 @@ function Pill({ kind, count }: { kind: "undervalued" | "fairly_valued" | "overva
   return (
     <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${cls}`}>
       <span className="font-medium">{label}</span>
-      <span className="tabular-nums">{count}</span>
+      {/* NumberFlip animates the count tween on first reveal. */}
+      <NumberFlip value={count} decimals={0} className="tabular-nums" />
     </span>
   )
 }
