@@ -285,3 +285,149 @@ describe("HonestHero — verdict consistency with hero pill (bug 1)", () => {
     expect(pill!.textContent).not.toMatch(/Under Review/i)
   })
 })
+
+// ─────────────────────────────────────────────────────────────────
+// Phase C visual completion (2026-06-10): the hero headline FV must
+// read `composite_intrinsic_value` (T1.1 weighted DCF + Multiples +
+// Wall Street consensus) when the backend emits it, and fall back to
+// `valuation.fair_value` (DCF-only) when the composite slot is null.
+//
+// Pre-fix the hero hard-coded `signals.fairValue` (= DCF). On HDFCBANK
+// the headline rendered Rs.1,141.82 (DCF) while the engine's verdict
+// gate had already switched to Rs.1,147.77 (composite) per Phase C
+// wiring — a small numeric mismatch that read as inconsistency on the
+// page. Both numbers stay visible (DcfMultiplesChip below carries the
+// DCF for cross-confirmation); only the SINGLE headline figure
+// switches.
+// ─────────────────────────────────────────────────────────────────
+
+// formatCurrency renders INR as `₹` (the rupee sign), so the FV
+// cell text starts with "₹" not "Rs". The discount cell value
+// instead ends in "%".
+const RUPEE = "₹"
+
+function findFvNode(): HTMLElement | null {
+  // The headline FV value cell renders inside a MetricTooltip; scan
+  // for the font-mono span carrying a currency-formatted number.
+  const spans = document.querySelectorAll(
+    "span.font-mono.tabular-nums.text-2xl",
+  )
+  for (const span of Array.from(spans)) {
+    if ((span.textContent ?? "").trim().startsWith(RUPEE)) {
+      return span as HTMLElement
+    }
+  }
+  return null
+}
+
+describe("HonestHero — headline reads composite_intrinsic_value", () => {
+  it("prefers composite_intrinsic_value over valuation.fair_value when both present", () => {
+    const payload = hdfcBankPayload()
+    // Add the composite IV slot (T1.1 wiring on HDFCBANK from the
+    // engine refinement roadmap). DCF FV stays Rs.1,129.28; composite
+    // is the slightly higher weighted-average number.
+    ;(payload as unknown as Record<string, unknown>).composite_intrinsic_value =
+      1147.77
+    const signals = resolveHeroSignals(payload)
+    render(
+      <HonestHero
+        ticker="HDFCBANK.NS"
+        displayTicker="HDFCBANK"
+        companyName="HDFC Bank"
+        currency="INR"
+        signals={signals}
+        payload={payload}
+      />,
+    )
+    const fvNode = findFvNode()
+    expect(fvNode).not.toBeNull()
+    // formatCurrency uses toLocaleString("en-IN", maxFracDigits: 2)
+    // so 1147.77 → "1,147.77" with the ₹ glyph prepended.
+    expect(fvNode!.textContent).toContain("1,147.77")
+    // DCF value (1,129.28) must NOT be the headline.
+    expect(fvNode!.textContent).not.toContain("1,129.28")
+  })
+
+  it("falls back to valuation.fair_value when composite_intrinsic_value is null", () => {
+    const payload = hdfcBankPayload()
+    // Composite slot absent / null (legacy cached payload, pre-T1.1
+    // ticker, or one of the categories where the composite isn't
+    // computable). The hero must fall back to the DCF FV.
+    ;(payload as unknown as Record<string, unknown>).composite_intrinsic_value =
+      null
+    const signals = resolveHeroSignals(payload)
+    render(
+      <HonestHero
+        ticker="HDFCBANK.NS"
+        displayTicker="HDFCBANK"
+        companyName="HDFC Bank"
+        currency="INR"
+        signals={signals}
+        payload={payload}
+      />,
+    )
+    const fvNode = findFvNode()
+    expect(fvNode).not.toBeNull()
+    // DCF FV (1,129.28) is the headline.
+    expect(fvNode!.textContent).toContain("1,129.28")
+  })
+
+  it("falls back to valuation.fair_value when composite_intrinsic_value is zero or negative", () => {
+    const payload = hdfcBankPayload()
+    // A non-finite / non-positive composite is treated the same as
+    // null (zero is "no estimate", not "free of charge").
+    ;(payload as unknown as Record<string, unknown>).composite_intrinsic_value =
+      0
+    const signals = resolveHeroSignals(payload)
+    render(
+      <HonestHero
+        ticker="HDFCBANK.NS"
+        displayTicker="HDFCBANK"
+        companyName="HDFC Bank"
+        currency="INR"
+        signals={signals}
+        payload={payload}
+      />,
+    )
+    const fvNode = findFvNode()
+    expect(fvNode).not.toBeNull()
+    expect(fvNode!.textContent).toContain("1,129.28")
+  })
+
+  it("recomputes the headline Discount-to-FV against the composite when promoted", () => {
+    const payload = hdfcBankPayload()
+    // Composite > DCF FV → discount-to-FV widens. Pre-fix the discount
+    // tile still reads `signals.discount` (= 52.9% off DCF); post-fix
+    // it must reflect the composite (≈ 55.4% off Rs.1,147.77 vs price
+    // Rs.738.65).
+    ;(payload as unknown as Record<string, unknown>).composite_intrinsic_value =
+      1147.77
+    const signals = resolveHeroSignals(payload)
+    render(
+      <HonestHero
+        ticker="HDFCBANK.NS"
+        displayTicker="HDFCBANK"
+        companyName="HDFC Bank"
+        currency="INR"
+        signals={signals}
+        payload={payload}
+      />,
+    )
+    // The Discount-to-FV dd is the only other large font-mono node in
+    // the hero. Scan all and pick the one whose text ends with "%".
+    const monoSpans = document.querySelectorAll(
+      "span.font-mono.tabular-nums.text-2xl",
+    )
+    let pctNode: HTMLElement | null = null
+    for (const s of Array.from(monoSpans)) {
+      const t = (s.textContent ?? "").trim()
+      if (t.endsWith("%")) {
+        pctNode = s as HTMLElement
+        break
+      }
+    }
+    expect(pctNode).not.toBeNull()
+    // (1147.77 - 738.65) / 738.65 = 55.39%
+    expect(pctNode!.textContent).toMatch(/55\.\d%/)
+  })
+})
