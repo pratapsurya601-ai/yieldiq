@@ -14,6 +14,7 @@ import SamplePortfolioView, { SAMPLE_DISMISSED_KEY } from "@/components/portfoli
 import { BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
 import UpdatesFeed from "@/components/portfolio/UpdatesFeed"
 import UnlockBadge from "@/components/payg/UnlockBadge"
+import { WatchlistRanking } from "@/components/watchlist/WatchlistRanking"
 import TickerAvatar from "@/components/common/TickerAvatar"
 import { formatCurrency } from "@/lib/utils"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -77,6 +78,11 @@ function PortfolioInner() {
   const urlTab = searchParams.get("tab")
   const initialTab: PortfolioTab = isTab(urlTab) ? urlTab : "holdings"
   const [tab, setTabState] = useState<PortfolioTab>(initialTab)
+  // T6.5 — sub-view on the watchlist tab. "ranked" is the default
+  // so users see the largest-opportunity-first ordering on open;
+  // "list" preserves the prior alphabetical card list for users
+  // who want the unsorted view.
+  const [watchlistView, setWatchlistView] = useState<"ranked" | "list">("ranked")
 
   // Keep URL + state in sync when URL changes (e.g. back/forward, redirect arrival)
   useEffect(() => {
@@ -550,8 +556,50 @@ function PortfolioInner() {
       )}
 
       {/* Watchlist tab */}
+      {tab === "watchlist" && watchlist && watchlist.length > 0 && (
+        <div className="inline-flex bg-surface rounded-lg p-0.5" role="tablist" aria-label="Watchlist view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={watchlistView === "ranked"}
+            data-testid="watchlist-view-ranked"
+            onClick={() => setWatchlistView("ranked")}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              watchlistView === "ranked"
+                ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5"
+                : "text-caption hover:text-ink"
+            }`}
+          >
+            Ranked
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={watchlistView === "list"}
+            data-testid="watchlist-view-list"
+            onClick={() => setWatchlistView("list")}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              watchlistView === "list"
+                ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5"
+                : "text-caption hover:text-ink"
+            }`}
+          >
+            List
+          </button>
+        </div>
+      )}
+
+      {tab === "watchlist" && watchlistView === "ranked" && watchlist && watchlist.length > 0 && (
+        <WatchlistRanking
+          holdings={watchlist}
+          onRemove={(ticker) => removeWatchlistMut.mutate(ticker)}
+          removeDisabled={removeWatchlistMut.isPending}
+        />
+      )}
+
       {tab === "watchlist" && (
         watchlist && watchlist.length > 0 ? (
+          watchlistView === "list" && (
           <section aria-label="Watchlist" data-testid="watchlist-list" className="space-y-2">
             {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
               <div key={w.ticker} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-border hover:border-blue-200 transition">
@@ -597,6 +645,7 @@ function PortfolioInner() {
               </div>
             ))}
           </section>
+          )
         ) : (
           <EmptyState
             illustration="/illustrations/empty-watchlist.svg"
