@@ -288,7 +288,24 @@ export default function DiscoverPage() {
                   <div className="mt-1 flex items-baseline justify-center gap-1.5">
                     <span className="text-base font-bold text-blue-700 font-mono">{formatMoS(s.margin_of_safety)}</span>
                     <span className="text-xs text-gray-300">·</span>
-                    <span className="text-sm font-mono text-ink">{s.score}<span className="text-[10px] text-caption">/100</span></span>
+                    {/*
+                      2026-06-11: score sentinel guard. When the backend
+                      flags `score_estimated=true` the displayed `score`
+                      is a synth proxy from MoS, not a real persisted
+                      YieldIQ score. Render "—" with a "Pending" hover
+                      hint instead of "50/100" — three banks all reading
+                      "50/100" was the visible bug this fix closes.
+                    */}
+                    {s.score_estimated ? (
+                      <span
+                        className="text-sm font-mono text-caption"
+                        title="YieldIQ score pending — will fill in after the next analysis run"
+                      >
+                        &mdash;<span className="text-[10px] text-caption">/100</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-mono text-ink">{s.score}<span className="text-[10px] text-caption">/100</span></span>
+                    )}
                   </div>
                   {Math.abs(s.margin_of_safety) >= 100 && (
                     <p className="mt-1 text-[10px] text-caption leading-tight">uncertain</p>
@@ -316,7 +333,18 @@ export default function DiscoverPage() {
                             {s.ticker.replace(".NS", "")}
                           </Link>
                         </td>
-                        <td className="px-3 py-2 text-right font-mono">{s.score}</td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          {s.score_estimated ? (
+                            <span
+                              className="text-caption"
+                              title="YieldIQ score pending"
+                            >
+                              &mdash;
+                            </span>
+                          ) : (
+                            s.score
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-right font-mono">{formatMoS(s.margin_of_safety)}</td>
                       </tr>
                     ))}
@@ -367,7 +395,11 @@ export default function DiscoverPage() {
                           {formatMoS(s.margin_of_safety)}
                         </span>
                         <span className="text-xs text-caption">
-                          {s.score}
+                          {s.score_estimated ? (
+                            <span title="YieldIQ score pending">&mdash;</span>
+                          ) : (
+                            s.score
+                          )}
                           <span className="text-[10px] text-caption/70">/100</span>
                         </span>
                       </div>

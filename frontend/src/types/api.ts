@@ -811,6 +811,14 @@ export interface ScreenerStock {
   moat: string
   confidence: string
   sector: string
+  // 2026-06-11: YIQ50 sentinel-score guard. True when `score` is a
+  // synthesised proxy from MoS rather than a real persisted YieldIQ
+  // score (fair_value_history.yieldiq_score still NULL for this row
+  // AND analysis_cache row absent or scoreless). Discover renders
+  // "—" / "Pending" in this case instead of a deceptive "50/100"
+  // baseline. Backward-compat: legacy payloads omit the field, which
+  // TS sees as undefined → treated as a real score.
+  score_estimated?: boolean
 }
 
 export interface ScreenerResponse {
