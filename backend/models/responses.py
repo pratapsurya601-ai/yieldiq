@@ -748,6 +748,81 @@ class AnalysisResponse(BaseModel):
     # DCF-only "Fair Value" headline in that case.
     composite_intrinsic_value: Optional[float] = None
     composite_components: Optional[dict] = None
+    # ── Phase B — additive standalone estimator surfacing (2026-06-10) ──
+    # Five OPTIONAL per-ticker estimators surfaced alongside the
+    # DCF + Multiples + Wall-St composite. Each is a thin projection
+    # of the corresponding standalone service (T2.1 / T2.2 / T2.5 /
+    # T2.8 / T2.4) into the AnalysisResponse payload.
+    #
+    # Critically, none of these influence ``composite_intrinsic_value``
+    # — that field still computes from DCF + Multiples + Wall St only.
+    # The composite weighting change ships in Phase C after the canary
+    # baseline confirms tolerance. Phase B is purely additive surfacing
+    # so the frontend can render every available signal side-by-side
+    # without us shifting the headline number for any ticker.
+    #
+    # All ten fields are Optional + default None — pre-PR cached
+    # payloads, tickers where the applicability gate failed (no
+    # dividends → DDM, recent IPO → EPV, bank → liquidation), and
+    # services that raised during compute all surface as None and the
+    # frontend hides the corresponding chip.
+    #
+    # T2.1 — DDM (Dividend Discount Model)
+    #   Applicable when payout >= 30% + dividend streak >= 5y AND
+    #   sector is not in the DDM-excluded set (recent IPO / biotech /
+    #   deep cyclical / holdco).
+    #   `ddm_method` documents which variant was used:
+    #     "gordon"      — single-stage Gordon Growth (P = D1 / (k-g))
+    #     "two_stage"   — explicit high-growth N years then perpetual
+    #     "h_model"     — linear taper from high to terminal growth
+    #     "unavailable" — inputs were too degraded for any variant
+    ddm_fv: Optional[float] = None
+    ddm_method: Optional[str] = None
+    # T2.2 — Earnings Power Value (Greenwald framework)
+    #   Applicable when 5+ years of stable EBIT history are available
+    #   AND the sector is not bank / insurer / REIT / utility (each of
+    #   those has a dedicated framework). `epv_growth_value_gap` is
+    #   ``DCF_fv - EPV_per_share`` — positive means the market is
+    #   paying for growth above the no-growth steady-state value.
+    epv_per_share: Optional[float] = None
+    epv_growth_value_gap: Optional[float] = None
+    # T2.5 — Three-stage growth DCF (linear fade)
+    #   Damodaran three-stage framework — explicit high-growth window
+    #   (N1 years at g_h) then a linear taper down to terminal growth
+    #   over N2 years, then Gordon perpetuity at g_t. Smooths the
+    #   two-stage cliff that systematically biases the YieldIQ engine
+    #   high on slow-fading franchises like HDFCBANK.
+    #   `three_stage_method`:
+    #     "three_stage_dcf" — computed successfully
+    #     "unavailable"     — applicability gate failed (holdco / REIT
+    #                         / negative base FCF / insufficient history)
+    three_stage_fv: Optional[float] = None
+    three_stage_method: Optional[str] = None
+    # T2.8 — Liquidation value (Graham-style asset recovery floor)
+    #   Sum of asset × sector-aware recovery rate minus liabilities.
+    #   Skipped for banks / NBFCs / insurers (capital-adequacy framework
+    #   applies instead) and for asset-light cohorts (IT services,
+    #   AMCs) where the floor under-states franchise value.
+    #   `liquidation_floor_safety_margin` is
+    #   ``current_price - liquidation_per_share`` — positive means the
+    #   market is pricing equity above asset coverage; negative is a
+    #   deep-value signal (market below the Graham floor).
+    liquidation_per_share: Optional[float] = None
+    liquidation_floor_safety_margin: Optional[float] = None
+    # T2.4 — Probability-weighted FV (3-scenario weighted mix)
+    #   Damodaran scenario-weighting framework. Weights are adjusted
+    #   for beta (high beta widens tails), sector cyclicality (flatten
+    #   toward bear at cycle tops), earnings revisions, and macro
+    #   regime — full adjustment chain lives in
+    #   probability_weighted_fv_service.compute_probability_weighted_fv.
+    #   `probability_weighted_method`:
+    #     "three_scenario" — bull/base/bear (the default path)
+    #     "four_scenario"  — plus a disaster tail (rare; only fires
+    #                        when the caller passes disaster_fv)
+    #     "unavailable"    — at least one of bull/base/bear was
+    #                        non-positive
+    probability_weighted_fv: Optional[float] = None
+    probability_weighted_method: Optional[str] = None
 
 
 # ── The Honest Card response model ────────────────────────────
