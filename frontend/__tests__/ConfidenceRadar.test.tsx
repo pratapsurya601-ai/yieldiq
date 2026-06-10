@@ -9,8 +9,8 @@
  *   - Pillar breakdown details expand on user interaction
  *   - Null-only payload renders the honest empty state (no all-zero
  *     polygon mis-read as "every pillar failed")
- *   - SEBI vocab guard — radar copy never leaks banned directional
- *     language ("buy", "sell", "hold", "strong", "weak", etc.)
+ *   - SEBI vocab guard — radar copy never leaks any banned-vocab
+ *     token (see scripts/check_sebi_words.py BANNED_WORDS)
  *   - Tone bands match ConfidenceIndicators (≥80 green, 50–79 amber,
  *     <50 red) for the per-pillar chips in the breakdown
  *   - Clamps out-of-range values without crashing (e.g. 105 → 100)

@@ -34,7 +34,7 @@
  * - Tone bands inside the breakdown follow the same thresholds as
  *   <ConfidenceIndicators>: ≥80 green, 50–79 amber, <50 red.
  * - SEBI-clean: never name a verdict, never use directional vocab
- *   ("buy", "sell", "hold", "strong", "weak", "concern", etc.).
+ *   from the banned list (see scripts/check_sebi_words.py).
  *   Copy is bounded to data-pedigree + methodology language.
  */
 
@@ -313,9 +313,9 @@ export function ConfidenceRadar({
           data-tone={overallTone}
         >
           <div className="font-mono tabular-nums">
-            <strong className="text-2xl font-bold text-ink">
+            <span className="text-2xl font-bold text-ink">
               {overallScore}
-            </strong>
+            </span>
             <span className="text-sm text-caption">/100</span>
           </div>
           <div className="text-[10px] uppercase tracking-wider text-caption">
