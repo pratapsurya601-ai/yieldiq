@@ -148,8 +148,8 @@ export default function LearnIndexPage() {
         <div className="border-t border-border pt-8">
           <p className="text-sm text-caption leading-relaxed">
             These lessons are for educational reference only. They are
-            not investment advice and do not constitute a recommendation
-            on any security. YieldIQ is not a SEBI-registered Investment
+            not investment advice and do not constitute guidance on any
+            specific security. YieldIQ is not a SEBI-registered Investment
             Advisor. See our{" "}
             <Link href="/methodology" className="text-brand hover:underline">
               methodology

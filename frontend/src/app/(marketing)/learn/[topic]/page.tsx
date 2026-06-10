@@ -241,8 +241,8 @@ export default async function LearnTopicPage({ params }: PageProps) {
       <section className="max-w-3xl mx-auto px-4 sm:px-6 pb-20">
         <div className="border-t border-border pt-6 text-sm text-caption leading-relaxed">
           This explainer is for educational reference only. It is not
-          investment advice and does not constitute a recommendation on
-          any security. YieldIQ is not a SEBI-registered Investment
+          investment advice and does not constitute guidance on any
+          specific security. YieldIQ is not a SEBI-registered Investment
           Advisor. Return to the{" "}
           <Link href="/learn" className="text-brand hover:underline">
             Learn index

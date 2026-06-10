@@ -16,15 +16,14 @@
 // one shared content model.
 //
 // SEBI vocabulary discipline: every string in this file is scanned by
-// scripts/check_sebi_words.py on PR. The banned tokens (buy, sell, hold,
-// recommend, attractive, cheap, expensive, concern, strength, weakness,
-// outperform, underperform, accumulate, poor, strong, weak, appears,
-// should, investable, investability) NEVER appear in user-facing copy.
+// scripts/check_sebi_words.py on PR. See the canonical banned-word list
+// in scripts/check_sebi_words.py and backend/services/analysis/sebi_filter.py.
+// The lint rejects advisory vocabulary in user-facing copy.
 // Use neutral descriptive framing:
 //   - "trades at a premium / discount to peers"
 //   - "above / below the sector median"
-//   - "a high-quality cash-generating business" (not "strong" cash gen)
-//   - "potential signal" (not "should consider")
+//   - "a high-quality cash-generating business"
+//   - "potential signal" rather than imperatives
 //   - "in the top decile" / "in the bottom quartile"
 //
 // Copy budget per topic:

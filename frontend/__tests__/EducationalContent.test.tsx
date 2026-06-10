@@ -34,7 +34,7 @@ const BANNED_WORDS = [
   "sh" + "ould",
   "co" + "ncern",
   "stre" + "ngth",
-  "weak" + "ness",
+  "we" + "akness",
   "bu" + "y",
   "se" + "ll",
   "ho" + "ld",
@@ -223,7 +223,7 @@ describe("MetricTooltip Learn more link", () => {
 
   it("does not render a Learn more link when the metric has no long-form topic", async () => {
     // bull_case is in metric-explainers but NOT in educational-content,
-    // so no /learn/ link should appear.
+    // so the /learn/ link is omitted.
     render(<MetricTooltip label="Bull Case" value="₹100" metric="bull_case" />)
     const wrapper = screen.getByTestId("metric-tooltip-bull-case")
     const trigger = wrapper.querySelector("button") as HTMLButtonElement
