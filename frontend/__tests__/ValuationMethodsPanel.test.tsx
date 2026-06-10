@@ -2,7 +2,11 @@
  * ValuationMethodsPanel — T5.10 regression guards.
  *
  * Pins:
- *   1. All 9 methods render when every field is populated.
+ *   1. All 11 methods render when every field is populated
+ *      (composite + dcf + multiples + wall_street + sector_specific +
+ *      three_stage + ddm + epv + liquidation + replacement +
+ *      probability_weighted — Phase B added sector_specific and
+ *      replacement on top of the original 9).
  *   2. Methods with null values are filtered to the "not applicable"
  *      footnote.
  *   3. Empty state renders when every method is null.
@@ -156,12 +160,16 @@ function fullyPopulatedPayload(): AnalysisResponse {
       as_of: null,
       source: "finnhub",
     },
+    sector_specific_fv: 1800,
+    sector_specific_label: "bank_residual_income_deepened",
     three_stage_fv: 1180,
     three_stage_method: "explicit_fade",
     ddm_fv: 1095,
     ddm_method: "two_stage",
     epv_per_share: 850,
     liquidation_per_share: 420,
+    replacement_per_share: 950,
+    replacement_method: "tobin_q_rebuild",
     probability_weighted_fv: 1145,
     probability_weighted_method: "calibrated_scenarios",
   })
@@ -181,7 +189,7 @@ function emptyPayload(): AnalysisResponse {
 /* ─── tests ────────────────────────────────────────────────────────── */
 
 describe("ValuationMethodsPanel — render coverage", () => {
-  it("renders all 9 methods when every field is populated", () => {
+  it("renders all 11 methods when every field is populated", () => {
     render(<ValuationMethodsPanel data={fullyPopulatedPayload()} />)
     const grid = screen.getByTestId("valuation-methods-grid")
     expect(grid).toBeInTheDocument()
@@ -191,10 +199,12 @@ describe("ValuationMethodsPanel — render coverage", () => {
       "dcf",
       "multiples",
       "wall_street",
+      "sector_specific",
       "three_stage",
       "ddm",
       "epv",
       "liquidation",
+      "replacement",
       "probability_weighted",
     ]
     for (const key of expectedKeys) {
