@@ -994,6 +994,53 @@ export const getFVHistoryBatch = (
     .post("/api/v1/analysis/fv-history/batch", { tickers, years })
     .then(r => r.data)
 
+/* ──────────────────────────────────────────────────────────────────
+ * Verdict attribution — per-ticker episode-level alpha vs benchmarks.
+ * Powers the Performance Attribution Panel (analysis page).
+ * SEBI-clean wire shape: fields are "alpha" / "excess return" only.
+ * ────────────────────────────────────────────────────────────────── */
+export interface VerdictAttributionEpisode {
+  ticker: string
+  period_start: string
+  period_end: string
+  verdict_at_start: string
+  fv_at_start: number
+  price_at_start: number
+  price_at_end: number
+  actual_return_pct: number
+  nifty_return_pct: number
+  sector_return_pct: number
+  alpha_vs_nifty: number
+  alpha_vs_sector: number
+  verdict_proven_correct: boolean
+}
+
+export interface VerdictAttributionRollingBucket {
+  bucket_end: string
+  verdict_count: number
+  mean_alpha_vs_nifty_pct: number
+  direction_correct_pct: number
+}
+
+export interface VerdictAttributionSummary {
+  ticker: string
+  total_verdicts_tracked: number
+  direction_correct_pct: number
+  avg_alpha_vs_nifty_pct: number
+  median_alpha_vs_nifty_pct: number
+  best_verdict: VerdictAttributionEpisode | null
+  worst_verdict: VerdictAttributionEpisode | null
+  rolling_30d_track_record: VerdictAttributionRollingBucket[]
+}
+
+export const getVerdictAttribution = (
+  ticker: string,
+  lookbackDays: number = 365,
+): Promise<VerdictAttributionSummary> =>
+  api
+    .get(`/api/v1/public/verdict-attribution/${ticker}?lookback_days=${lookbackDays}`)
+    .then(r => r.data)
+
 export const addHolding = (holding: Record<string, unknown>) =>
   api.post("/api/v1/portfolio/holdings", holding).then(r => r.data)
 

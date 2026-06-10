@@ -3463,6 +3463,40 @@ MANIFEST: list[dict] = [
             "cached-payload changes."
         ),
     },
+    {
+        # Performance Attribution Panel (2026-06-10) — surfaces the
+        # episode-level alpha of YIQ's per-ticker verdict over Nifty
+        # and the sector proxy basket. Read-only feature:
+        #   - Reads fair_value_history rows that were already being
+        #     written by the analyze hot path; never recomputes FV.
+        #   - Reads price closes via the existing parquet-backed
+        #     yiq50_backtest helpers; no new ingest.
+        #   - Adds a new public endpoint
+        #     (/api/v1/public/verdict-attribution/{ticker}) and a new
+        #     frontend panel (PerformanceAttributionPanel.tsx). The
+        #     panel cache key is independent (public:verdict-attribution:*)
+        #     so downstream cache gates see no field change.
+        #
+        # scope.fields=[] documents that no cached field changes its
+        # output — the underlying engine is unchanged, this is a pure
+        # retention / trust surface layered on top. scope.tickers=[]
+        # because no per-ticker recompute is required; existing readers
+        # keep byte-identical payloads.
+        "version_id": "v_performance_attribution_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [],
+            "fields": [],
+        },
+        "rationale": (
+            "Performance Attribution panel — per-ticker episode-level "
+            "alpha vs Nifty and sector proxy basket over the last 12mo. "
+            "Trust surface: shows whether YIQ's verdict on this ticker "
+            "actually delivered excess return. Read-only over existing "
+            "fair_value_history + parquet price archive; no FV / "
+            "scoring / verdict change."
+        ),
+    },
 ]
 
 
