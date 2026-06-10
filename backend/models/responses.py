@@ -831,6 +831,16 @@ class AnalysisResponse(BaseModel):
     probability_weighted_fv: Optional[float] = None
     probability_weighted_method: Optional[str] = None
 
+    # T5.3 (2026-06-10): 4 derived insights — synthesize composite +
+    # confidence + floor/ceiling + sector calibration into clear
+    # human-readable callouts. Populated by the router after the
+    # composite + Phase-B inject chain runs (see
+    # backend/services/derived_insights_service.py and the
+    # ``_inject_derived_insights_*`` helpers in
+    # backend/routers/analysis.py). Optional + None on legacy
+    # cached payloads — the frontend hides the panel in that case.
+    derived_insights: Optional[dict] = None
+
 
 # ── The Honest Card response model ────────────────────────────
 class HonestCardOutput(BaseModel):

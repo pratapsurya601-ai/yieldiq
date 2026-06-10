@@ -980,6 +980,174 @@ def _inject_phase_b_estimators_model(result: "AnalysisResponse") -> "AnalysisRes
     return result
 
 
+# ─────────────────────────────────────────────────────────────────
+# T5.3 (2026-06-10) — derived insights inject
+# ─────────────────────────────────────────────────────────────────
+# Synthesizes the rich payload (composite + Phase-B estimators + 5
+# confidence pillars + Graham liquidation floor + Tobin replacement
+# ceiling + per-sector backtest accuracy) into 4 human-readable
+# callouts. See backend/services/derived_insights_service.py for
+# the math. Follows the proven Phase-B/composite inject contract:
+#   1. Lazy import — keeps cold start fast.
+#   2. Pure derivation from in-payload inputs — no DB/cache.
+#   3. Defensive — try/except wraps the entire body; failure leaves
+#      derived_insights absent and the frontend hides the panel.
+#   4. Runs AFTER `_inject_phase_b_estimators_*` AND AFTER
+#      `_inject_composite_iv_*` — both feed the insight extractor
+#      (composite_components for clustering, liquidation_per_share
+#      for floor/ceiling). Canonical chain order (every cache path):
+#          sector_medians -> multiples_fv -> phase_b -> composite
+#                         -> derived_insights
+#
+# Sector calibration uses an injected provider so the public
+# /calibration cache (24h router-layer cache from
+# backend/routers/calibration.py) is reused — no per-analysis DB
+# hit. The provider returns None on cache miss / no-data, which
+# the service treats as "no sector calibration insight available"
+# rather than recomputing inline.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _sector_calibration_lookup(sector: str) -> dict | None:
+    """Look up a single sector's calibration stats from the public cache.
+
+    Returns a dict matching the SectorCalibrationStat shape, or None
+    when the sector lacks the published 30-observation threshold
+    (backend.services.backtest_publisher). Defensive — any failure
+    returns None and the insight surfaces as absent.
+    """
+    try:
+        from backend.routers.calibration import (
+            _CACHE_KEY as _CAL_CACHE_KEY,
+            _build_payload as _cal_build,
+        )
+        from backend.services.cache_service import cache as _cal_cache
+        cached = _cal_cache.get(_CAL_CACHE_KEY)
+        if cached is None:
+            # Build once and seed the public cache so the next analysis
+            # request reuses it. _cal_build is the same function the
+            # /calibration router uses on a cold cache.
+            try:
+                cached = _cal_build()
+                _cal_cache.set(_CAL_CACHE_KEY, cached, ttl=86_400)
+            except Exception:
+                return None
+        if not isinstance(cached, dict):
+            return None
+        sectors = cached.get("sectors") or []
+        # Case-insensitive sector match — payload sectors are
+        # canonical-cased ("Financial Services") but free-form sector
+        # strings on the analysis payload occasionally arrive lowercased.
+        target = sector.strip().lower()
+        for row in sectors:
+            if not isinstance(row, dict):
+                continue
+            row_sector = row.get("sector")
+            if isinstance(row_sector, str) and row_sector.strip().lower() == target:
+                return row
+    except Exception:
+        return None
+    return None
+
+
+def _derived_insights_inputs_from_dict(payload: dict) -> dict:
+    """Extract the 9 inputs the derived insights service needs.
+
+    Mirrors the contract of _composite_inputs_from_dict — single
+    extractor shared by the warm-dict and cold-model paths. Returns a
+    dict keyed by the kwargs of compute_all_insights so the call
+    site stays a one-liner.
+    """
+    valuation = payload.get("valuation") if isinstance(payload.get("valuation"), dict) else {}
+    company = payload.get("company") if isinstance(payload.get("company"), dict) else {}
+    # Confidence pillar scores — three live on ValuationOutput (PR #340
+    # + T2.7), two are top-level slots (T1.6 + T2.7 mirror). All
+    # Optional[int]; the service treats missing as absent.
+    confidence_scores = {
+        "data_quality": valuation.get("data_quality_score"),
+        "model_fit": valuation.get("model_confidence_score"),
+        "stability": valuation.get("valuation_stability_score"),
+        "sensitivity": payload.get("confidence_sensitivity"),
+        "estimator_agreement": payload.get("confidence_composite_agreement"),
+    }
+    return {
+        "confidence_scores": confidence_scores,
+        "composite_components": payload.get("composite_components"),
+        "liquidation": payload.get("liquidation_per_share"),
+        # T2.3 replacement-value Phase A landed the engine only — no
+        # response field yet. Pass None so the insight surfaces the
+        # liquidation-only frame; once Phase B wires the field this
+        # extractor needs no change.
+        "replacement": payload.get("replacement_per_share"),
+        "current_price": valuation.get("current_price"),
+        "dcf_fv": valuation.get("fair_value"),
+        "composite_iv": payload.get("composite_intrinsic_value"),
+        "sector": company.get("sector"),
+    }
+
+
+def _inject_derived_insights_dict(payload: dict) -> dict:
+    """Populate ``derived_insights`` on a dict payload.
+
+    T5.3 (2026-06-10). Composes confidence summary, estimator
+    clustering, floor/ceiling anchor, and sector calibration into
+    one bundle and writes it to ``payload['derived_insights']`` as
+    a JSON-safe dict. MUST run AFTER both
+    ``_inject_phase_b_estimators_dict`` AND
+    ``_inject_composite_iv_dict``.
+
+    Never raises — insight failure leaves the field None (or absent
+    for a single slot inside) and the frontend hides the panel.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.derived_insights_service import (
+            compute_all_insights,
+            to_dict as _di_to_dict,
+        )
+        inputs = _derived_insights_inputs_from_dict(payload)
+        insights = compute_all_insights(
+            sector_calibration_provider=_sector_calibration_lookup,
+            **inputs,
+        )
+        payload["derived_insights"] = _di_to_dict(insights)
+    except Exception:
+        # Pure derivation — never break the response.
+        pass
+    return payload
+
+
+def _inject_derived_insights_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_derived_insights_dict`.
+
+    Used on the cold-compute return path. Mirrors the warm-path
+    contract: builds a focused dict view of the relevant model
+    fields, reuses the shared extractor, writes the resulting dict
+    to ``result.derived_insights``.
+    """
+    try:
+        _val = result.valuation.model_dump() if result.valuation else {}
+        _co = result.company.model_dump() if result.company else {}
+        _payload = {
+            "valuation": _val,
+            "company": _co,
+            "composite_components": getattr(result, "composite_components", None),
+            "composite_intrinsic_value": getattr(result, "composite_intrinsic_value", None),
+            "liquidation_per_share": getattr(result, "liquidation_per_share", None),
+            "replacement_per_share": getattr(result, "replacement_per_share", None),
+            "confidence_sensitivity": getattr(result, "confidence_sensitivity", None),
+            "confidence_composite_agreement": getattr(
+                result, "confidence_composite_agreement", None
+            ),
+        }
+        _inject_derived_insights_dict(_payload)
+        result.derived_insights = _payload.get("derived_insights")
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -1136,6 +1304,11 @@ async def get_analysis(
             # extractor reads them. Was the reverse pre-Phase-C.
             _inject_phase_b_estimators_dict(_out)
             _inject_composite_iv_dict(_out)
+            # T5.3 (2026-06-10) — derived insights synthesize composite
+            # + confidence + floor/ceiling + sector calibration. MUST
+            # run AFTER composite (reads composite_components) and
+            # AFTER Phase B (reads liquidation_per_share).
+            _inject_derived_insights_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
@@ -1147,6 +1320,7 @@ async def get_analysis(
         # composite extractor consumes.
         _inject_phase_b_estimators_dict(_out)
         _inject_composite_iv_dict(_out)
+        _inject_derived_insights_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -1179,6 +1353,7 @@ async def get_analysis(
         # when the composite extractor reads them.
         _inject_phase_b_estimators_dict(_enc)
         _inject_composite_iv_dict(_enc)
+        _inject_derived_insights_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -1225,6 +1400,7 @@ async def get_analysis(
             # when the composite extractor reads them.
             _inject_phase_b_estimators_dict(_out)
             _inject_composite_iv_dict(_out)
+            _inject_derived_insights_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -1431,6 +1607,10 @@ async def get_analysis(
         # the composite helper reads them via getattr().
         _inject_phase_b_estimators_model(result)
         _inject_composite_iv_model(result)
+        # T5.3 (2026-06-10) — derived insights synthesize composite
+        # + confidence + floor/ceiling + sector calibration. Runs
+        # AFTER composite + Phase B on the cold-compute path.
+        _inject_derived_insights_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

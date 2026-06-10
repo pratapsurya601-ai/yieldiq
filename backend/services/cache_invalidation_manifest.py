@@ -357,6 +357,43 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # T5.3 (2026-06-10) — 4 derived insights synthesized on top of
+        # the rich payload (composite IV from 7 estimators, 5
+        # confidence pillars, Graham liquidation floor, Tobin
+        # replacement ceiling, per-sector backtest accuracy from PR
+        # #790). Surfaces as a new top-level field
+        # ``derived_insights`` carrying:
+        #   1. confidence_summary    — synthesis of the 5 pillars
+        #      into one headline ("YieldIQ HIGHLY CONFIDENT") + per-
+        #      pillar breakdown.
+        #   2. estimator_clustering  — "N of M estimators cluster
+        #      within X% of ₹Y" descriptive frame, derived from
+        #      composite_components.
+        #   3. floor_ceiling         — Graham floor + Tobin ceiling
+        #      vs. live price + composite/DCF; flags distress when
+        #      price < liquidation floor.
+        #   4. sector_calibration    — published per-sector accuracy
+        #      stats (median |error|, direction accuracy, obs count)
+        #      sourced from the /calibration cache (24h TTL, no
+        #      per-analysis DB hit).
+        # Purely additive: existing fields are byte-identical. The
+        # frontend renders a panel at the top of the Valuation tab;
+        # legacy cached payloads (derived_insights = None) hide the
+        # panel.
+        "version_id": "v_t5_3_derived_insights_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["derived_insights"],
+        },
+        "rationale": (
+            "T5.3 — 4 derived insights (confidence summary, estimator "
+            "clustering, floor/ceiling anchor, sector calibration) "
+            "synthesized from composite + 5-pillar confidence + "
+            "liquidation + sector backtest data."
+        ),
+    },
+    {
         # T1.6 (2026-06-10) — added composite_agreement_score as the
         # 5th confidence pillar. Measures clustering vs. spread among
         # the constituent estimators that feed composite_intrinsic_value
