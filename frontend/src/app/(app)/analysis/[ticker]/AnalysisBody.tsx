@@ -192,6 +192,14 @@ const FairValueHistory = dynamic(() => import("@/components/analysis/FairValueHi
   ssr: false,
   loading: chartSkeleton,
 })
+// T5.2 (2026-06-10) — AlphaSpread-grade trajectory chart. Sits ABOVE the
+// existing FairValueHistory on the History tab. Reuses the same
+// React-Query cache key (["fv-history", ticker, 5]) so both observers
+// share one network round-trip.
+const ValuationTrajectoryChart = dynamic(
+  () => import("@/components/analysis/ValuationTrajectoryChart"),
+  { ssr: false, loading: chartSkeleton },
+)
 const FinancialBars = dynamic(() => import("@/components/analysis/FinancialBars"), {
   ssr: false,
   loading: chartSkeleton,
@@ -1513,6 +1521,19 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "History",
       content: (
         <div className="space-y-4">
+          {/* T5.2: AlphaSpread-grade trajectory — DCF history line plus
+              today's bull/base/bear bands and composite IV overlay. */}
+          <ValuationTrajectoryChart
+            ticker={ticker}
+            currency={company.currency}
+            currentPrice={valuation.current_price}
+            compositeIntrinsicValue={data.composite_intrinsic_value ?? null}
+            scenarios={{
+              bull: valuation.bull_case ?? null,
+              base: valuation.base_case ?? null,
+              bear: valuation.bear_case ?? null,
+            }}
+          />
           <FairValueHistory
             ticker={ticker}
             companyName={formatCompanyName(company.company_name)}
