@@ -1832,6 +1832,38 @@ MANIFEST: list[dict] = [
             "floor anchor (separate PR)."
         ),
     },
+    {
+        # T2.2 Phase A — Earnings Power Value standalone service added
+        # (backend/services/epv_service.py). Pure additive module — no
+        # callers in this PR, no analysis_cache field touched. Phase B
+        # wires the result into the composite engine and surfaces
+        # ``growth_value_gap`` on the analysis response (separate PR).
+        #
+        # Entry exists to record WHEN the engine acquired the EPV
+        # capability so the public timeline shows a coherent log when
+        # Phase B starts surfacing values. Empty scope (no tickers, no
+        # fields) is the documented no-op idiom for "manifest entry as
+        # changelog, not invalidation gate" (see Phase 1 contract entry
+        # v_phase1_fv_history_contract_2026_05_29 above).
+        "version_id": "v_t2_2_epv_phase_a_2026_06_10",
+        "applied_at": datetime(2026, 6, 9, 19, 31, 0, tzinfo=timezone.utc),
+        "scope": {
+            # Brief specified ``["*"]`` but the matcher
+            # (_ticker_in_scope) treats a list as literal-ticker
+            # membership and ``"*"`` inside a list is a NO-OP (matches
+            # only a ticker literally named asterisk). Same bug the
+            # v_244 entry above documents under "Typo correction
+            # (2026-06-07)". Use bare-string "*" for the actual
+            # wildcard.
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T2.2 Phase A — Earnings Power Value standalone service "
+            "added (Greenwald framework). Phase B wires into composite "
+            "(separate PR)."
+        ),
+    },
 ]
 
 
