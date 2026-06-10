@@ -1140,6 +1140,35 @@ class HistoricalFinancialPeriod(BaseModel):
     # T4.9 Litigation provisions adjustment
     litigation_adjusted_debt: Optional[float] = None
     litigation_intensity_label: Optional[str] = None
+    # T4 batch part 2 (2026-06-10) — 5 additional accounting
+    # normalizations surfaced as additive Optional fields. Each is
+    # paired with an intensity label in {"negligible", "moderate",
+    # "material", "heavy", "unavailable"} so the FE can suppress the
+    # surfacing chip cleanly when the underlying source column is
+    # missing. Reported fields are byte-identical — these are read-
+    # only surfacings calibrated for the sectors most distorted by
+    # each accounting treatment (NCI = name-specific holdco / multi-
+    # listed-sub structures; working capital = cyclicals; ETR = N/A
+    # sector-wise; pension = PSU defense / legacy IT; FX = IT services
+    # / pharma). Phase B (separate PR) can selectively wire these
+    # into DCF / EV inputs for tickers whose intensity label is
+    # "material" or "heavy".
+    #
+    # T4.5 NCI / minority interest adjustment
+    nci_adjusted_ev: Optional[float] = None
+    nci_intensity_label: Optional[str] = None
+    # T4.6 Working capital normalization (5y median smoothing)
+    wc_normalized_value: Optional[float] = None
+    wc_intensity_label: Optional[str] = None
+    # T4.7 Effective tax rate normalization (5y median clamp [10%, 35%])
+    etr_normalized_pat: Optional[float] = None
+    etr_intensity_label: Optional[str] = None
+    # T4.8 Pension obligations adjustment
+    pension_adjusted_debt: Optional[float] = None
+    pension_intensity_label: Optional[str] = None
+    # T4.10 FX translation adjustment (3y median USD/INR)
+    fx_normalized_revenue: Optional[float] = None
+    fx_intensity_label: Optional[str] = None
 
 
 class HistoricalFinancialsResponse(BaseModel):

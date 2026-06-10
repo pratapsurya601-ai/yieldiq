@@ -147,6 +147,36 @@ class _Row:
     # only when readily available; defaults to None so the helper can
     # degrade gracefully.
     market_cap_cr: float | None = None
+    # T4 batch part 2 (2026-06-10) — five additional accounting-
+    # normalization source columns. All default None and are tolerantly
+    # populated when the underlying ingestion gains the corresponding
+    # column. Until then the helper paths in _build_year emit ``None``
+    # adjusted-values + the ``"unavailable"`` intensity label so the
+    # FE can suppress the chip cleanly without crashing. Reported
+    # fields are byte-identical.
+    #
+    #   minority_interest                  (T4.5 NCI)            — Crores
+    #   working_capital_5y_median          (T4.6 WC smoothing)   — Crores
+    #   effective_tax_rate_5y_median       (T4.7 ETR clamp)      — pct (0-100)
+    #   profit_before_tax                  (T4.7 ETR clamp)      — Crores
+    #   unfunded_pension_obligations       (T4.8 pension)        — Crores
+    #   foreign_revenue_pct                (T4.10 FX)            — pct (0-100)
+    #   usd_inr_avg_period                 (T4.10 FX)            — rate used in period
+    #   usd_inr_3y_median                  (T4.10 FX)            — 3y median rate
+    minority_interest: float | None = None
+    working_capital_5y_median: float | None = None
+    effective_tax_rate_5y_median: float | None = None
+    profit_before_tax: float | None = None
+    unfunded_pension_obligations: float | None = None
+    foreign_revenue_pct: float | None = None
+    usd_inr_avg_period: float | None = None
+    usd_inr_3y_median: float | None = None
+    # T4.6 — current assets / current liabilities so the helper can
+    # compute current period working capital (= CA - CL) to compare
+    # against the 5y median. Both default None; when missing the
+    # helper degrades to "unavailable".
+    current_assets: float | None = None
+    current_liabilities: float | None = None
     # Bank format (Schedule III Division I — NSE/NSE_XBRL ingest only)
     # Added 2026-06-07 by fix/financials-source-priority. Banks
     # populate these instead of the GAAP gross_profit / ebit /
@@ -1103,6 +1133,390 @@ def _litigation_provisions_adjustment(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# T4 batch part 2 (2026-06-10) — five additional accounting normalizations.
+#
+# Five additive normalizations follow the same (adjusted_value,
+# intensity_label) contract as the part-1 helpers above. Reported
+# fields stay byte-identical — these helpers only READ row data.
+#
+#   T4.5  NCI / minority interest          — subtract from EV; material > 5 % eq
+#   T4.6  Working capital normalization    — 5y median smoothing; cyclicals
+#   T4.7  Effective tax rate normalization — 5y median clamp [10 %, 35 %]
+#   T4.8  Pension obligations              — treat unfunded as debt
+#   T4.10 FX translation adjustment        — normalize foreign rev @ 3y USD/INR
+#
+# Each helper:
+#   - Takes a _Row (and ticker, for sector-aware thresholds).
+#   - Returns ``(adjusted_value: Optional[float], intensity_label: str)``.
+#   - Intensity label ∈ {"negligible", "moderate", "material", "heavy",
+#     "unavailable"}; "unavailable" surfaces when the source column for
+#     this normalization isn't populated for the row (the common case
+#     until ingestion is extended).
+#   - Defensive: bad / non-finite / negative inputs route to
+#     ``"unavailable"`` plus ``None`` rather than raising.
+#   - Sector-aware where applicable: WC smoothing matters for cyclicals;
+#     pension promotes for PSU defense + legacy IT; FX promotes for IT
+#     services + pharma.
+#
+# Reported ``revenue`` / ``pat`` / ``total_debt`` / etc. fields stay
+# byte-identical. The helpers only emit new keys via the part-2
+# aggregator ``_t4_batch_part_2_period_keys`` which is dict-spread
+# into ``_build_year`` next to the part-1 aggregator.
+# ──────────────────────────────────────────────────────────────────────────
+
+# Sector-tagged ticker sets specific to part-2 helpers. Pharma / IT
+# services / auto are reused from the part-1 module-level sets above.
+_CYCLICAL_TICKERS: frozenset[str] = frozenset({
+    # Metals & mining
+    "TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "NATIONALUM", "SAIL",
+    "JINDALSTEL", "NMDC", "MOIL",
+    # Cement
+    "ULTRACEMCO", "SHREECEM", "AMBUJACEM", "ACC", "DALBHARAT", "RAMCOCEM",
+    # Refining & oil-marketing
+    "RELIANCE", "ONGC", "IOC", "BPCL", "HINDPETRO", "GAIL",
+    # Auto OEMs (cyclical in their own right)
+    "TATAMOTORS", "M&M", "ASHOKLEY", "EICHERMOT",
+    # Capital goods / construction equipment
+    "LT", "BHEL", "SIEMENS",
+})
+_PSU_DEFENSE_TICKERS: frozenset[str] = frozenset({
+    "BEL", "HAL", "BEML", "BHEL", "BDL", "GRSE", "MAZAGON", "MIDHANI",
+    "COCHINSHIP",
+})
+_LEGACY_IT_TICKERS: frozenset[str] = frozenset({
+    # The pre-2010 IT cohort — large legacy DB and DC pension plans.
+    "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM",
+})
+_FX_EXPOSED_TICKERS: frozenset[str] = frozenset({
+    # IT services with > 80 % USD/EUR revenue
+    "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM", "LTIM", "MPHASIS",
+    "PERSISTENT", "COFORGE", "LTTS",
+    # Pharma with > 40 % US / RoW revenue
+    "SUNPHARMA", "DRREDDY", "CIPLA", "LUPIN", "AUROPHARMA", "GLAND",
+    "DIVISLAB", "TORNTPHARM", "ZYDUSLIFE",
+})
+
+
+# ── T4.5 NCI / minority interest adjustment ──────────────────────────────
+def _nci_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Subtract minority share from EV.
+
+    Adjusted EV proxy = ``total_debt + total_equity - minority_interest``
+    (Crores). The intuition: when a consolidated balance sheet shows
+    minority interest, that slice of equity does not belong to common
+    shareholders and should be removed when sizing EV from the
+    investor's perspective.
+
+    Materiality (NCI as % of equity):
+        <  5 %  → "negligible"
+        5–10 %  → "moderate"
+        10–20 % → "material"
+        > 20 %  → "heavy"
+
+    The 5 % threshold for "material" matches the conventional cutoff
+    where NCI becomes too large to ignore in EV / equity-bridge work.
+    No sector promotion — minority structure is name-specific (holdco
+    / multi-listed subsidiary structures), not sector-wide.
+
+    Returns ``(None, "unavailable")`` whenever ``minority_interest``
+    isn't populated, or when ``total_equity`` is missing / non-positive
+    so the percentage cannot be bucketed.
+    """
+    nci = _safe_float(row.minority_interest)
+    if nci is None or nci < 0:
+        return (None, "unavailable")
+
+    debt = _safe_float(row.total_debt) or 0.0
+    if debt < 0:
+        debt = 0.0
+    equity = _safe_float(row.total_equity)
+    if equity is None:
+        return (None, "unavailable")
+    if equity <= 0:
+        # Negative / zero equity — surface a zero-floored adjusted EV
+        # rather than a misleading number; mark unavailable for
+        # thresholding because percentages don't make sense.
+        return (round(max(0.0, debt + equity - nci), 2), "unavailable")
+
+    adjusted_ev = round(debt + equity - nci, 2)
+
+    pct = (nci / equity) * 100.0
+    if pct < 5.0:
+        label = "negligible"
+    elif pct < 10.0:
+        label = "moderate"
+    elif pct < 20.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    # No sector promotion — NCI exposure is structural to the
+    # consolidated reporting boundary and varies by name not sector.
+    _ = ticker  # accepted for signature parity, intentionally unused.
+
+    return (adjusted_ev, label)
+
+
+# ── T4.6 Working capital normalization ───────────────────────────────────
+def _working_capital_normalization(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """5-year median smoothing of working capital.
+
+    Computes current period working capital as ``current_assets -
+    current_liabilities`` (Crores) and compares against the upstream-
+    supplied ``working_capital_5y_median``. The adjusted value
+    returned is the median — i.e. the "through-cycle" WC level that
+    should drive normalized FCF / EV calculations for cyclicals where
+    a single year's print can swing 40 %+ on inventory build.
+
+    Materiality (absolute deviation of current WC from 5y median, as
+    % of revenue):
+        <  2 %  → "negligible"
+        2–5 %  → "moderate"
+        5–10 % → "material"
+        > 10 % → "heavy"
+
+    Sector promotion: cyclicals (metals / cement / refining / auto /
+    cap-goods) get one bucket of lift from "moderate" to "material"
+    because their reported WC is structurally distorted by commodity
+    cycles. No promotion past "material" — we'd rather under-warn
+    than over-warn.
+
+    Returns ``(None, "unavailable")`` whenever either current period
+    CA/CL or the 5y median is missing, or revenue is missing for the
+    % calc.
+    """
+    ca = _safe_float(row.current_assets)
+    cl = _safe_float(row.current_liabilities)
+    median = _safe_float(row.working_capital_5y_median)
+    if ca is None or cl is None or median is None:
+        return (None, "unavailable")
+
+    current_wc = ca - cl
+    revenue = _safe_float(row.revenue)
+    if revenue is None or revenue <= 0:
+        # Cannot bucket intensity without revenue; surface the
+        # median itself as the normalized WC with unavailable label.
+        return (round(median, 2), "unavailable")
+
+    deviation = abs(current_wc - median)
+    pct = (deviation / revenue) * 100.0
+    if pct < 2.0:
+        label = "negligible"
+    elif pct < 5.0:
+        label = "moderate"
+    elif pct < 10.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    if label == "moderate" and _norm_ticker(ticker) in _CYCLICAL_TICKERS:
+        label = "material"
+
+    return (round(median, 2), label)
+
+
+# ── T4.7 Effective tax rate normalization ────────────────────────────────
+# Indian statutory corporate-tax band post-2019 cut: 22 % (new domestic
+# regime) + 4 % cess + surcharge ≈ ~25 %. Effective rates below 10 %
+# typically signal special incentives (export SEZ / R&D allowances /
+# section-80 deductions) that won't last forever; above 35 % usually
+# signal one-off prior-period adjustments. We clamp the 5y median to
+# [10 %, 35 %] before computing normalized PAT.
+_ETR_FLOOR: float = 10.0
+_ETR_CEIL: float = 35.0
+
+
+def _effective_tax_rate_normalization(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """5-year median ETR clamp [10 %, 35 %] applied to normalize PAT.
+
+    Adjusted PAT = ``profit_before_tax * (1 - clamped_median_etr)``
+    (Crores). The clamped median is taken from the upstream-supplied
+    ``effective_tax_rate_5y_median`` (already in pct units 0-100).
+
+    Materiality (|reported_etr - clamped_median_etr| as percentage
+    points of the reported ETR):
+        <  5 pp  → "negligible"
+        5–15 pp  → "moderate"
+        15–30 pp → "material"
+        > 30 pp  → "heavy"
+
+    No sector promotion — tax incentives don't cluster cleanly by
+    sector (SEZ benefits cut across IT / pharma / manufacturing).
+
+    Returns ``(None, "unavailable")`` whenever PBT is missing /
+    non-positive, or the 5y median is missing.
+    """
+    pbt = _safe_float(row.profit_before_tax)
+    median_etr = _safe_float(row.effective_tax_rate_5y_median)
+    if pbt is None or pbt <= 0 or median_etr is None:
+        return (None, "unavailable")
+
+    clamped = max(_ETR_FLOOR, min(_ETR_CEIL, median_etr))
+    adjusted_pat = round(pbt * (1.0 - clamped / 100.0), 2)
+
+    # Bucket by absolute deviation between reported ETR and clamped
+    # median ETR (in percentage points). Reported ETR derives from
+    # PBT and PAT: etr_reported = (pbt - pat) / pbt.
+    pat = _safe_float(row.pat)
+    if pat is None:
+        return (adjusted_pat, "unavailable")
+
+    reported_etr = ((pbt - pat) / pbt) * 100.0
+    deviation_pp = abs(reported_etr - clamped)
+    if deviation_pp < 5.0:
+        label = "negligible"
+    elif deviation_pp < 15.0:
+        label = "moderate"
+    elif deviation_pp < 30.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    _ = ticker  # accepted for signature parity, intentionally unused.
+
+    return (adjusted_pat, label)
+
+
+# ── T4.8 Pension obligations adjustment ──────────────────────────────────
+def _pension_obligations_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Treat unfunded pension as debt-equivalent.
+
+    Adjusted debt = ``total_debt + unfunded_pension_obligations``
+    (Crores). Unfunded pension is the gap between the projected
+    benefit obligation and plan assets; it is a contractual claim on
+    future cash flows and economically belongs in the debt stack
+    when sizing EV.
+
+    Materiality (unfunded pension as % of equity):
+        <  2 %  → "negligible"
+        2–5 %  → "moderate"
+        5–10 % → "material"
+        > 10 % → "heavy"
+
+    Sectors prone: PSU defense (BEL, HAL, BEML — legacy DB plans
+    pre-NPS) and legacy IT (TCS, INFY, WIPRO — long-tenure cohorts
+    with DB carve-outs). These tickers get one bucket of lift from
+    "negligible" → "moderate" once any positive unfunded obligation
+    is disclosed, because the disclosure threshold is higher than
+    the recognition threshold (only material gaps appear in the
+    notes for these structurally well-funded plans).
+
+    Returns ``(None, "unavailable")`` whenever the unfunded pension
+    column isn't populated, or equity is missing / non-positive.
+    """
+    unfunded = _safe_float(row.unfunded_pension_obligations)
+    if unfunded is None or unfunded < 0:
+        return (None, "unavailable")
+
+    debt = _safe_float(row.total_debt) or 0.0
+    if debt < 0:
+        debt = 0.0
+    adjusted_debt = round(debt + unfunded, 2)
+
+    equity = _safe_float(row.total_equity)
+    if equity is None or equity <= 0:
+        return (adjusted_debt, "unavailable")
+
+    pct = (unfunded / equity) * 100.0
+    if pct < 2.0:
+        label = "negligible"
+    elif pct < 5.0:
+        label = "moderate"
+    elif pct < 10.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    norm = _norm_ticker(ticker)
+    if (unfunded > 0 and label == "negligible"
+            and (norm in _PSU_DEFENSE_TICKERS or norm in _LEGACY_IT_TICKERS)):
+        label = "moderate"
+
+    return (adjusted_debt, label)
+
+
+# ── T4.10 FX translation adjustment ──────────────────────────────────────
+def _fx_translation_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Normalize foreign revenues at 3-year median USD/INR.
+
+    Adjusted revenue = ``domestic_revenue + foreign_revenue *
+    (usd_inr_3y_median / usd_inr_avg_period)`` (Crores). The intuition:
+    a year where the rupee was unusually weak inflates reported
+    foreign revenue without a real change in underlying business; we
+    restate at the 3-year median rate so the through-cycle revenue
+    isn't whipsawed by FX swings.
+
+    Materiality (|adjusted_revenue - reported_revenue| as % of
+    reported_revenue):
+        <  2 %  → "negligible"
+        2–5 %  → "moderate"
+        5–10 % → "material"
+        > 10 % → "heavy"
+
+    Sectors prone: IT services (TCS, INFY ≥ 80 % USD/EUR) and pharma
+    (SUNPHARMA, DRREDDY ≥ 40 % US/RoW). These tickers get one bucket
+    of lift from "moderate" → "material" because FX is the dominant
+    swing factor in their reported topline; even moderate deviations
+    are material to forward DCF inputs.
+
+    Returns ``(None, "unavailable")`` whenever any of revenue /
+    foreign_revenue_pct / usd_inr_avg_period / usd_inr_3y_median is
+    missing or non-finite.
+    """
+    revenue = _safe_float(row.revenue)
+    fr_pct = _safe_float(row.foreign_revenue_pct)
+    avg_rate = _safe_float(row.usd_inr_avg_period)
+    median_rate = _safe_float(row.usd_inr_3y_median)
+
+    if (revenue is None or revenue <= 0
+            or fr_pct is None or fr_pct < 0 or fr_pct > 100
+            or avg_rate is None or avg_rate <= 0
+            or median_rate is None or median_rate <= 0):
+        return (None, "unavailable")
+
+    foreign_share = fr_pct / 100.0
+    domestic_rev = revenue * (1.0 - foreign_share)
+    foreign_rev = revenue * foreign_share
+    # Restate foreign rev at the 3y median rate. ratio < 1 means the
+    # period rate was unusually weak (INR depreciated vs. median) and
+    # the restatement shrinks foreign rev; ratio > 1 means INR was
+    # unusually strong and the restatement grows it.
+    foreign_rev_normalized = foreign_rev * (median_rate / avg_rate)
+    adjusted_revenue = round(domestic_rev + foreign_rev_normalized, 2)
+
+    deviation = abs(adjusted_revenue - revenue)
+    pct = (deviation / revenue) * 100.0
+    if pct < 2.0:
+        label = "negligible"
+    elif pct < 5.0:
+        label = "moderate"
+    elif pct < 10.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    if label == "moderate" and _norm_ticker(ticker) in _FX_EXPOSED_TICKERS:
+        label = "material"
+
+    return (adjusted_revenue, label)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Year builder (response shape)
 # ──────────────────────────────────────────────────────────────────────────
 def _build_year(row: _Row, prev: _Row | None,
@@ -1217,6 +1631,21 @@ def _build_year(row: _Row, prev: _Row | None,
         # See helper docstrings for the materiality thresholds.
         **_t4_batch_period_keys(row, ticker),
 
+        # T4 batch part 2 (2026-06-10) — 5 additional accounting
+        # normalizations surfaced as additive per-period fields. Same
+        # contract as part-1: each pair is (adjusted_value,
+        # intensity_label). Reported fields above are byte-identical
+        # — the helpers only READ row data. Until the upstream
+        # ingestion populates the source columns
+        # (minority_interest, current_assets, current_liabilities,
+        # working_capital_5y_median, profit_before_tax,
+        # effective_tax_rate_5y_median, unfunded_pension_obligations,
+        # foreign_revenue_pct, usd_inr_avg_period, usd_inr_3y_median)
+        # the adjusted value surfaces as ``None`` and the label as
+        # ``"unavailable"`` so the FE suppresses the chip cleanly.
+        # See helper docstrings for the materiality thresholds.
+        **_t4_batch_part_2_period_keys(row, ticker),
+
         # Bank format (Schedule III Division I) — only populated for
         # banks; null for non-banks. Added 2026-06-07 by
         # fix/financials-source-priority. FE can ignore until ready.
@@ -1249,6 +1678,39 @@ def _t4_batch_period_keys(row: _Row, ticker: str | None) -> dict:
         # T4.9 Litigation provisions adjustment
         "litigation_adjusted_debt": lit_val,
         "litigation_intensity_label": lit_label,
+    }
+
+
+def _t4_batch_part_2_period_keys(row: _Row, ticker: str | None) -> dict:
+    """Build the 10 T4-batch-part-2 per-period keys (5 normalizations x 2).
+
+    Sibling of ``_t4_batch_period_keys`` for the five normalizations
+    deferred from PR #818 (T4.5 NCI, T4.6 WC, T4.7 ETR, T4.8 pension,
+    T4.10 FX). Kept out-of-line so the ``_build_year`` return dict
+    stays readable. Each pair is ``<name>_adjusted_value /
+    <name>_intensity_label``.
+    """
+    nci_val, nci_label = _nci_adjustment(row, ticker)
+    wc_val, wc_label = _working_capital_normalization(row, ticker)
+    etr_val, etr_label = _effective_tax_rate_normalization(row, ticker)
+    pension_val, pension_label = _pension_obligations_adjustment(row, ticker)
+    fx_val, fx_label = _fx_translation_adjustment(row, ticker)
+    return {
+        # T4.5 NCI / minority interest adjustment
+        "nci_adjusted_ev": nci_val,
+        "nci_intensity_label": nci_label,
+        # T4.6 Working capital normalization
+        "wc_normalized_value": wc_val,
+        "wc_intensity_label": wc_label,
+        # T4.7 Effective tax rate normalization
+        "etr_normalized_pat": etr_val,
+        "etr_intensity_label": etr_label,
+        # T4.8 Pension obligations adjustment
+        "pension_adjusted_debt": pension_val,
+        "pension_intensity_label": pension_label,
+        # T4.10 FX translation adjustment
+        "fx_normalized_revenue": fx_val,
+        "fx_intensity_label": fx_label,
     }
 
 
