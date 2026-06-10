@@ -129,6 +129,24 @@ class _Row:
     # the response can carry sbc_adjusted_fcf + sbc_intensity_label
     # additively (reported free_cash_flow is unchanged).
     sbc_expense: float | None = None
+    # T4 batch (2026-06-10) — accounting-normalization source columns.
+    # All default None and are tolerantly populated when the underlying
+    # ingestion gains the corresponding column. Until then the helper
+    # paths in _build_year emit ``None`` adjusted-values + the
+    # ``"unavailable"`` intensity label so the FE can suppress the chip
+    # cleanly without crashing. Reported fields are byte-identical.
+    #
+    #   operating_lease_liabilities  (T4.2 IFRS-16) — Crores
+    #   rd_expense                   (T4.3 R&D cap) — Crores
+    #   contingent_liabilities       (T4.9 litigation) — Crores
+    operating_lease_liabilities: float | None = None
+    rd_expense: float | None = None
+    contingent_liabilities: float | None = None
+    # Market cap (Crores) — used by the T4.4 excess-cash helper to
+    # express the adjusted EV. Populated by the caller in _build_year
+    # only when readily available; defaults to None so the helper can
+    # degrade gracefully.
+    market_cap_cr: float | None = None
     # Bank format (Schedule III Division I — NSE/NSE_XBRL ingest only)
     # Added 2026-06-07 by fix/financials-source-priority. Banks
     # populate these instead of the GAAP gross_profit / ebit /
@@ -696,6 +714,395 @@ def _sbc_intensity_label(row: _Row) -> str | None:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# T4 batch (2026-06-10) — accounting normalizations.
+#
+# Four additive normalizations land in this PR (the higher-impact subset
+# of the originally-scoped nine; T4.5/T4.6/T4.7/T4.8/T4.10 are deferred
+# to a follow-up PR to keep the diff reviewable and the canary impact
+# bounded):
+#
+#   T4.2 IFRS-16 leases       — treat operating leases as debt-equivalent
+#   T4.3 R&D capitalization   — capitalize R&D over a useful life
+#   T4.4 Excess cash          — subtract cash above operating need from EV
+#   T4.9 Litigation provisions — add disclosed contingent liabilities
+#
+# Each helper:
+#   - Takes a _Row (and ticker, for sector-aware thresholds).
+#   - Returns ``(adjusted_value: Optional[float], intensity_label: str)``.
+#   - Intensity label is one of:
+#       "negligible" | "moderate" | "material" | "heavy" | "unavailable"
+#     where ``"unavailable"`` means the source column for this normalization
+#     isn't populated for this row (the common case until ingestion is
+#     extended). The FE suppresses the chip on "unavailable" the same way
+#     it suppresses on a ``None`` adjusted value.
+#   - Defensive: bad / non-finite / negative inputs route to ``"unavailable"``
+#     plus ``None`` rather than raising.
+#   - Sector-aware where applicable: R&D thresholds tighten for pharma /
+#     IT / auto; excess cash tightens for IT services.
+#
+# Reported fields stay byte-identical. None of these helpers mutate
+# ``free_cash_flow`` / ``total_debt`` / ``cash`` / etc. — they only
+# add new keys to the per-period dict surfaced by ``_build_year``.
+# ──────────────────────────────────────────────────────────────────────────
+
+# Sector-tagged ticker sets — small curated lists used by the sector-
+# tuned thresholds below. Keeping the data here (vs. importing from
+# sector_overrides) avoids a cross-module dependency for what is a
+# coarse hint; the lists can be tightened later without touching the
+# adjustment math.
+_PHARMA_TICKERS: frozenset[str] = frozenset({
+    "SUNPHARMA", "DRREDDY", "CIPLA", "LUPIN", "AUROPHARMA", "DIVISLAB",
+    "TORNTPHARM", "ZYDUSLIFE", "ALKEM", "BIOCON", "GLENMARK", "IPCALAB",
+    "GLAND", "NATCOPHARM", "LAURUSLABS",
+})
+_IT_SERVICES_TICKERS: frozenset[str] = frozenset({
+    "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM", "LTIM", "MPHASIS",
+    "PERSISTENT", "COFORGE", "LTTS", "BSOFT", "ZENSARTECH", "KPITTECH",
+    "TATAELXSI", "INTELLECT", "HAPPSTMNDS",
+})
+_AUTO_TICKERS: frozenset[str] = frozenset({
+    "MARUTI", "TATAMOTORS", "M&M", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO",
+    "TVSMOTOR", "ASHOKLEY", "FORCEMOT", "ESCORTS",
+})
+_LEASE_HEAVY_TICKERS: frozenset[str] = frozenset({
+    # Retail
+    "DMART", "TRENT", "ABFRL", "VMART", "SHOPERSTOP", "ARVINDFASN",
+    # Airlines
+    "INDIGO", "SPICEJET",
+    # Hotels
+    "INDHOTEL", "EIHOTEL", "CHALET", "LEMONTREE", "MAHINDHEC",
+    # Telecom (heavy site / tower lease commitments)
+    "BHARTIARTL", "IDEA",
+})
+_LITIGATION_PRONE_TICKERS: frozenset[str] = frozenset({
+    # Pharma — US class actions, FDA matters
+    "SUNPHARMA", "DRREDDY", "CIPLA", "LUPIN", "AUROPHARMA",
+    # Telecom — AGR overhang
+    "BHARTIARTL", "IDEA",
+    # IT services — immigration / wage class actions
+    "TCS", "INFY", "WIPRO",
+})
+
+
+def _norm_ticker(ticker: str | None) -> str:
+    """Bare uppercase ticker for membership tests; '' when None."""
+    if not ticker:
+        return ""
+    return ticker.upper().strip().replace(".NS", "").replace(".BO", "")
+
+
+# ── T4.2 IFRS-16 lease adjustment ────────────────────────────────────────
+def _ifrs16_lease_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Treat operating leases as debt-equivalent.
+
+    Adjusted EV proxy returned here is ``total_debt + operating_lease_liabilities``
+    (Crores). For a stricter EV the caller would also subtract cash;
+    keeping it as "debt + leases" matches how IFRS-16 effectively re-
+    classifies the operating-lease obligation as a financial liability.
+
+    Materiality (lease as a share of (debt + leases)):
+        <  5 %  → "negligible"
+        5–10 %  → "moderate"
+        10–20 % → "material"
+        > 20 %  → "heavy"
+
+    Sectors heavy with leases: retail (DMART, TRENT), airlines
+    (INDIGO, SPICEJET), hotels (INDHOTEL, EIHOTEL), telecom
+    (BHARTIARTL). When the ticker is in ``_LEASE_HEAVY_TICKERS`` we
+    promote a borderline "moderate" reading to "material" — leases for
+    these names are usually understated by ingestion timing.
+
+    Returns ``(None, "unavailable")`` whenever the lease liability
+    column is not populated for this row (the common case as of
+    2026-06-10 until ingestion is extended).
+    """
+    leases = _safe_float(row.operating_lease_liabilities)
+    if leases is None or leases < 0:
+        return (None, "unavailable")
+
+    debt = _safe_float(row.total_debt) or 0.0
+    if debt < 0:
+        debt = 0.0
+
+    adjusted_ev = round(debt + leases, 2)
+
+    denom = debt + leases
+    if denom <= 0:
+        # No debt and no leases — surface a 0 adjusted EV with the
+        # negligible label rather than dividing by zero.
+        return (adjusted_ev, "negligible")
+
+    pct = (leases / denom) * 100.0
+    if pct < 5.0:
+        label = "negligible"
+    elif pct < 10.0:
+        label = "moderate"
+    elif pct < 20.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    # Sector promote: lease-heavy sectors get a one-bucket lift from
+    # "moderate" to "material" because reported leases under IFRS-16
+    # routinely understate the true commitment (residual values,
+    # variable extensions). No promotion from "material" → "heavy" —
+    # we'd rather under-warn than over-warn.
+    if label == "moderate" and _norm_ticker(ticker) in _LEASE_HEAVY_TICKERS:
+        label = "material"
+
+    return (adjusted_ev, label)
+
+
+# ── T4.3 R&D capitalization ──────────────────────────────────────────────
+# Useful-life assumptions per the brief — these are the buckets where
+# the academic literature (Lev / Sougiannis, Damodaran) cluster their
+# estimates. 5y for pharma + auto; 3y for IT services (shorter product
+# cycle); 4y default for unclassified tickers.
+_RD_USEFUL_LIFE_YEARS: dict[str, int] = {
+    "pharma": 5,
+    "it": 3,
+    "auto": 5,
+    "default": 4,
+}
+
+
+def _rd_sector_bucket(ticker: str | None) -> str:
+    t = _norm_ticker(ticker)
+    if t in _PHARMA_TICKERS:
+        return "pharma"
+    if t in _IT_SERVICES_TICKERS:
+        return "it"
+    if t in _AUTO_TICKERS:
+        return "auto"
+    return "default"
+
+
+def _capitalized_rd_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Capitalize R&D over a useful life vs. full expensing.
+
+    Adjusted value = ``net_income + rd_expense * (1 - 1/useful_life)``
+    (Crores). The intuition: instead of expensing R&D fully in year T,
+    treat ``rd / useful_life`` as the "true" amortization charge for
+    the period. The complement is added back to net income.
+
+    Materiality (R&D as % of revenue):
+        <  2 %  → "negligible"
+        2–5 %  → "moderate"
+        5–10 % → "material"
+        > 10 % → "heavy"
+
+    Sectors: pharma (5y life), IT services (3y life), auto (5y life).
+    Material only meaningfully for these three sectors; for other
+    sectors we still compute the adjustment when the input is present
+    but bias the label down by one bucket.
+    """
+    rd = _safe_float(row.rd_expense)
+    if rd is None or rd < 0:
+        return (None, "unavailable")
+
+    ni = _safe_float(row.pat)
+    if ni is None:
+        return (None, "unavailable")
+
+    bucket = _rd_sector_bucket(ticker)
+    life = _RD_USEFUL_LIFE_YEARS.get(bucket, _RD_USEFUL_LIFE_YEARS["default"])
+    if life <= 0:
+        return (None, "unavailable")
+
+    # Capitalize: only ``rd/life`` is the period charge; the rest is
+    # added back to net income (the cash already left the business in
+    # this period, but accounting-economically only 1/life "belongs"
+    # to this year).
+    addback = rd * (1.0 - 1.0 / life)
+    adjusted_ni = round(ni + addback, 2)
+
+    revenue = _safe_float(row.revenue)
+    if revenue is None or revenue <= 0:
+        # Cannot bucket intensity without revenue; surface the number
+        # but flag as unavailable for thresholding.
+        return (adjusted_ni, "unavailable")
+
+    pct = (rd / revenue) * 100.0
+    if pct < 2.0:
+        label = "negligible"
+    elif pct < 5.0:
+        label = "moderate"
+    elif pct < 10.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    # Non-R&D-heavy sectors: bias one bucket down. Pharma / IT / auto
+    # report on the raw threshold; everyone else gets a more
+    # conservative read because their R&D series tends to be noisier
+    # (one-off process improvements vs. structural research spend).
+    if bucket == "default":
+        downbias = {
+            "heavy": "material",
+            "material": "moderate",
+            "moderate": "negligible",
+            "negligible": "negligible",
+        }
+        label = downbias[label]
+
+    return (adjusted_ni, label)
+
+
+# ── T4.4 Excess cash adjustment ──────────────────────────────────────────
+# Operating-cash need = 3 months of opex (industry-standard proxy).
+# Anything above is "excess" and should be netted out of EV.
+_EXCESS_CASH_OPEX_MONTHS: float = 3.0
+
+
+def _excess_cash_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Net out cash above ~3 months of operating expenses from EV.
+
+    Adjusted EV proxy = ``total_debt - excess_cash`` (Crores). The
+    excess-cash leg = ``max(0, cash - operating_need)`` where the
+    operating need is ``3/12 * operating_expenses`` (or, when
+    operating_expenses is missing, ``3/12 * revenue * 0.7`` as a
+    safety-margin proxy that approximates a 70 % opex/revenue ratio).
+
+    Materiality (excess cash as % of revenue — using revenue as a
+    proxy for "size" so the threshold is the same across sectors):
+        <  2 %  → "negligible"
+        2–5 %  → "moderate"
+        5–15 % → "material"
+        > 15 % → "heavy"
+
+    Sectors heaviest: IT services (TCS, INFY ~Rs 50000Cr excess each).
+    We tighten the threshold for IT services so that any positive
+    excess of >= 2 % of revenue is already "material" — the cash pile
+    on these names is structural, not transitory.
+    """
+    cash = _safe_float(row.cash_and_equivalents)
+    if cash is None or cash < 0:
+        return (None, "unavailable")
+
+    opex = _safe_float(row.operating_expenses)
+    revenue = _safe_float(row.revenue)
+
+    # Operating need — 3 months of opex, with a revenue-based fallback.
+    if opex is not None and opex > 0:
+        operating_need = (_EXCESS_CASH_OPEX_MONTHS / 12.0) * opex
+    elif revenue is not None and revenue > 0:
+        operating_need = (_EXCESS_CASH_OPEX_MONTHS / 12.0) * revenue * 0.7
+    else:
+        # No reliable opex or revenue — cannot estimate the need;
+        # surface raw cash as the "adjustment" with unavailable label.
+        return (None, "unavailable")
+
+    excess = max(0.0, cash - operating_need)
+
+    debt = _safe_float(row.total_debt) or 0.0
+    if debt < 0:
+        debt = 0.0
+    adjusted_ev = round(debt - excess, 2)
+
+    # Sizing for intensity — prefer revenue as the denominator (size
+    # proxy), fall back to market cap if we ever start populating it.
+    size = revenue if revenue is not None and revenue > 0 else (
+        _safe_float(row.market_cap_cr) or 0.0
+    )
+    if size <= 0:
+        return (adjusted_ev, "unavailable")
+
+    pct = (excess / size) * 100.0
+    if pct < 2.0:
+        label = "negligible"
+    elif pct < 5.0:
+        label = "moderate"
+    elif pct < 15.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    # IT services tighten — for these names, the excess cash is
+    # structural and well-documented, so we promote any positive
+    # excess >= 2 % of revenue at least one bucket above the default.
+    if _norm_ticker(ticker) in _IT_SERVICES_TICKERS and excess > 0:
+        upbias = {
+            "negligible": "negligible",  # below 2 % stays below noise
+            "moderate": "material",
+            "material": "heavy",
+            "heavy": "heavy",
+        }
+        label = upbias[label]
+
+    return (adjusted_ev, label)
+
+
+# ── T4.9 Litigation provisions adjustment ────────────────────────────────
+def _litigation_provisions_adjustment(
+    row: _Row,
+    ticker: str | None,
+) -> tuple[float | None, str]:
+    """Add disclosed contingent liabilities to debt.
+
+    Adjusted debt = ``total_debt + contingent_liabilities`` (Crores).
+    Contingent liabilities live in the annual-report notes ("notes to
+    accounts — contingent liabilities not provided for") and capture
+    disclosed-but-not-recognized exposures: US class actions for
+    pharma, AGR dues for telecom, immigration / wage class actions
+    for IT services, plus the long tail of disputed tax claims and
+    bank guarantees.
+
+    Materiality (contingent liabilities as % of equity):
+        <  5 %  → "negligible"
+        5–15 % → "moderate"
+        15–30 %→ "material"
+        > 30 % → "heavy"
+
+    Sectors prone: pharma (SUNPHARMA, DRREDDY US class actions),
+    telecom (BHARTIARTL AGR), IT (TCS / INFY immigration / wage).
+    Litigation-prone tickers get a one-bucket promotion from
+    "negligible" → "moderate" once a non-zero contingent is disclosed,
+    because the disclosure threshold for these names tends to be
+    higher than the recognition threshold (only large exposures hit
+    the notes).
+    """
+    cont = _safe_float(row.contingent_liabilities)
+    if cont is None or cont < 0:
+        return (None, "unavailable")
+
+    debt = _safe_float(row.total_debt) or 0.0
+    if debt < 0:
+        debt = 0.0
+    adjusted_debt = round(debt + cont, 2)
+
+    equity = _safe_float(row.total_equity)
+    if equity is None or equity <= 0:
+        # Cannot bucket intensity without equity; surface raw value
+        # with unavailable label.
+        return (adjusted_debt, "unavailable")
+
+    pct = (cont / equity) * 100.0
+    if pct < 5.0:
+        label = "negligible"
+    elif pct < 15.0:
+        label = "moderate"
+    elif pct < 30.0:
+        label = "material"
+    else:
+        label = "heavy"
+
+    if (cont > 0 and label == "negligible"
+            and _norm_ticker(ticker) in _LITIGATION_PRONE_TICKERS):
+        label = "moderate"
+
+    return (adjusted_debt, label)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Year builder (response shape)
 # ──────────────────────────────────────────────────────────────────────────
 def _build_year(row: _Row, prev: _Row | None,
@@ -799,12 +1206,49 @@ def _build_year(row: _Row, prev: _Row | None,
         "sbc_adjusted_fcf": _sbc_adjusted_fcf(row),
         "sbc_intensity_label": _sbc_intensity_label(row),
 
+        # T4 batch (2026-06-10) — 4 additional accounting normalizations
+        # surfaced as additive per-period fields. Each pair is
+        # (adjusted_value, intensity_label). Reported fields above are
+        # byte-identical — the helpers only READ row data, never write.
+        # Until the upstream ingestion populates the underlying source
+        # columns (operating_lease_liabilities, rd_expense,
+        # contingent_liabilities) the adjusted value is ``None`` and
+        # the label is ``"unavailable"``, which the FE suppresses cleanly.
+        # See helper docstrings for the materiality thresholds.
+        **_t4_batch_period_keys(row, ticker),
+
         # Bank format (Schedule III Division I) — only populated for
         # banks; null for non-banks. Added 2026-06-07 by
         # fix/financials-source-priority. FE can ignore until ready.
         "interest_earned": row.interest_earned,
         "interest_expended": row.interest_expended,
         "total_income": row.total_income,
+    }
+
+
+def _t4_batch_period_keys(row: _Row, ticker: str | None) -> dict:
+    """Build the 8 T4-batch per-period keys (4 normalizations x 2).
+
+    Kept out-of-line so the ``_build_year`` return dict stays readable.
+    Each pair is ``<name>_adjusted_value / <name>_intensity_label``.
+    """
+    ifrs16_val, ifrs16_label = _ifrs16_lease_adjustment(row, ticker)
+    rd_val, rd_label = _capitalized_rd_adjustment(row, ticker)
+    cash_val, cash_label = _excess_cash_adjustment(row, ticker)
+    lit_val, lit_label = _litigation_provisions_adjustment(row, ticker)
+    return {
+        # T4.2 IFRS-16 lease adjustment
+        "ifrs16_adjusted_ev": ifrs16_val,
+        "ifrs16_intensity_label": ifrs16_label,
+        # T4.3 R&D capitalization
+        "rd_capitalized_value": rd_val,
+        "rd_intensity_label": rd_label,
+        # T4.4 Excess cash adjustment
+        "excess_cash_subtracted": cash_val,
+        "excess_cash_intensity_label": cash_label,
+        # T4.9 Litigation provisions adjustment
+        "litigation_adjusted_debt": lit_val,
+        "litigation_intensity_label": lit_label,
     }
 
 

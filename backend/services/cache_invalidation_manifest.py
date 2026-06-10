@@ -2595,6 +2595,54 @@ MANIFEST: list[dict] = [
             "Phase B wiring."
         ),
     },
+    {
+        # T4 batch (2026-06-10) — four accounting normalizations
+        # added as additive per-period fields on
+        # HistoricalFinancialPeriod. Reported fields stay
+        # byte-identical; these helpers only READ row data and
+        # surface adjusted values alongside reported values. Phase B
+        # (separate PR) can selectively wire each into DCF / EV
+        # inputs for tickers whose intensity label is "material" or
+        # "heavy".
+        #
+        # In-scope normalizations:
+        #   T4.2 IFRS-16 leases — retail / airlines / hotels / telecom
+        #   T4.3 R&D capitalization — pharma / IT / auto
+        #   T4.4 Excess cash — IT services
+        #   T4.9 Litigation provisions — pharma / telecom / IT
+        #
+        # Out-of-scope and deferred to a follow-up PR (to keep this
+        # diff reviewable and the canary impact bounded):
+        #   T4.5 NCI, T4.6 working capital normalization,
+        #   T4.7 effective tax rate, T4.8 pension, T4.10 FX translation.
+        "version_id": "v_t4_normalizations_batch_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "ifrs16_adjusted_ev",
+                "ifrs16_intensity_label",
+                "rd_capitalized_value",
+                "rd_intensity_label",
+                "excess_cash_subtracted",
+                "excess_cash_intensity_label",
+                "litigation_adjusted_debt",
+                "litigation_intensity_label",
+            ],
+        },
+        "rationale": (
+            "T4.2 + T4.3 + T4.4 + T4.9 — four accounting "
+            "normalizations added as additive financials fields "
+            "(IFRS-16 leases, R&D capitalization, excess cash, "
+            "litigation provisions). Reported fields stay byte-"
+            "identical. Phase B can selectively wire these into DCF "
+            "inputs for tickers where their intensity_label is "
+            "'material' or 'heavy'. Five remaining normalizations "
+            "(T4.5 NCI, T4.6 working capital, T4.7 tax rate, T4.8 "
+            "pension, T4.10 FX translation) deferred to a follow-up "
+            "PR per scope-management note in the brief."
+        ),
+    },
 ]
 
 
