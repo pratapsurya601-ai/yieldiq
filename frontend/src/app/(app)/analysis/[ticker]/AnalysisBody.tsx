@@ -236,6 +236,13 @@ const ValuationTrajectoryChart = dynamic(
   () => import("@/components/analysis/ValuationTrajectoryChart"),
   { ssr: false, loading: chartSkeleton },
 )
+// MoS history heat-map — GitHub-style 52-week calendar of historical
+// margin-of-safety values, mounted directly below ValuationTrajectoryChart.
+// Shares the same fv-history cache key (years=5) so no extra round-trip.
+const MosHeatmapCalendar = dynamic(
+  () => import("@/components/analysis/MosHeatmapCalendar"),
+  { ssr: false, loading: chartSkeleton },
+)
 // T6.3 (2026-06-10) — Time Machine scrubber. Sits ABOVE the
 // ValuationTrajectoryChart on the History tab. Consumes the same
 // fv_history series via the shared React-Query cache key
@@ -1790,6 +1797,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               base: valuation.base_case ?? null,
               bear: valuation.bear_case ?? null,
             }}
+          />
+          {/* MoS history heat-map — GitHub-style calendar showing when
+              YieldIQ flagged this ticker with a positive vs negative
+              fair-value gap historically. Reuses the same fv-history
+              cache key as ValuationTrajectoryChart so it costs zero
+              extra round-trips. Clicking a cell broadcasts a
+              `mos-heatmap-day-click` window event that the trajectory
+              chart can listen for to scroll/highlight that date. */}
+          <MosHeatmapCalendar
+            ticker={ticker}
+            currency={company.currency}
           />
           <FairValueHistory
             ticker={ticker}
