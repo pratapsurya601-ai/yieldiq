@@ -268,6 +268,10 @@ const HonestCard = dynamic(() => import("@/components/analysis/HonestCard"), {
   ssr: false,
   loading: smallSkeleton,
 })
+const InflationRegimePanel = dynamic(
+  () => import("@/components/analysis/InflationRegimePanel"),
+  { ssr: false, loading: smallSkeleton },
+)
 const BullsBearsPanel = dynamic(() => import("@/components/analysis/BullsBearsPanel"), {
   ssr: false,
   loading: smallSkeleton,
@@ -1297,6 +1301,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               the user gets one emotional read before the rest of the
               page elaborates. Self-hides when worry_index is absent. */}
           <WorryIndex worry={data.worry_index ?? null} />
+
+          {/* Inflation-regime DCF check (2026-06-10). Side-by-side
+              nominal vs real-terms DCF so the reader can see how much
+              the current CPI band is distorting the headline FV.
+              Self-hides when inflation_regime_adjustment is absent
+              (legacy cached payloads predate the panel). */}
+          <InflationRegimePanel
+            adjustment={data.inflation_regime_adjustment ?? null}
+          />
 
           {/* Phase 4 personalization: persisted style controls section
               order and Beginner-mode explainers. Verdict colour cascade

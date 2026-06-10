@@ -478,6 +478,24 @@ export interface AnalysisResponse {
     n: number
   }> | null
   /**
+   * Inflation-regime DCF adjustment (2026-06-10). Side-by-side nominal
+   * vs real-terms DCF so the reader can see how much the headline CPI
+   * regime is distorting the primary nominal-terms FV. Computed by
+   * backend/services/inflation_regime_service.py. ADVISORY only —
+   * `valuation.fair_value` stays in nominal terms. Optional: legacy
+   * cached payloads omit the field and the panel self-hides.
+   */
+  inflation_regime_adjustment?: {
+    current_cpi_pct: number
+    regime: "low" | "normal" | "high" | "extreme"
+    real_wacc_pct: number
+    real_growth_pct: number
+    nominal_fv: number | null
+    real_terms_fv: number | null
+    fv_distortion_pct: number
+    model_note: "use_nominal" | "use_real" | "blended"
+  } | null
+  /**
    * Inline sector-median chips (2026-05-27, Tickertape density trick
    * #2). Five reference medians for the ticker's Day-108c cohort —
    * read by <MetricVsSectorChip /> on the analysis page to render

@@ -5294,6 +5294,141 @@ async def analysis_sensitivity(
         raise HTTPException(status_code=500, detail="Sensitivity computation failed")
 
 
+# ── Inflation-regime DCF adjustment ──────────────────────────────
+# Exposes the nominal-vs-real-terms DCF comparison so the frontend
+# panel can render it standalone (without re-running the full
+# AnalysisResponse). Reads cached valuation inputs + applies the
+# pure-function service. Open to all auth states — the result carries
+# no advice vocabulary, just the comparison numbers.
+@router.get("/analysis/{ticker}/inflation-regime")
+async def analysis_inflation_regime(
+    ticker: str,
+    cpi: Optional[float] = None,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Return ``InflationRegimeResult.to_dict()`` for the given ticker.
+
+    Query params
+    ────────────
+    cpi
+        Optional override for the headline CPI (percent). Defaults to
+        the ``INFLATION_REGIME_CPI`` env var, else 5.0 (RBI baseline).
+
+    Response shape mirrors
+    ``backend/services/inflation_regime_service.InflationRegimeResult``.
+    """
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    # Cached for 1h per (ticker, cpi) key — pure recompute off cached
+    # valuation inputs is cheap (<1ms) but the cached analysis lookup
+    # can hit Postgres, so we still want the layer.
+    _cpi_key = f"{float(cpi):.2f}" if cpi is not None else "env"
+    cache_key = f"inflation_regime:{ticker}:{_cpi_key}:v1"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        from backend.services.inflation_regime_service import (
+            compute_regime_adjustment,
+            to_dict as _irs_to_dict,
+        )
+
+        # Pull the canonical analysis once so we can seed the recompute
+        # from the model's actual WACC / growth / FV. We use the cached
+        # payload directly (not the full pipeline) to keep this endpoint
+        # latency-stable.
+        cached_payload = None
+        try:
+            cached_payload = analysis_cache_service.get_cached(ticker)
+        except Exception:
+            cached_payload = None
+
+        if not isinstance(cached_payload, dict):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cached analysis available for {ticker}",
+            )
+
+        val = cached_payload.get("valuation") or {}
+
+        _nominal_fv = float(val.get("fair_value", 0) or 0)
+        _nom_wacc = float(val.get("wacc", 0) or 0)
+        _nom_growth = float(val.get("fcf_growth_rate", 0) or 0)
+        _tg = float(val.get("terminal_growth", 0) or 0)
+        _eq = float(val.get("equity_value", 0) or 0)
+        _ev = float(val.get("enterprise_value", 0) or 0)
+        _pv_fcfs = float(val.get("pv_fcfs", 0) or 0)
+        _net_debt = max(0.0, _ev - _eq)
+        _shares = (_eq / _nominal_fv) if _nominal_fv > 0 and _eq > 0 else 0.0
+
+        # Coarse base_fcf reverse-derive from pv_fcfs (see service.py).
+        _base_fcf = 0.0
+        if _pv_fcfs > 0 and _nom_wacc > 0:
+            _r = _nom_wacc / 100.0
+            _g = _nom_growth / 100.0
+            _spread = max(0.01, _r - _g)
+            _base_fcf = _pv_fcfs * _spread / 5.0 / max(1e-9, (1 + _g))
+
+        # CPI resolution: explicit query param > env > RBI baseline 5%.
+        import os as _os_irs
+        if cpi is not None:
+            _cpi = float(cpi)
+        else:
+            try:
+                _cpi = float(_os_irs.getenv("INFLATION_REGIME_CPI", "5.0"))
+            except (TypeError, ValueError):
+                _cpi = 5.0
+
+        if _base_fcf <= 0 or _shares <= 0:
+            # Not enough info to recompute; return the regime metadata
+            # only so the frontend can still show "real terms n/a".
+            from backend.services.inflation_regime_service import (
+                classify_inflation_regime,
+            )
+            result = {
+                "current_cpi_pct": round(_cpi, 2),
+                "regime": classify_inflation_regime(_cpi),
+                "real_wacc_pct": round(_nom_wacc - _cpi, 2),
+                "real_growth_pct": round(_nom_growth - _cpi, 2),
+                "nominal_fv": round(_nominal_fv, 2) if _nominal_fv > 0 else None,
+                "real_terms_fv": None,
+                "fv_distortion_pct": 0.0,
+                "model_note": "use_nominal",
+            }
+        else:
+            irs_res = compute_regime_adjustment(
+                nominal_dcf=_nominal_fv if _nominal_fv > 0 else None,
+                base_fcf=_base_fcf,
+                nominal_wacc=_nom_wacc,
+                nominal_growth=_nom_growth,
+                terminal_growth=_tg,
+                current_cpi=_cpi,
+                shares=_shares,
+                net_debt=_net_debt,
+            )
+            result = _irs_to_dict(irs_res)
+
+        result["ticker"] = ticker
+        cache.set(cache_key, result, ttl=3600)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.inflation_regime").error(
+            f"inflation_regime endpoint failed for {ticker}: {e}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Inflation-regime adjustment failed",
+        )
+
+
 # ── Coverage Tier (feat/coverage-tier-system) ───────────────────
 # Public endpoint exposing the A/B/C tier rubric for a ticker. Used by
 # the methodology page + the CoverageTierBadge tooltip. Labeling-only:

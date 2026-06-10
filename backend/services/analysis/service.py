@@ -823,6 +823,102 @@ class AnalysisService(NarrativeMixin):
                 f"{type(_wie).__name__}: {_wie}"
             )
 
+        # ── Inflation-regime DCF adjustment (2026-06-10) ──────────
+        # Side-by-side nominal vs real-terms DCF so the reader can see
+        # how much the headline CPI regime is distorting the primary
+        # nominal-terms FV. Advisory only — does NOT mutate
+        # valuation.fair_value. Failures are non-fatal; the frontend
+        # hides the panel if the field is absent. See
+        # backend/services/inflation_regime_service.py.
+        try:
+            from backend.services.inflation_regime_service import (
+                compute_regime_adjustment,
+                to_dict as _irs_to_dict,
+            )
+            _val = getattr(result, "valuation", None)
+            if _val is not None:
+                # Headline CPI input — default to India's RBI-target
+                # baseline (5%). Override via INFLATION_REGIME_CPI env
+                # so ops can sweep the universe at a stressed CPI to
+                # validate the high/extreme bands without code changes.
+                import os as _os_irs
+                try:
+                    _cpi = float(_os_irs.getenv("INFLATION_REGIME_CPI", "5.0"))
+                except (TypeError, ValueError):
+                    _cpi = 5.0
+
+                _base_fcf = 0.0
+                try:
+                    # Prefer the engine-resolved base FCF, fall back to
+                    # the implied (pv_fcfs + pv_terminal) reverse-derive
+                    # when not exposed directly.
+                    _base_fcf = float(getattr(_val, "pv_fcfs", 0.0) or 0.0)
+                    # If we have the equity value and shares, infer a
+                    # conservative base_fcf from the primary FV; the
+                    # real-terms recompute then mirrors the engine's
+                    # working assumption rather than fabricating one.
+                except Exception:
+                    _base_fcf = 0.0
+
+                _nominal_fv = float(getattr(_val, "fair_value", 0.0) or 0.0)
+                _nom_wacc = float(getattr(_val, "wacc", 0.0) or 0.0)
+                _nom_growth = float(
+                    getattr(_val, "fcf_growth_rate", 0.0) or 0.0
+                )
+                _tg = float(getattr(_val, "terminal_growth", 0.0) or 0.0)
+                _eq = float(getattr(_val, "equity_value", 0.0) or 0.0)
+                _ev = float(getattr(_val, "enterprise_value", 0.0) or 0.0)
+                _net_debt = max(0.0, _ev - _eq)
+                # Shares = equity_value / fair_value when both are
+                # non-zero; mirrors the engine's per-share normalisation
+                # without requiring a fresh fetch.
+                _shares = (_eq / _nominal_fv) if _nominal_fv > 0 and _eq > 0 else 0.0
+
+                # base_fcf fallback: derive a Year-1 cash-flow proxy from
+                # the present-value of explicit-horizon flows by
+                # un-discounting the average. This is a coarse but
+                # conservative estimator — the real-terms recompute is a
+                # comparator, not a re-engineering of the DCF.
+                if _base_fcf <= 0 and _nom_wacc > 0 and _nominal_fv > 0 and _shares > 0:
+                    # PV(FCFs) ~ FCF * [1 - (1+g)^N / (1+r)^N] / (r - g)
+                    # Inverting algebraically for FCF is unstable when
+                    # r~g; use a midpoint estimator: FCF_y3 ~ pv_fcfs *
+                    # (r - g + 0.01) / 5, then de-grow to year-1.
+                    try:
+                        _r = _nom_wacc / 100.0
+                        _g = _nom_growth / 100.0
+                        _spread = max(0.01, _r - _g)
+                        _pv = float(getattr(_val, "pv_fcfs", 0.0) or 0.0)
+                        if _pv > 0:
+                            _base_fcf = _pv * _spread / 5.0 / max(1e-9, (1 + _g))
+                    except Exception:
+                        _base_fcf = 0.0
+
+                if _base_fcf > 0 and _shares > 0:
+                    _irs_res = compute_regime_adjustment(
+                        nominal_dcf=_nominal_fv if _nominal_fv > 0 else None,
+                        base_fcf=_base_fcf,
+                        nominal_wacc=_nom_wacc,
+                        nominal_growth=_nom_growth,
+                        terminal_growth=_tg,
+                        current_cpi=_cpi,
+                        shares=_shares,
+                        net_debt=_net_debt,
+                    )
+                    _irs_dict = _irs_to_dict(_irs_res)
+                    try:
+                        result.inflation_regime_adjustment = _irs_dict
+                    except Exception:
+                        result = result.model_copy(
+                            update={"inflation_regime_adjustment": _irs_dict}
+                        )
+        except Exception as _ire:
+            import logging as _irl
+            _irl.getLogger("yieldiq.inflation_regime").warning(
+                f"inflation_regime adjustment crashed for {ticker}: "
+                f"{type(_ire).__name__}: {_ire}"
+            )
+
         return result
 
     def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:

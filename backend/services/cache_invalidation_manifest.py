@@ -3463,6 +3463,36 @@ MANIFEST: list[dict] = [
             "cached-payload changes."
         ),
     },
+    {
+        # Inflation-regime DCF adjustment (2026-06-10).
+        #
+        # Adds a side-by-side nominal vs real-terms DCF overlay so the
+        # reader can see how much the headline CPI regime is distorting
+        # the primary nominal-terms FV. New service
+        # backend/services/inflation_regime_service.py +
+        # AnalysisResponse.inflation_regime_adjustment field + GET
+        # /api/v1/analysis/{ticker}/inflation-regime endpoint +
+        # frontend panel.
+        #
+        # ADVISORY ONLY. The primary fair_value remains in nominal
+        # terms — this overlay does NOT mutate any existing field on
+        # cached payloads. Pure-additive on the AnalysisResponse: legacy
+        # payloads omit `inflation_regime_adjustment` and the frontend
+        # panel hides itself in that case. No CACHE_VERSION bump
+        # required by the cache-version-check gate; this manifest entry
+        # is the record of when the new field shipped.
+        "version_id": "v_inflation_regime_dcf_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["inflation_regime_adjustment"],
+        },
+        "rationale": (
+            "Nominal-vs-real-terms DCF overlay so the reader can see "
+            "how much the headline CPI regime is distorting the "
+            "nominal-terms FV. Advisory only — no engine mutation."
+        ),
+    },
 ]
 
 

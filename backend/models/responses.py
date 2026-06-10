@@ -687,6 +687,16 @@ class AnalysisResponse(BaseModel):
     # Powers the <MetricWithContext /> slider on the Quality tab.
     # Omitted entirely when no peer rows are available.
     peer_context: Optional[dict] = None
+    # ── Inflation-regime DCF adjustment (2026-06-10) ───────────
+    # Side-by-side nominal vs real-terms DCF comparison so the reader
+    # can see how much the headline CPI regime is distorting the
+    # nominal-terms FV. Computed by
+    # backend.services.inflation_regime_service.compute_regime_adjustment.
+    # Advisory only — the primary fair_value remains in nominal terms
+    # unless the engine explicitly opts in. Field-additive: None on
+    # legacy cached payloads; the frontend hides the panel in that case.
+    # Manifest entry: v_inflation_regime_dcf_2026_06_10.
+    inflation_regime_adjustment: Optional[dict] = None
     # ── Inline sector-median chips (2026-05-27, Tickertape density
     # trick #2 — audit .audit/tickertape-deep-walk-2026-05-27.md).
     # Five reference medians for the ticker's Day-108c cohort, read by
