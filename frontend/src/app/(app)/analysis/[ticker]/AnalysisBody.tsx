@@ -1301,10 +1301,19 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               which buried our best work. Users can still toggle every
               section freely; the picker still controls ORDER and which
               accent is used. Each item is wrapped in the PR-D canonical
-              card surface (rounded-2xl border border-border bg-bg p-6). */}
+              card surface (rounded-2xl border border-border bg-bg p-6).
+
+              Quick-wins batch (2026-06-10 competitor audit follow-up):
+              the `news` section is ALSO default-expanded regardless of
+              its slot. News sits at slot 9 under the DEFAULT order and
+              slots 2 / 7 / 8 under speculator / value / growth styles —
+              i.e. collapsed by default for the modal user even though
+              recent filings are one of the highest-signal sections on
+              the page. Forcing news open joins it to the top-5 honest
+              triad as content the user sees without an extra click. */}
           {renderableSections.map((key, idx) => {
             const number = idx + 1
-            const defaultExpanded = idx < 5
+            const defaultExpanded = idx < 5 || key === "news"
             const explainer =
               config?.showSectionExplainers ? SECTION_EXPLAINERS[key] : null
             return (
