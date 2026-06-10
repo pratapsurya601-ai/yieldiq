@@ -41,11 +41,9 @@
  * SEBI lens
  * ---------
  * Every label and copy string is descriptive. No imperative verbs
- * ("buy" / "sell" / "hold" / "should" / "recommend"), no
- * value-judgement adjectives ("attractive" / "expensive" / "cheap").
- * Backend stamps the explanation; frontend does not splice user
- * verdict words into the wrapper copy. See ``scripts/check_sebi_words.py``
- * for the full banlist.
+ * and no value-judgement adjectives. Backend stamps the explanation;
+ * frontend does not splice user verdict words into the wrapper copy.
+ * See ``scripts/check_sebi_words.py`` for the full banlist.
  */
 
 import * as React from "react"
