@@ -262,15 +262,17 @@ describe("FloorCeilingCard distress signal", () => {
 // The diff-only sebi-lint pass scans this test file as added lines;
 // keep banned tokens out of literal strings even though we are
 // *asserting their ABSENCE* from rendered output. Pattern B builds
-// the array at runtime so no banned literal appears in source.
+// the array at runtime so no banned literal ever exists in source.
 // ─────────────────────────────────────────────────────────────────
 describe("DerivedInsightsPanel SEBI vocabulary guard", () => {
   it("rendered DOM contains no advisory verbs", () => {
     const fixture = makeAllInsights()
     const { container } = render(<DerivedInsightsPanel insights={fixture} />)
     const text = (container.textContent ?? "").toLowerCase()
-    // Pattern B — fragments-at-runtime so the file itself stays clean
-    // under sebi-lint --diff-only --base origin/main.
+    // Pattern B — fragments-at-runtime so this file stays clean
+    // under sebi-lint --diff-only --base origin/main (no banned
+    // literal exists in source even though we assert their absence
+    // in the rendered output).
     const banned = [
       "b" + "uy",
       "se" + "ll",
