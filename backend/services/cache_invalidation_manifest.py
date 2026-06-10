@@ -1766,6 +1766,45 @@ MANIFEST: list[dict] = [
             "(separate PR)."
         ),
     },
+    {
+        # T1.3 (2026-06-10) — engine refinement roadmap. Per-sector
+        # calibrated WACC + Terminal Growth tables, Damodaran India
+        # 2026 anchored. PHASE A: tables + helpers shipped as SSOT in
+        # sector_overrides.py; NO engine read-path wiring yet. The
+        # existing inline cohort blocks (Day-84 pharma, Day-92 utility,
+        # Day-107a IT, Day-107b FMCG, Day-107c auto) remain the
+        # authoritative production gates today; the new table is
+        # consistent with them (asserted in
+        # test_sector_wacc_tg_calibrated.py
+        # ::test_calibrated_values_match_existing_cohort_constants)
+        # and is structured so a Phase B follow-up can wire it into
+        # service.py / forecaster.py as a single canary-diffable change.
+        # Because no read path consumes the table yet, no cached field
+        # is invalidated by this entry — scope.fields is intentionally
+        # empty. The manifest entry exists to mark the SSOT landing as
+        # an event downstream PRs can cite when justifying engine
+        # behaviour changes (e.g. "FMCG-tobacco TG drop traces to T1.3
+        # calibration anchor"). Closes audit #229 (FMCG TG uniformity
+        # vs AlphaSpread) and audit #260 (cyclical-cluster over-
+        # extrapolation) at the data layer.
+        "version_id": "v_t1_3_sector_wacc_tg_calibrated_2026_06_10",
+        "applied_at": datetime(2026, 6, 10, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["*"],
+            "fields": [],
+        },
+        "rationale": (
+            "T1.3 (engine refinement): per-sector calibrated WACC + "
+            "Terminal Growth tables (Damodaran India 2026 anchored) "
+            "landed as importable SSOT in sector_overrides.py. Phase A "
+            "is tables + helpers only — no DCF read-path wiring yet, "
+            "so no cached field is invalidated. Addresses audit #229 "
+            "(FMCG TG uniformity vs AlphaSpread; staples 5.5% vs "
+            "tobacco 3.0% now distinguished) and audit #260 (cyclical "
+            "cluster over-extrapolation; Metals 3.0%, Oil & Gas 2.5%, "
+            "Cement 4.0% now anchored)."
+        ),
+    },
 ]
 
 

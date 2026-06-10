@@ -1410,3 +1410,260 @@ INSURANCE_LIFE_TIER1_PRIVATE = _INSURANCE_LIFE_TIER1_PRIVATE
 INSURANCE_LIFE_PSU = _INSURANCE_LIFE_PSU
 INSURANCE_GI_TIER1_PRIVATE = _INSURANCE_GI_TIER1_PRIVATE
 INSURANCE_GI_PSU = _INSURANCE_GI_PSU
+
+
+# ═══════════════════════════════════════════════════════════════════
+# T1.3 (2026-06-09) — Per-sector calibrated WACC + Terminal Growth
+# ═══════════════════════════════════════════════════════════════════
+# Engine refinement roadmap T1.3. Damodaran India 2026 anchored.
+# Closes the audit gaps:
+#
+#   - Issue #229 (FMCG TG uniformity): vanilla DCF used the country
+#     default ~4% for every FMCG name, regardless of whether the
+#     business was a staples franchise (HUL/NESTLE; AlphaSpread 5-7%)
+#     or a tobacco mono-line (ITC; AlphaSpread ~3%). The Day-107b
+#     cohort already lifts the four sub-tiers (top/itc/tier2/tier3)
+#     but only for the 11 cohort tickers. Names outside the cohort
+#     still default. This table covers the broader sector universe.
+#
+#   - Issue #260 (cyclical cluster — AMBUJACEM/JSWSTEEL/IOC/BPCL/
+#     CIPLA): DCF over-extrapolated trough or peak cash flows because
+#     the terminal growth was set to a benign 4% even for commodity-
+#     linked sectors that structurally won't grow above the 2.5-3.0%
+#     band at a 10-year horizon. The table prices that in.
+#
+# ═══════════════════════════════════════════════════════════════════
+# Scope (Phase A — tables + helpers; wiring is a follow-up)
+# ═══════════════════════════════════════════════════════════════════
+# This module ships the CALIBRATED VALUES as importable constants
+# and a thin helper API. It deliberately does NOT modify service.py /
+# models/forecaster.py / models/dcf.py read paths. Wiring is deferred
+# to a follow-up PR so the engine impact can be measured against the
+# canary-diff harness as a single change (and so the table values can
+# be cited from documentation pages, /calibration, audit notes, and
+# AI summary prompts in the interim without touching FV).
+#
+# Existing inline TG-lift / WACC-floor blocks in service.py and
+# forecaster.py (Day-84 pharma franchise, Day-92 utility, Day-107a
+# IT services, Day-107b FMCG, Day-107c auto, etc.) remain the
+# authoritative production gates today; the values in those blocks
+# are consistent with the table below (verified in
+# test_sector_wacc_tg_calibrated.py — see
+# ``test_calibrated_values_match_existing_cohort_constants``).
+#
+# ═══════════════════════════════════════════════════════════════════
+# Source — Damodaran India dataset (2026) + AlphaSpread cross-checks
+# ═══════════════════════════════════════════════════════════════════
+# WACC anchors (Indian equity risk premium ~7.5%, risk-free ~7.1%,
+# beta-weighted by sector):
+#
+#   IT Services             11.5%      Banking                 11.8%
+#   NBFC                    12.5%      Insurance               11.2%
+#   FMCG                    10.5%      Pharma                  12.0%
+#   Auto OEMs               13.5%      Auto Components         13.0%
+#   Cement                  13.5%      Metals & Mining         14.5%
+#   Oil & Gas               12.5%      Power & Utilities        9.5%
+#   Telecom                 11.0%      Capital Goods           13.0%
+#   Real Estate / REITs      9.8%      Consumer Discretionary  12.0%
+#   Hotels & Tourism        14.0%      Aviation                16.0%
+#   Construction / Infra    13.0%      Media                   14.5%
+#   Retail                  12.5%      Chemicals               12.5%
+#   Defense PSU             10.5%
+#
+# Terminal-growth anchors (India long-run nominal GDP ~9-10%; mature
+# sector ceilings well below):
+#
+#   IT Services              5.0%      Banking                  5.5%
+#   NBFC                     5.5%      Insurance                6.0%
+#   FMCG (staples)           5.5%      FMCG (tobacco)           3.0%
+#   Pharma (chronic)         5.5%      Pharma (generic US)      4.0%
+#   Auto OEMs                4.5%      Cement                   4.0%
+#   Metals & Mining          3.0%      Oil & Gas                2.5%
+#   Power (regulated)        4.5%      Power (renewable)        6.0%
+#   Telecom                  4.0%      Capital Goods            4.5%
+#   REITs                    4.5%      Hotels & Tourism         5.0%
+#   Defense PSU              5.5%
+#
+# Sub-sector keys are the second-resolution lookup: when a sector
+# alone is too coarse (FMCG → staples vs tobacco; Pharma → chronic
+# vs generic US; Power → regulated vs renewable) the caller passes
+# the sub_sector and the helper returns the more specific value.
+#
+# Sector strings match the canonical labels produced by
+# ``backend/services/analysis/utils._resolve_sector`` (which maps
+# raw yfinance labels through ``SECTOR_OVERRIDES`` /
+# ``TICKER_SECTOR_OVERRIDES`` in constants.py).
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Calibrated WACC by sector (decimal: 0.115 = 11.5%) ───────────
+SECTOR_WACC_CALIBRATED: Final[dict[str, float]] = {
+    "IT": 0.115,
+    "Information Technology": 0.115,
+    "Banking": 0.118,
+    "NBFC": 0.125,
+    "Insurance": 0.112,
+    "FMCG": 0.105,
+    "Pharma": 0.120,
+    "Automobiles": 0.135,
+    "Auto Components": 0.130,
+    "Cement": 0.135,
+    "Metals & Mining": 0.145,
+    "Oil & Gas": 0.125,
+    "Power & Utilities": 0.095,
+    "Telecom": 0.110,
+    "Capital Goods": 0.130,
+    "Real Estate": 0.098,
+    "Consumer Discretionary": 0.120,
+    "Hotels & Tourism": 0.140,
+    "Aviation": 0.160,
+    "Construction": 0.130,
+    "Engineering": 0.130,
+    "Media": 0.145,
+    "Retail": 0.125,
+    "Chemicals": 0.125,
+    "Defense": 0.105,
+    "Financial Services": 0.118,   # fallback when bank/NBFC/insurance is unknown
+}
+
+# ── Calibrated Terminal Growth by sector (decimal: 0.050 = 5.0%) ──
+SECTOR_TERMINAL_GROWTH_CALIBRATED: Final[dict[str, float]] = {
+    "IT": 0.050,
+    "Information Technology": 0.050,
+    "Banking": 0.055,
+    "NBFC": 0.055,
+    "Insurance": 0.060,
+    "FMCG": 0.055,           # default to staples; tobacco sub_sector overrides
+    "Pharma": 0.055,         # default to chronic+branded; generic-US sub_sector overrides
+    "Automobiles": 0.045,
+    "Auto Components": 0.040,
+    "Cement": 0.040,
+    "Metals & Mining": 0.030,
+    "Oil & Gas": 0.025,
+    "Power & Utilities": 0.045,   # default regulated; renewable sub_sector overrides
+    "Telecom": 0.040,
+    "Capital Goods": 0.045,
+    "Real Estate": 0.045,
+    "Consumer Discretionary": 0.050,
+    "Hotels & Tourism": 0.050,
+    "Aviation": 0.035,
+    "Construction": 0.045,
+    "Engineering": 0.045,
+    "Media": 0.035,
+    "Retail": 0.050,
+    "Chemicals": 0.045,
+    "Defense": 0.055,
+    "Financial Services": 0.055,
+}
+
+# ── Sub-sector overrides (key = "sector::sub_sector", lower-cased) ──
+# These trump the sector-only lookup when the caller provides a
+# sub_sector that maps to a structurally different long-run growth
+# / risk profile (e.g. tobacco regulatory headwind, generic-US price
+# erosion, renewable-power demand tailwind).
+SECTOR_WACC_CALIBRATED_BY_SUB: Final[dict[str, float]] = {
+    "fmcg::staples": 0.105,
+    "fmcg::tobacco": 0.105,
+    "pharma::chronic": 0.120,
+    "pharma::branded_generics": 0.120,
+    "pharma::generic_us": 0.130,   # higher beta on US-genx price-erosion exposure
+    "power & utilities::regulated": 0.095,
+    "power & utilities::renewable": 0.105,
+    "automobiles::2w": 0.130,
+    "automobiles::4w": 0.135,
+    "automobiles::cv": 0.140,
+}
+
+SECTOR_TERMINAL_GROWTH_CALIBRATED_BY_SUB: Final[dict[str, float]] = {
+    "fmcg::staples": 0.055,
+    "fmcg::tobacco": 0.030,   # cigarette regulatory headwind
+    "pharma::chronic": 0.055,
+    "pharma::branded_generics": 0.055,
+    "pharma::generic_us": 0.040,
+    "power & utilities::regulated": 0.045,
+    "power & utilities::renewable": 0.060,
+    "automobiles::2w": 0.050,
+    "automobiles::4w": 0.045,
+    "automobiles::cv": 0.040,
+}
+
+
+def _canon_sector(sector: str | None) -> str:
+    """Trim + treat as canonical. Returns '' for None / empty."""
+    if not sector:
+        return ""
+    return str(sector).strip()
+
+
+def _sub_key(sector: str | None, sub_sector: str | None) -> str:
+    """Compose the lookup key for the sub-sector dict (lower-cased)."""
+    if not sector or not sub_sector:
+        return ""
+    return f"{str(sector).strip().lower()}::{str(sub_sector).strip().lower()}"
+
+
+def get_calibrated_wacc(
+    sector: str | None,
+    sub_sector: str | None = None,
+) -> float | None:
+    """Return the T1.3 calibrated WACC for a sector, or ``None`` if
+    no calibration exists.
+
+    Lookup order:
+      1. If ``sub_sector`` is provided, try the
+         ``SECTOR_WACC_CALIBRATED_BY_SUB`` map first
+         (key = ``f"{sector}::{sub_sector}"``, lower-cased). This lets
+         the caller distinguish FMCG-tobacco (10.5%) from FMCG-staples
+         (10.5% — same WACC, different TG), or Pharma-generic-US
+         (13.0% — higher beta on US price erosion) from Pharma-chronic
+         (12.0%).
+      2. Otherwise, ``SECTOR_WACC_CALIBRATED[sector]`` exact match
+         on the canonical sector label.
+      3. Otherwise, ``None`` (caller falls back to CAPM / country
+         default).
+
+    Returns a decimal (0.115 = 11.5%) ready to consume by the DCF
+    engine. Caller is responsible for the ``wacc > terminal_g + 2%``
+    safety guard.
+    """
+    if sub_sector:
+        v = SECTOR_WACC_CALIBRATED_BY_SUB.get(_sub_key(sector, sub_sector))
+        if v is not None:
+            return float(v)
+    canon = _canon_sector(sector)
+    if not canon:
+        return None
+    v = SECTOR_WACC_CALIBRATED.get(canon)
+    if v is None:
+        return None
+    return float(v)
+
+
+def get_calibrated_terminal_growth(
+    sector: str | None,
+    sub_sector: str | None = None,
+) -> float | None:
+    """Return the T1.3 calibrated terminal growth for a sector, or
+    ``None`` if no calibration exists.
+
+    Same lookup order as ``get_calibrated_wacc``:
+      1. Sub-sector key first (e.g. ``fmcg::tobacco`` → 3.0%).
+      2. Sector key (e.g. ``FMCG`` → 5.5% staples default).
+      3. ``None``.
+
+    Returns a decimal (0.055 = 5.5%) ready to consume by the DCF
+    engine. Caller is responsible for the ``terminal_g < wacc - 2%``
+    safety guard.
+    """
+    if sub_sector:
+        v = SECTOR_TERMINAL_GROWTH_CALIBRATED_BY_SUB.get(
+            _sub_key(sector, sub_sector),
+        )
+        if v is not None:
+            return float(v)
+    canon = _canon_sector(sector)
+    if not canon:
+        return None
+    v = SECTOR_TERMINAL_GROWTH_CALIBRATED.get(canon)
+    if v is None:
+        return None
+    return float(v)
