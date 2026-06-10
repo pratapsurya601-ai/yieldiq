@@ -1042,6 +1042,208 @@ def _quarter_label(qe) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────
+# MF Phase 1.5 (2026-06-10): top-MF-holders-by-stock surface.
+#
+# Mirrors the Tickertape "Mutual Funds" panel — for each stock,
+# which mutual funds hold it, how much, and how that moved QoQ.
+#
+# Data dependency (NOT YET LANDED): a ``mf_holdings_by_stock``
+# table populated from monthly AMC factsheet ingestion. Phase 1
+# (PR #248) ingested AMFI NAV + scheme master + funds master, but
+# stock-level holdings disclosure parses from per-AMC factsheet
+# PDFs and is scoped for Phase 2 of the MF pipeline (tracked as
+# PR #250 follow-up).
+#
+# Until that table exists, this endpoint returns a stable empty
+# payload (HTTP 200, never 404 / 500) so the frontend panel can
+# render its "MF holding data refreshes monthly. Check back after
+# AMFI publishes next month's data." empty state without status-
+# code branching. The shape matches what the populated endpoint
+# will return so no client-side migration is needed when the
+# table lands.
+#
+# Public, no auth. 6h CDN cache — MF holdings disclosures are
+# monthly so anything tighter wastes Vercel-edge cycles.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/mf-holdings/{ticker}")
+async def get_mf_holdings(ticker: str):
+    """Top mutual funds holding ``ticker`` + QoQ AUM moves.
+
+    Response shape (stable across populated / empty paths)::
+
+        {
+          "ticker": "RELIANCE",
+          "top_mf_holders": [
+            {"scheme_code": "...",
+             "scheme_name": "HDFC Flexi Cap",
+             "amc": "HDFC Mutual Fund",
+             "aum_in_stock_cr": 1240.0,
+             "pct_of_aum": 4.2,
+             "qoq_change_cr": 80.0,
+             "qoq_change_label": "added"},
+            ...
+          ],
+          "total_mf_holding_cr": 8500.0,
+          "total_mf_holding_pct": 5.8,
+          "net_qoq_change_cr": 500.0,
+          "as_of": "2026-04-30",
+          "available": true
+        }
+
+    When the ``mf_holdings_by_stock`` table is not yet populated
+    (current state — MF Phase 2 of the pipeline has not landed),
+    returns the same shape with ``available=false``, empty
+    ``top_mf_holders`` list, and all aggregate fields ``None``.
+    Frontend renders an empty state from those flags.
+    """
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+    # Cheap defense — symbol whitelist, same shape used elsewhere
+    # in this router. Allow trailing .NS / .BO for callers that
+    # forget to strip the exchange suffix.
+    t = t.replace(".NS", "").replace(".BO", "")
+    if not t.replace("_", "").replace("-", "").replace("&", "").isalnum() or len(t) > 32:
+        raise HTTPException(status_code=400, detail="invalid ticker")
+
+    _cache_key = f"public:mf-holdings:{t}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=43200)
+
+    empty_payload = {
+        "ticker": t,
+        "top_mf_holders": [],
+        "total_mf_holding_cr": None,
+        "total_mf_holding_pct": None,
+        "net_qoq_change_cr": None,
+        "as_of": None,
+        "available": False,
+    }
+
+    rows: list = []
+    aggregates: dict = {}
+    as_of_iso: Optional[str] = None
+    try:
+        db = _get_db_session()
+        if db is None:
+            raise RuntimeError("no DB session")
+        try:
+            from sqlalchemy import text
+            # Probe table existence with a tolerant guard — when the
+            # table doesn't exist yet, the query raises and we fall
+            # through to the documented empty payload. This is the
+            # same pattern funds.py uses for fund_returns_cache.
+            sql = text(
+                """
+                SELECT scheme_code,
+                       scheme_name,
+                       amc,
+                       aum_in_stock_cr,
+                       pct_of_aum,
+                       qoq_change_cr,
+                       as_of_date
+                FROM mf_holdings_by_stock
+                WHERE ticker = :tk
+                ORDER BY aum_in_stock_cr DESC NULLS LAST
+                LIMIT 5
+                """
+            )
+            result = db.execute(sql, {"tk": t}).fetchall()
+            for r in result:
+                rows.append(r)
+
+            agg_sql = text(
+                """
+                SELECT COALESCE(SUM(aum_in_stock_cr), 0)  AS total_cr,
+                       COALESCE(SUM(qoq_change_cr), 0)    AS net_qoq_cr,
+                       MAX(as_of_date)                    AS latest_as_of,
+                       AVG(pct_of_aum_held_by_mfs)        AS total_pct
+                FROM mf_holdings_by_stock
+                WHERE ticker = :tk
+                """
+            )
+            agg_row = db.execute(agg_sql, {"tk": t}).fetchone()
+            if agg_row is not None:
+                aggregates = {
+                    "total_cr": float(agg_row[0]) if agg_row[0] is not None else None,
+                    "net_qoq_cr": float(agg_row[1]) if agg_row[1] is not None else None,
+                    "total_pct": float(agg_row[3]) if agg_row[3] is not None else None,
+                }
+                if agg_row[2] is not None:
+                    try:
+                        as_of_iso = agg_row[2].isoformat() if hasattr(agg_row[2], "isoformat") else str(agg_row[2])
+                    except Exception:
+                        as_of_iso = None
+        finally:
+            _safe_close(db)
+    except Exception as exc:
+        # Expected path while MF Phase 2 of the pipeline is not
+        # live — the table doesn't exist. Log at INFO not WARNING.
+        logger.info(
+            "mf-holdings: table or query unavailable for %s "
+            "(MF Phase 2 may not be live yet): %s", t, exc,
+        )
+        cache.set(_cache_key, empty_payload, ttl=600, version_keyed=False)
+        return _cached_json(empty_payload, s_maxage=600, swr=3600)
+
+    if not rows:
+        cache.set(_cache_key, empty_payload, ttl=21600, version_keyed=False)
+        return _cached_json(empty_payload, s_maxage=21600, swr=43200)
+
+    def _label_change(delta_cr: Optional[float]) -> str:
+        if delta_cr is None:
+            return "unchanged"
+        if delta_cr > 1.0:
+            return "added"
+        if delta_cr < -1.0:
+            return "reduced"
+        return "unchanged"
+
+    def _f(v) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    top_holders = []
+    for r in rows:
+        aum_in_stock = _f(r[3])
+        pct_of_aum = _f(r[4])
+        qoq_change = _f(r[5])
+        as_of = None
+        try:
+            as_of = r[6].isoformat() if hasattr(r[6], "isoformat") else (str(r[6]) if r[6] is not None else None)
+        except Exception:
+            as_of = None
+        top_holders.append({
+            "scheme_code": r[0],
+            "scheme_name": r[1],
+            "amc": r[2],
+            "aum_in_stock_cr": aum_in_stock,
+            "pct_of_aum": pct_of_aum,
+            "qoq_change_cr": qoq_change,
+            "qoq_change_label": _label_change(qoq_change),
+            "as_of": as_of,
+        })
+
+    payload = {
+        "ticker": t,
+        "top_mf_holders": top_holders,
+        "total_mf_holding_cr": aggregates.get("total_cr"),
+        "total_mf_holding_pct": aggregates.get("total_pct"),
+        "net_qoq_change_cr": aggregates.get("net_qoq_cr"),
+        "as_of": as_of_iso,
+        "available": True,
+    }
+    cache.set(_cache_key, payload, ttl=21600, version_keyed=False)
+    return _cached_json(payload, s_maxage=21600, swr=43200)
+
+
+
+# ─────────────────────────────────────────────────────────────────
 # Day-103b (2026-05-22): per-ticker annual-report PDF links.
 #
 # Closes the Screener.in parity gap flagged in the Day-102 audit —
