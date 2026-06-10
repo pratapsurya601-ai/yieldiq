@@ -441,126 +441,16 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       }
       return empty
     })(),
-    (() => {
-      // Sprint A3 (2026-06-09, feat/sprint-a3-analyst-target-reframe):
-      // Reframe the analyst card so it stops reading apologetically when
-      // no broker desk covers the name. Two states:
-      //
-      //   WITH-DATA  -> headline the YieldIQ FV (this product's number),
-      //                 show the Street median right next to it, and let
-      //                 the disagreement BE the insight via the
-      //                 classifyAgreement helper (<5% / 5-15% / >15%).
-      //   NO-DATA    -> keep the "Independent" framing but tighten the
-      //                 copy so it reads confidently. Many of the best
-      //                 opportunities sit outside the coverage universe.
-      //
-      // Both branches stay SEBI-clean: agreement copy routes through
-      // classifyAgreement so vocabulary lives in one place. The richer
-      // rating-distribution / price-target panel below
-      // (AnalystConsensusPanel) still renders in the with-data case and
-      // now carries the same agreement line for users who scroll past
-      // the compact card.
-      const ourFv =
-        valuation && Number.isFinite(valuation.fair_value) ? valuation.fair_value : null
-      const modelConf =
-        valuation && Number.isFinite(valuation.model_confidence_score as number)
-          ? (valuation.model_confidence_score as number)
-          : null
-      if (hasCoverage && analystConsensus) {
-        const cnt = analystConsensus.coverage_count
-        const street =
-          analystConsensus.price_target?.median ?? analystConsensus.price_target?.mean ?? null
-        const ourFmt = ourFv !== null && ourFv > 0 ? formatCurrency(ourFv, currency) : null
-        const streetFmt = street !== null && street > 0 ? formatCurrency(street, currency) : null
-        const agreement = classifyAgreement(ourFv, street)
-        const subBits: string[] = []
-        if (streetFmt) {
-          subBits.push(`Street: ${streetFmt} (${cnt} analyst${cnt !== 1 ? "s" : ""})`)
-        }
-        if (agreement) subBits.push(agreement.short)
-        const confidenceSuffix =
-          modelConf !== null ? `, model confidence ${Math.round(modelConf)}%` : ""
-        // Color + border come from the agreement band so the eye
-        // catches "Street aligns with us" vs "we diverge from the
-        // Street" without reading the subtitle.
-        const borderClass =
-          agreement?.band === "aligned" ? "border-l-blue-500"
-          : agreement?.band === "moderate" ? "border-l-amber-500"
-          : agreement?.band === "diverge" ? "border-l-red-500"
-          : "border-l-border"
-        const valueColor =
-          agreement?.band === "aligned" ? "text-tone-info-fg"
-          : agreement?.band === "moderate" ? "text-tone-warn-fg"
-          : agreement?.band === "diverge" ? "text-tone-bad-fg"
-          : "text-body"
-        return {
-          title: "Analyst Consensus (third-party)",
-          // Value line = YieldIQ first (that is OUR number); Street
-          // shows up in the subtitle alongside the agreement framing.
-          value: ourFmt ? `YieldIQ: ${ourFmt}` : streetFmt ?? "\u2014",
-          subtitle:
-            subBits.length > 0 ? subBits.join(" \u00b7 ") : `DCF base case${confidenceSuffix}`,
-          source: "Source: Finnhub \u2014 reference data only, not investment advice.",
-          freshnessAt: analystConsensus.as_of ?? insights.analyst_target_as_of ?? null,
-          freshnessPrefix: "As of",
-          color: valueColor,
-          icon: "\u{1f3af}",
-          borderColor: borderClass,
-        } as CardData
-      }
-      // Pre-feat/analyst legacy payload that DOES carry a Street number
-      // on the flat insights object -- render the same YieldIQ vs Street
-      // comparison off that field so older cached responses get the
-      // reframe too.
-      const legacyStreet = insights.wall_street_avg_target
-      if (legacyStreet !== null && legacyStreet !== undefined && legacyStreet > 0) {
-        const cnt = insights.wall_street_target_count
-        const ourFmt = ourFv !== null && ourFv > 0 ? formatCurrency(ourFv, currency) : null
-        const streetFmt = formatCurrency(legacyStreet, currency)
-        const agreement = classifyAgreement(ourFv, legacyStreet)
-        const analystCount =
-          cnt !== null && cnt !== undefined && cnt > 0
-            ? `${cnt} analyst${cnt !== 1 ? "s" : ""}`
-            : "Analyst consensus"
-        const subBits: string[] = [`Street: ${streetFmt} (${analystCount})`]
-        if (agreement) subBits.push(agreement.short)
-        const borderClass =
-          agreement?.band === "aligned" ? "border-l-blue-500"
-          : agreement?.band === "moderate" ? "border-l-amber-500"
-          : agreement?.band === "diverge" ? "border-l-red-500"
-          : "border-l-border"
-        return {
-          title: "Analyst Consensus (third-party)",
-          value: ourFmt ? `YieldIQ: ${ourFmt}` : streetFmt,
-          subtitle: subBits.join(" \u00b7 "),
-          source: "Source: Finnhub \u2014 reference data only, not investment advice.",
-          freshnessAt: insights.analyst_target_as_of ?? null,
-          freshnessPrefix: "As of",
-          color: "text-body",
-          icon: "\u{1f3af}",
-          borderColor: borderClass,
-        } as CardData
-      }
-      // Truly no analyst coverage. Reframe as "Independent valuation":
-      // many of the best opportunities sit outside the coverage universe
-      // and broker coverage is not required for YieldIQ to estimate
-      // intrinsic value from first-principles DCF.
-      const ourFmt = ourFv !== null && ourFv > 0 ? formatCurrency(ourFv, currency) : null
-      const confidenceSuffix =
-        modelConf !== null ? `, model confidence ${Math.round(modelConf)}%` : ""
-      const indepSubtitle = ourFmt
-        ? `No third-party analyst coverage. YieldIQ values this name from first-principles DCF \u2014 many of the best opportunities sit outside the coverage universe. YieldIQ: ${ourFmt} (DCF base case${confidenceSuffix}).`
-        : "No third-party analyst coverage. YieldIQ values this name from first-principles DCF \u2014 many of the best opportunities sit outside the coverage universe."
-      return {
-        title: "Analyst Coverage",
-        value: "Independent",
-        subtitle: indepSubtitle,
-        source: "Source: Finnhub \u2014 reference data only, not investment advice.",
-        color: "text-body",
-        icon: "\u{1f3af}",
-        borderColor: "border-l-border",
-      } as CardData
-    })(),
+    // Legacy "Analyst Coverage / Independent" compact card was removed
+    // 2026-06-10 (fix/remove-legacy-independent-analyst-copy). The
+    // AnalystConsensusReframePanel introduced in PR #838 now owns this
+    // surface end-to-end:
+    //   - Wall Street data available -> Wall St avg vs YieldIQ
+    //     side-by-side with gap diagnosis.
+    //   - Wall Street data NOT available -> short empty-state notice.
+    // The deeper rating-distribution / price-target panel
+    // (AnalystConsensusPanel further down this file) still renders in
+    // the with-data case for users who want the full breakdown.
     (() => {
       const deals = insights.bulk_deals ?? []
       const latestDeal = deals.length > 0 ? deals[0] : null

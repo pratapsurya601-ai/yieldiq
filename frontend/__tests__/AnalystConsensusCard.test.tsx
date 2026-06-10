@@ -1,13 +1,16 @@
 /**
  * Sprint A3 (2026-06-09, feat/sprint-a3-analyst-target-reframe).
  *
- * Tests for the reframed analyst consensus card inside <InsightCards/>:
- *   - WITH-DATA: shows Wall St avg + YieldIQ side-by-side, with
- *     the "We agree" / "Our model points X%" / "Our model diverges X%"
- *     agreement line classified by classifyAgreement().
- *   - WITHOUT-DATA: shows the confident "Independent" framing
- *     (covered in InsightCardsEmptyStates.test.tsx; this file adds
- *     direct band tests).
+ * Tests for the reframed analyst consensus surface inside <InsightCards/>:
+ *   - WITH-DATA: AnalystConsensusPanel (richer block, gated on
+ *     coverage_count > 0) shows Wall St avg + YieldIQ side-by-side,
+ *     with the "We agree" / "Our model points X%" / "Our model
+ *     diverges X%" agreement line classified by classifyAgreement().
+ *   - WITHOUT-DATA: NEGATIVE assertions only. The compact
+ *     "Analyst Coverage / Independent" card was removed
+ *     2026-06-10 (fix/remove-legacy-independent-analyst-copy);
+ *     AnalystConsensusReframePanel (PR #838) now owns the
+ *     no-coverage surface on the Valuation tab.
  *   - SEBI: banned vocab MUST NOT appear in the rendered DOM.
  *
  * The card lives inside InsightCards.tsx (no separate
@@ -200,10 +203,11 @@ describe("Analyst card -- with analyst data", () => {
         analystConsensus={withAnalyst(525, 18)}
       />
     )
-    // Compact card subtitle includes "Street: ₹..." + analyst count
-    expect(screen.getAllByText(/Street:/i).length).toBeGreaterThan(0)
+    // The deep AnalystConsensusPanel renders the headline pair plus
+    // the analyst count caption. (The compact "Analyst Coverage"
+    // card that previously also surfaced "Street: <amt>" was removed
+    // 2026-06-10 -- see file header.)
     expect(screen.getAllByText(/18 analysts/i).length).toBeGreaterThan(0)
-    // Panel headline pair labels
     expect(screen.getByText("Wall St avg target")).toBeInTheDocument()
     expect(screen.getByText("YieldIQ fair value")).toBeInTheDocument()
     // Panel renders our FV in INR
@@ -254,9 +258,16 @@ describe("Analyst card -- with analyst data", () => {
 })
 
 // ── Rendered card -- without-data branch ─────────────────────────────
+//
+// The legacy "Analyst Coverage / Independent" compact card was removed
+// 2026-06-10 (fix/remove-legacy-independent-analyst-copy). The Analyst
+// Consensus Reframe Panel (PR #838) on the Valuation tab now owns the
+// no-coverage surface. The tests below pin the removal -- if either
+// assertion regresses, the compact card has resurfaced inside
+// <InsightCards/> and we have a duplicate surface again.
 
 describe("Analyst card -- without analyst data", () => {
-  it("renders the 'Independent valuation' framing + YieldIQ FV", () => {
+  it("no longer renders the legacy 'Independent' compact card when coverage_count is 0", () => {
     render(
       <InsightCards
         quality={QUALITY}
@@ -266,16 +277,14 @@ describe("Analyst card -- without analyst data", () => {
         analystConsensus={{ coverage_count: 0 } as AnalystConsensus}
       />
     )
-    expect(screen.getByText("Independent")).toBeInTheDocument()
-    expect(screen.getByText(/first-principles DCF/i)).toBeInTheDocument()
+    expect(screen.queryByText("Independent")).toBeNull()
+    expect(screen.queryByText("Analyst Coverage")).toBeNull()
     expect(
-      screen.getByText(/many of the best opportunities sit outside the coverage universe/i)
-    ).toBeInTheDocument()
-    // YieldIQ FV is mentioned inside the subtitle (538 from VALUATION_BASE).
-    expect(screen.getByText(/YieldIQ: .*538/i)).toBeInTheDocument()
+      screen.queryByText(/many of the best opportunities sit outside the coverage universe/i)
+    ).toBeNull()
   })
 
-  it("'Independent' framing also fires on legacy payloads with no analyst_consensus field", () => {
+  it("no legacy 'Independent' card on payloads without analyst_consensus either", () => {
     render(
       <InsightCards
         quality={QUALITY}
@@ -284,10 +293,8 @@ describe("Analyst card -- without analyst data", () => {
         currency="INR"
       />
     )
-    expect(screen.getByText("Independent")).toBeInTheDocument()
-    expect(
-      screen.getByText(/many of the best opportunities sit outside the coverage universe/i)
-    ).toBeInTheDocument()
+    expect(screen.queryByText("Independent")).toBeNull()
+    expect(screen.queryByText("Analyst Coverage")).toBeNull()
   })
 })
 
