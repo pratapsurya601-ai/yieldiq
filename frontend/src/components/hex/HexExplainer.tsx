@@ -2,12 +2,21 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   HEX_AXIS_BLURB,
   type HexAxisKey,
   type HexResponse,
 } from "@/lib/hex"
 import { ValueBandChip } from "@/components/hex/ValueBandChip"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import {
+  FADE,
+  FADE_REDUCED,
+  SCALE_IN,
+  SCALE_IN_REDUCED,
+  pickVariants,
+} from "@/lib/motion/variants"
 
 interface HexExplainerProps {
   open: boolean
@@ -39,6 +48,10 @@ export default function HexExplainer({
   data,
   onClose,
 }: HexExplainerProps) {
+  const reduced = useReducedMotion()
+  const backdropVariants = pickVariants(FADE, FADE_REDUCED, reduced)
+  const sheetVariants = pickVariants(SCALE_IN, SCALE_IN_REDUCED, reduced)
+
   // Close on Escape.
   useEffect(() => {
     if (!open) return
@@ -49,7 +62,12 @@ export default function HexExplainer({
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
-  if (!open || !axis) return null
+  if (!axis) {
+    // We still render the AnimatePresence root so the exit animation runs
+    // when `open` flips false on a known axis; bail only when no axis was
+    // ever provided.
+    return null
+  }
 
   const ax = data.axes[axis]
   const median = data.sector_medians?.[axis] ?? null
@@ -71,22 +89,35 @@ export default function HexExplainer({
       : null
 
   return (
+    <AnimatePresence>
+    {open && (
     <div
       className="fixed inset-0 z-50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="hex-explainer-title"
     >
-      {/* Backdrop */}
-      <button
+      {/* Backdrop — fades in/out with FADE variant. Click anywhere on
+          the backdrop to dismiss. */}
+      <motion.button
         type="button"
         aria-label="Close"
         onClick={onClose}
+        variants={backdropVariants}
+        initial="hidden"
+        animate="visible"
+        exit="hidden"
         className="absolute inset-0 bg-black/40"
       />
 
-      {/* Sheet (bottom on mobile, right drawer on md+) */}
-      <div
+      {/* Sheet (bottom on mobile, right drawer on md+).
+          SCALE_IN variant adds a subtle pop-in (0.96 → 1) with the fade
+          on entry. Reduced-motion users get an instant snap-cut. */}
+      <motion.div
+        variants={sheetVariants}
+        initial="hidden"
+        animate="visible"
+        exit="hidden"
         className="
           absolute left-0 right-0 bottom-0 max-h-[85vh]
           md:left-auto md:right-0 md:top-0 md:bottom-0 md:max-h-none md:w-[420px]
@@ -265,7 +296,9 @@ export default function HexExplainer({
             </svg>
           </Link>
         </div>
-      </div>
+      </motion.div>
     </div>
+    )}
+    </AnimatePresence>
   )
 }
