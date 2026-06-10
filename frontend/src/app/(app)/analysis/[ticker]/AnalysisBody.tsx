@@ -83,6 +83,9 @@ import SaveNotePanel from "@/components/analysis/SaveNotePanel"
 import HonestHero from "@/components/analysis/HonestHero"
 import MultiCurrencyFVDisplay from "@/components/analysis/MultiCurrencyFVDisplay"
 import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
+import ScoreVerdictReconcilerCaption, {
+  type ScoreVerdictDivergence as ScoreVerdictDivergenceShape,
+} from "@/components/analysis/ScoreVerdictReconcilerCaption"
 import CompositeCompositionPanel, {
   type CompositeComposition as CompositeCompositionShape,
 } from "@/components/analysis/CompositeCompositionPanel"
@@ -2212,6 +2215,23 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             honestCardTeaser={data.honest_card?.best_estimate ?? null}
           />
         </Reveal>
+
+        {/* ROOT CAUSE #6 (2026-06-10) — score-vs-verdict reconciler caption.
+            Self-hides when signals align. Renders only when the backend
+            stamps `score_verdict_divergence.diverges === true`, e.g. HDFCBANK
+            (YIQ 40, Verdict Undervalued at 90% confidence). The caption
+            explains that the side-rail YIQ Score and the hero Verdict pill
+            measure different things — business quality versus price vs
+            intrinsic value. Sits between HonestHero and the multi-currency
+            FV display so it reads inline with both signals the user just
+            scanned. See backend/services/score_verdict_divergence.py. */}
+        <ScoreVerdictReconcilerCaption
+          divergence={
+            (data as unknown as {
+              score_verdict_divergence?: ScoreVerdictDivergenceShape | null
+            }).score_verdict_divergence ?? null
+          }
+        />
 
         {/* Multi-currency FV display (2026-06-10) — for ADR-listed names
             (INFY, WIPRO, HCLTECH, TCS, etc.) the foreign-investor
