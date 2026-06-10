@@ -2388,6 +2388,58 @@ MANIFEST: list[dict] = [
             "violations under the known-flake exemption."
         ),
     },
+    {
+        # T3.7 Phase A (2026-06-10): Oil & gas reserves-based valuation
+        # service in backend/services/oil_gas_valuation_service.py.
+        # Sector-specific framework for the 11 listed Indian oil & gas
+        # tickers across four structurally different business models:
+        #
+        #   - upstream (ONGC, OIL): reserves NPV — proved + 50%-risked
+        #     probable, discounted over an exponential-decline curve with
+        #     India-specific royalty/cess/income-tax treatment
+        #   - downstream (IOC, BPCL, HPCL): EV/EBITDA on mid-cycle GRM ×
+        #     throughput × utilization (₹/MT via 7.33 bbl/MT conversion)
+        #   - city gas (IGL, MGL, GUJGAS): volume × EBITDA-per-unit at
+        #     a 14× premium multiple reflecting geographic-monopoly
+        #     license value
+        #   - integrated (RELIANCE): SOTP composer summing upstream +
+        #     downstream + petrochem + other segment values net of
+        #     consolidated debt
+        #   - gas transmission (GAIL, PETRONET): routed to downstream-
+        #     style EV/EBITDA in Phase B
+        #
+        # Generic DCF mis-values every one of these — upstream because
+        # the asset base is exhaustible (no perpetuity), downstream
+        # because trailing FCF whipsaws with GRM cycles, city gas
+        # because the regulated-utility premium isn't captured by
+        # cohort P/E medians, and integrated because no single multiple
+        # captures four different segment economics.
+        #
+        # Phase A is standalone — no router wiring, no read-path entry
+        # in the analysis cache shape. Phase B (separate PR) routes the
+        # 11 tickers below through this engine and surfaces the
+        # per-segment breakdown on the analysis page.
+        #
+        # Empty fields list means _field_in_scope() returns False for
+        # any caller's fields_needed iterable, so this entry is
+        # effectively a documentation-only no-op for the read-validity
+        # gate — by design for Phase A.
+        "version_id": "v_t3_7_oil_gas_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "ONGC", "OIL", "IOC", "BPCL", "HPCL", "RELIANCE",
+                "GAIL", "IGL", "MGL", "GUJGAS", "PETRONET",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.7 Phase A — oil & gas reserves valuation service. "
+            "Upstream (reserves NPV), downstream (EV/EBITDA), city gas "
+            "(volume-multiple), integrated SOTP. Phase B routes the 11 "
+            "oil & gas tickers through this engine."
+        ),
+    },
 ]
 
 
