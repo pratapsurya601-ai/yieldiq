@@ -496,7 +496,70 @@ export default function FinancialStatements({ ticker, currency }: Props) {
             {data?.data_source === "yfinance_fallback" && " · source: yfinance"}
           </div>
 
-          <div className="overflow-x-auto -mx-1">
+          {/* Mobile: per-period stacked cards. The desktop table is 460px+
+              wide (label col + 5 year cols), which on a 360px viewport
+              forces a horizontal-scroll affordance the panel never gave.
+              The mobile fallback flips the axis so each period becomes
+              its own card with metric rows inside — readable thumb-first
+              and no horizontal scroll. Mobile audit Issue 5 (P1),
+              mobile-pr-c, 2026-06-10. */}
+          <div
+            className="md:hidden flex gap-3 overflow-x-auto -mx-1 px-1 pb-1"
+            style={{
+              scrollSnapType: "x mandatory",
+              scrollPaddingLeft: "0.25rem",
+            }}
+            data-testid="financials-mobile-cards"
+            role="list"
+            aria-label="Financial statements by period"
+          >
+            {years.map(y => (
+              <div
+                key={y.year + (y.period_end ?? "")}
+                role="listitem"
+                className="flex-shrink-0 w-[80%] max-w-[280px] bg-bg rounded-xl border border-border p-3"
+                style={{ scrollSnapAlign: "start" }}
+              >
+                <div className="text-[11px] font-semibold text-ink mb-2 pb-2 border-b border-border">
+                  {y.year}
+                </div>
+                <dl className="space-y-1.5 text-xs">
+                  {rows.map((row, i) => {
+                    const isSubRow = row.label.startsWith("  ")
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "flex items-baseline justify-between gap-2",
+                          isSubRow && "pl-3",
+                        )}
+                      >
+                        <dt
+                          className={cn(
+                            "text-caption",
+                            isSubRow ? "text-[10px]" : "text-[11px]",
+                            row.emphasis && !isSubRow && "font-semibold text-ink",
+                          )}
+                        >
+                          {row.label.trim()}
+                        </dt>
+                        <dd
+                          className={cn(
+                            "font-mono tabular-nums text-right",
+                            row.emphasis ? "font-semibold text-ink" : "text-body",
+                          )}
+                        >
+                          {row.render(y)}
+                        </dd>
+                      </div>
+                    )
+                  })}
+                </dl>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto -mx-1">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border">

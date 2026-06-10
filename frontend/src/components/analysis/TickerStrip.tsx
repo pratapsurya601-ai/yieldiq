@@ -35,7 +35,12 @@ function deltaClass(change: number): string {
   return "text-body"
 }
 
-/** Single logical cell: label + value + optional % change. */
+/** Single logical cell: label + value + optional % change.
+ *
+ * Mobile audit Issue 8 (P2): the strip is a horizontal scroller without
+ * snap, and individual chips render under the 44px iOS minimum touch
+ * target. Each cell becomes a snap-aligned chip with min-h-[44px] so
+ * tap/scroll feels intentional on phones. mobile-pr-c, 2026-06-10. */
 function Cell({
   label,
   value,
@@ -46,7 +51,10 @@ function Cell({
   change?: number | null
 }) {
   return (
-    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap min-h-[44px] py-2"
+      style={{ scrollSnapAlign: "start" }}
+    >
       <span className="font-semibold text-bg">{label}</span>
       {value && <span className="tabular-nums text-body">{value}</span>}
       {change !== null && change !== undefined && (
@@ -134,11 +142,28 @@ export default function TickerStrip() {
 
   return (
     <div
-      className="w-full bg-ink text-body border-b border-border font-mono text-[11px] tracking-wide"
+      className="w-full bg-ink text-body border-b border-border font-mono text-[11px] tracking-wide relative"
       role="region"
       aria-label="Market indices and watchlist"
     >
-      <div className="max-w-screen-xl mx-auto overflow-x-auto whitespace-nowrap px-4 py-1.5 flex items-center">
+      {/* Edge fade overlays — give the horizontal scroller a clear
+          "more content this way" affordance on phones. Mobile audit
+          Issue 8 (P2), mobile-pr-c, 2026-06-10. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-6 z-10 bg-gradient-to-r from-ink to-transparent"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 w-6 z-10 bg-gradient-to-l from-ink to-transparent"
+      />
+      <div
+        className="max-w-screen-xl mx-auto overflow-x-auto whitespace-nowrap px-4 flex items-center"
+        style={{
+          scrollSnapType: "x mandatory",
+          scrollPaddingLeft: "1rem",
+        }}
+      >
         <span className="font-semibold text-caption mr-3 uppercase tracking-[0.15em]">Indices</span>
         {indexOrder.map((name, i) => {
           const hit = byName.get(name)
