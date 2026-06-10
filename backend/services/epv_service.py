@@ -277,24 +277,33 @@ def is_epv_applicable(
     ``reason`` string is human-readable and intended to be surfaced
     on the analysis page ("EPV not applicable: <reason>").
 
-    Rules:
-      * Need at least ``_MIN_HISTORY_YEARS`` of history.
-      * Persistently loss-making businesses → not applicable.
+    Rules (checked in this order — the COHORT gate runs FIRST so a
+    bank / insurer / REIT short-circuits with the correct copy even
+    when its `revenue_history` array is empty on the cached payload):
       * Banks / insurers → use insurance_appraisal_service or
-        bank cohort path.
+        bank cohort path (sector check FIRST so HDFCBANK et al.
+        surface the right reason rather than "insufficient history
+        (0 years)" — the bank cohort intentionally feeds the EPV
+        adapter empty arrays since EPV is the wrong framework).
       * REITs / regulated utilities → use the regulated_utility
         or realty_valuation services.
+      * Need at least ``_MIN_HISTORY_YEARS`` of history.
+      * Persistently loss-making businesses → not applicable.
       * Pure cyclicals at cycle extremes: NOT gated here (we have
         no robust cycle-position detector). The caller's responsibility
         is to feed a full-cycle history.
+
+    Order-of-checks rationale (P0 fix 2026-06-11): the bank-cohort
+    path doesn't populate `computation_inputs.epv.revenue_history`
+    because banks have NII not revenue — the EPV adapter input on
+    those tickers is empty by construction. The PREVIOUS implementation
+    short-circuited on "insufficient history (0 years; need at least
+    5)" before ever reaching the sector check, which surfaced an
+    incorrect reason on HDFCBANK / ICICIBANK / SBIN ("HDFCBANK is a
+    30+ year listed bank with 30+ years of history — the bank cohort
+    just doesn't feed EPV"). Reordering: the sector check now runs
+    first so the right framework reason wins.
     """
-    if revenue_history_years < _MIN_HISTORY_YEARS:
-        return False, (
-            f"insufficient history ({revenue_history_years} years; "
-            f"need at least {_MIN_HISTORY_YEARS})"
-        )
-    if has_negative_earnings:
-        return False, "persistently loss-making (no earnings to capitalise)"
     sec = _normalize_sector(sector)
     if sec in _BANK_SECTORS:
         return False, "banks use the financial-cohort path, not EPV"
@@ -302,6 +311,13 @@ def is_epv_applicable(
         return False, "insurers use appraisal-value / embedded-value, not EPV"
     if sec in _REIT_UTILITY_SECTORS:
         return False, "regulated returns understate fair value under EPV"
+    if revenue_history_years < _MIN_HISTORY_YEARS:
+        return False, (
+            f"insufficient history ({revenue_history_years} years; "
+            f"need at least {_MIN_HISTORY_YEARS})"
+        )
+    if has_negative_earnings:
+        return False, "persistently loss-making (no earnings to capitalise)"
     return True, "ok"
 
 

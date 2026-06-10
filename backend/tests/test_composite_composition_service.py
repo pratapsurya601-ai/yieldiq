@@ -356,3 +356,180 @@ class TestRealWorldFixtures:
         assert "three_stage" in result.outliers
         ts_row = next(r for r in result.estimators if r.key == "three_stage")
         assert ts_row.is_outlier is True
+
+
+class TestSectorSpecificRow:
+    """P0 2026-06-11 — sector_specific FV emitted as 8th row above DCF."""
+
+    def test_no_sector_specific_keeps_seven_rows(self):
+        # Baseline — no sector-specific FV, panel stays at 7 rows.
+        payload = {
+            "valuation": {"fair_value": 1000.0},
+            "multiples_based_fv": 1100.0,
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        assert len(result.estimators) == 7
+        assert result.estimators_total == 7
+        # No sector_specific key present.
+        assert all(r.key != "sector_specific" for r in result.estimators)
+
+    def test_sector_specific_appears_as_eighth_row(self):
+        # Bank Residual Income — HDFCBANK-shaped: DCF skipped (FCF non-
+        # positive), Multiples present via P/B fallback, sector engine
+        # populates with Bank Residual Income.
+        payload = {
+            "valuation": {"fair_value": None, "current_price": 1900.0},
+            "multiples_based_fv": 1180.0,
+            "probability_weighted_fv": 1189.40,
+            "sector_specific_fv": 1800.0,
+            "sector_specific_label": "bank_residual_income",
+            "dcf_reason": "base_year_fcf_non_positive",
+            "ddm_reason": "payout_ratio 26% < 30%",
+            "epv_reason": "banks use the financial-cohort path, not EPV",
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        # 7 canonical + 1 sector-specific.
+        assert len(result.estimators) == 8
+        assert result.estimators_total == 8
+        # sector_specific row is the first one rendered.
+        first = result.estimators[0]
+        assert first.key == "sector_specific"
+        assert first.applicable is True
+        assert first.value == 1800.0
+        # Label / description come from the per-sector map.
+        assert "Bank Residual Income" in first.label
+        # Available count includes the sector slot + multiples + prob-
+        # weighted (DCF / DDM / EPV / Wall St / Three-stage / Analyst
+        # are inapplicable for this fixture).
+        assert result.estimators_available == 3
+
+    def test_unknown_sector_label_falls_back_to_generic_copy(self):
+        payload = {
+            "valuation": {"fair_value": 1000.0},
+            "sector_specific_fv": 1234.0,
+            "sector_specific_label": "made_up_engine_2099",
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        first = result.estimators[0]
+        assert first.key == "sector_specific"
+        # Generic fallback label used.
+        assert "Sector-specific" in first.label
+
+    def test_sector_specific_weight_pulled_from_components_when_present(self):
+        # When composite_components carries the sector slot, the panel
+        # uses its effective weight verbatim.
+        payload = {
+            "valuation": {"fair_value": 1141.82},
+            "multiples_based_fv": 1180.0,
+            "sector_specific_fv": 1800.0,
+            "sector_specific_label": "bank_residual_income",
+        }
+        composite_components = {
+            "components": {
+                "sector_specific": {"value": 1800.0, "weight": 0.45},
+                "dcf": {"value": 1141.82, "weight": 0.22},
+                "multiples": {"value": 1180.0, "weight": 0.18},
+            },
+            "method": "sector_bank_residual_income_composite_3_method",
+            "sector_specific_label": "bank_residual_income",
+        }
+        result = build_composite_composition(
+            payload, composite_components=composite_components,
+        )
+        ss = next(r for r in result.estimators if r.key == "sector_specific")
+        assert ss.weight_effective == pytest.approx(0.45, abs=0.001)
+
+
+class TestEPVBankCohortReasonOverlay:
+    """P0 2026-06-11 — EPV 'insufficient history' rewritten on bank cohort."""
+
+    def test_bank_payload_with_stale_history_reason_gets_rewritten(self):
+        # Legacy cached payload — EPV inject ran the old gate order and
+        # stamped "insufficient history (0 years; need at least 5)" on
+        # a bank ticker. The composition panel rewrites the reason to
+        # the bank-cohort framework copy.
+        payload = {
+            "valuation": {"fair_value": 1141.82},
+            "quality": {"is_bank": True},
+            "epv_reason": "insufficient history (0 years; need at least 5)",
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        epv_row = next(r for r in result.estimators if r.key == "epv")
+        assert epv_row.applicable is False
+        assert epv_row.reason is not None
+        assert "Residual Income" in epv_row.reason
+        assert "insufficient history" not in epv_row.reason.lower()
+
+    def test_bank_sector_string_match_when_is_bank_flag_absent(self):
+        # Even older cached payload — no is_bank flag, only sector.
+        payload = {
+            "valuation": {"fair_value": 1141.82},
+            "company": {"sector": "Banking"},
+            "epv_reason": "insufficient_history",
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        epv_row = next(r for r in result.estimators if r.key == "epv")
+        assert epv_row.applicable is False
+        assert "Residual Income" in (epv_row.reason or "")
+
+    def test_non_bank_keeps_history_reason_untouched(self):
+        # A regular non-bank ticker that legitimately doesn't have
+        # enough history (e.g. recent IPO) keeps the original reason.
+        payload = {
+            "valuation": {"fair_value": 1000.0},
+            "company": {"sector": "Information Technology"},
+            "epv_reason": "insufficient history (2 years; need at least 5)",
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        epv_row = next(r for r in result.estimators if r.key == "epv")
+        assert epv_row.applicable is False
+        assert "insufficient history" in (epv_row.reason or "").lower()
+        assert "Residual Income" not in (epv_row.reason or "")
+
+
+class TestHDFCBANKEndToEnd:
+    """End-to-end HDFCBANK shape: 5 of 8 estimators populated."""
+
+    def test_hdfcbank_post_phase_b_renders_eight_rows_minimum_four_applicable(self):
+        # Approximate HDFCBANK shape after the Phase-B inject chain
+        # populates sector_specific_fv. The composition panel now reads:
+        #   - sector_specific (Bank Residual Income) ₹1,800 — applicable
+        #   - DCF — skipped (base_year_fcf_non_positive)
+        #   - Multiples ₹1,180 — applicable (P/B fallback)
+        #   - Three-stage — skipped (base_year_fcf_non_positive)
+        #   - Wall St — skipped (no broker coverage)
+        #   - DDM — skipped (payout 26% < 30%)
+        #   - EPV — skipped (banks use Residual Income, not EPV)
+        #   - Probability-weighted ₹1,189.40 — applicable
+        #
+        # That's 3 applicable canonical + 1 sector_specific = 4 of 8.
+        payload = {
+            "valuation": {"fair_value": None, "current_price": 1900.0},
+            "multiples_based_fv": 1180.0,
+            "probability_weighted_fv": 1189.40,
+            "sector_specific_fv": 1800.0,
+            "sector_specific_label": "bank_residual_income",
+            "quality": {"is_bank": True},
+            "dcf_reason": "base_year_fcf_non_positive",
+            "three_stage_reason": "base_year_fcf_non_positive",
+            "ddm_reason": "payout_ratio 26% < 30%",
+            "epv_reason": "insufficient history (0 years; need at least 5)",
+        }
+        result = build_composite_composition(payload, composite_components=None)
+        # 8-row total — the canonical 7 plus the sector-specific Bank
+        # Residual Income row.
+        assert len(result.estimators) == 8
+        assert result.estimators_total == 8
+        # At least 3 estimators applicable (sector + multiples + prob-wt).
+        assert result.estimators_available >= 3
+        # The EPV reason is rewritten away from the stale "insufficient
+        # history" toward the bank-cohort framework copy.
+        epv_row = next(r for r in result.estimators if r.key == "epv")
+        assert "Residual Income" in (epv_row.reason or "")
+        # The sector-specific Bank Residual Income row carries the right
+        # label so the user can see the engine name.
+        ss_row = next(
+            r for r in result.estimators if r.key == "sector_specific"
+        )
+        assert "Bank Residual Income" in ss_row.label
+        assert ss_row.value == 1800.0

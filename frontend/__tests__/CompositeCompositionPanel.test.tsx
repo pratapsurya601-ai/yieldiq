@@ -292,6 +292,152 @@ describe("CompositeCompositionPanel — outlier flag", () => {
 })
 
 
+describe("CompositeCompositionPanel — sector-specific 8-row variant", () => {
+  function hdfcbankSectorSpecificComposition(): CompositeComposition {
+    // The backend now emits an 8th row (Bank Residual Income) above the
+    // canonical 7 when sector_specific_fv is populated. Total denominator
+    // shifts from 7 to 8 so the user reads "4 of 8 estimators populated"
+    // honestly — the panel surfaces the domain engine alongside the
+    // headline estimators.
+    return {
+      estimators: [
+        row("sector_specific", "Sector-specific (Bank Residual Income)", {
+          value: 1800.0,
+          weight_nominal: 0.40,
+          weight_effective: 0.45,
+          contribution: 810.0,
+          description:
+            "Bank residual-income model — NII, CASA, PCR, GNPA-aware",
+        }),
+        row("dcf", "DCF", {
+          value: null,
+          applicable: false,
+          weight_effective: 0,
+          contribution: null,
+          reason: "base_year_fcf_non_positive",
+        }),
+        row("multiples", "Peer multiples", {
+          value: 1180.0,
+          weight_nominal: 0.20,
+          weight_effective: 0.20,
+          contribution: 236.0,
+        }),
+        row("three_stage", "Three-stage DCF", {
+          value: null,
+          applicable: false,
+          weight_effective: 0,
+          contribution: null,
+          reason: "base_year_fcf_non_positive",
+        }),
+        row("analyst", "Wall St analyst", {
+          value: null,
+          applicable: false,
+          weight_effective: 0,
+          contribution: null,
+          reason: "No broker coverage on this ticker",
+        }),
+        row("ddm", "Dividend discount", {
+          value: null,
+          applicable: false,
+          weight_effective: 0,
+          contribution: null,
+          reason: "payout_ratio 26% < 30%",
+        }),
+        row("epv", "Earnings Power Value", {
+          value: null,
+          applicable: false,
+          weight_effective: 0,
+          contribution: null,
+          reason:
+            "Not applicable for banks — financial cohort uses Residual Income, not EPV",
+        }),
+        row("probability_weighted", "Probability-weighted", {
+          value: 1189.4,
+          weight_nominal: 0.05,
+          weight_effective: 0.05,
+          contribution: 59.47,
+        }),
+      ],
+      estimators_available: 3,
+      estimators_total: 8,
+      confidence_label: "LOW",
+      confidence_caption:
+        "3 of 8 estimators populated — LOW confidence; composite reduces toward best-available estimators",
+      outliers: [],
+      composite_value: 1500.0,
+    }
+  }
+
+  it("renders the 8th sector-specific row when populated", () => {
+    render(
+      <CompositeCompositionPanel
+        composition={hdfcbankSectorSpecificComposition()}
+        ticker="HDFCBANK"
+        currency="INR"
+      />,
+    )
+    const sectorRow = screen.getByTestId(
+      "composite-composition-row-sector_specific",
+    )
+    expect(sectorRow).toBeInTheDocument()
+    expect(sectorRow).toHaveAttribute("data-applicable", "true")
+    expect(sectorRow).toHaveTextContent("Bank Residual Income")
+  })
+
+  it("renders the headline with the 8-estimator denominator", () => {
+    render(
+      <CompositeCompositionPanel
+        composition={hdfcbankSectorSpecificComposition()}
+        ticker="HDFCBANK"
+        currency="INR"
+      />,
+    )
+    const headline = screen.getByTestId("composite-composition-headline")
+    expect(headline).toHaveTextContent("3 of 8 estimators")
+  })
+
+  it("renders the EPV row with the bank-cohort reason rather than 'insufficient history'", () => {
+    render(
+      <CompositeCompositionPanel
+        composition={hdfcbankSectorSpecificComposition()}
+        ticker="HDFCBANK"
+        currency="INR"
+      />,
+    )
+    const epv = screen.getByTestId("composite-composition-row-epv")
+    expect(epv).toHaveTextContent("Residual Income")
+    expect((epv.textContent ?? "").toLowerCase()).not.toContain(
+      "insufficient history",
+    )
+  })
+
+  it("renders the DCF row as skipped with the FCF reason copy", () => {
+    render(
+      <CompositeCompositionPanel
+        composition={hdfcbankSectorSpecificComposition()}
+        ticker="HDFCBANK"
+        currency="INR"
+      />,
+    )
+    const dcf = screen.getByTestId("composite-composition-row-dcf")
+    expect(dcf).toHaveAttribute("data-applicable", "false")
+    expect(dcf).toHaveTextContent("base_year_fcf_non_positive")
+  })
+
+  it("renders the 8-row total reconciliation row", () => {
+    render(
+      <CompositeCompositionPanel
+        composition={hdfcbankSectorSpecificComposition()}
+        ticker="HDFCBANK"
+        currency="INR"
+      />,
+    )
+    const total = screen.getByTestId("composite-composition-total")
+    expect(total).toHaveTextContent("3 of 8")
+  })
+})
+
+
 describe("CompositeCompositionPanel — SEBI vocabulary guard", () => {
   it("renders no banned advisory vocabulary on the happy path", () => {
     const composition = hdfcbankShapeComposition()
