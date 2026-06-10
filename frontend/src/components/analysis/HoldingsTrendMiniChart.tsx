@@ -107,9 +107,9 @@ function fmtPp(delta: number | null): string {
   return `${sign}${delta.toFixed(1)}pp`
 }
 
-/** Phrase a delta in compliant, non-recommendation language.
- *  Avoids SEBI banned vocab (no "accumulate", "buy", "sell", etc.) —
- *  we describe the move, not opinions about it. */
+/** Phrase a delta in compliant, advice-neutral language.
+ *  Avoids the SEBI banned-vocab list — we describe the move (rose /
+ *  fell / little changed) rather than render an opinion about it. */
 function trendPhrase(label: string, delta: number | null, quarters: number): string {
   if (delta == null) return `${label}: history incomplete`
   const span = quarters >= 2 ? `over ${quarters} quarters` : ""

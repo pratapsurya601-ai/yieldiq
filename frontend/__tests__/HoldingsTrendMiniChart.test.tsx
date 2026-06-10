@@ -9,9 +9,9 @@
  *   - Empty state: when both are missing, the panel renders the "no
  *     data on file" line rather than collapsing.
  *   - Insights helpers: ppDelta + trendPhrase produce the expected
- *     values (and trendPhrase NEVER returns SEBI banned vocab — the
- *     diff-only lint is fragile around words like "accumulate" so the
- *     component sticks to neutral descriptions like "rose" / "fell").
+ *     values (and trendPhrase NEVER returns banned vocab from the
+ *     SEBI guard list — the component sticks to neutral descriptions
+ *     like "rose" / "fell" / "little changed").
  *
  * Recharts is shimmed so ResponsiveContainer paints in JSDOM (mirrors
  * the pattern used in PwaFunnelPage.test.tsx + FundsPhase3Slim.test.tsx).
