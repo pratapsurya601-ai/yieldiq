@@ -3241,6 +3241,90 @@ MANIFEST: list[dict] = [
             "Additive field only."
         ),
     },
+    {
+        # Phase B mega-wiring (2026-06-10) — route all 14 standalone
+        # sector engines through composite_iv_service. Phase A landed
+        # the engines as stand-alone services that were imported
+        # NOWHERE from the analysis pipeline; this entry records the
+        # PR that actually wires them into composite_intrinsic_value so
+        # routed tickers get the specialized math instead of generic
+        # DCF + Multiples + Wall St only.
+        #
+        # 13 sector-primary engines (replace DCF for routed tickers as
+        # the dominant weighting slot — 0.40 sector + 0.20 DCF + 0.15
+        # Multiples + 0.10 Analyst + Phase-C estimators):
+        #   * NBFC ROA tree          — BAJFINANCE, CHOLAFIN, MUTHOOTFIN,
+        #                              MANAPPURAM, M&MFIN, SHRIRAMFIN,
+        #                              LICHSGFIN, LTFH, IIFL, HDFCAMC, …
+        #   * Insurance EV+VNB       — HDFCLIFE, ICICIPRULI, SBILIFE,
+        #                              MAXFIN, LICI
+        #   * Pharma pipeline rNPV   — SUNPHARMA, DRREDDY, BIOCON
+        #                              (gated on curated seed data)
+        #   * Telecom ARPU DCF       — BHARTIARTL, VODAFONEIDEA,
+        #                              BHARTIHEXA, INDUSTOWER
+        #   * Oil & Gas SOTP         — ONGC, OIL, IOC, BPCL, HPCL,
+        #                              GAIL, IGL, MGL, RELIANCE (integrated)
+        #   * Auto OEM cycle         — MARUTI, TATAMOTORS, M&M,
+        #                              BAJAJ-AUTO, EICHERMOT, ASHOKLEY, …
+        #   * Cement utilization     — ULTRACEMCO, SHREECEM, AMBUJACEM,
+        #                              ACC, DALBHARAT, JKCEMENT, …
+        #   * Steel cost-curve       — TATASTEEL, JSWSTEEL, SAIL,
+        #                              JINDALSTEL, HINDALCO, VEDL, …
+        #   * RE developer NAV       — DLF, GODREJPROP, OBEROIRLTY,
+        #                              PRESTIGE, BRIGADE, …
+        #   * Consumer durables WC   — HAVELLS, VOLTAS, CROMPTON,
+        #                              SYMPHONY, WHIRLPOOL, …
+        #   * Media subscriber LTV   — ZEEL, PVRINOX, SAREGAMA, SUNTV
+        #   * Logistics freight      — BLUEDART, CONCOR, SCI, MAHLOG,
+        #                              GATI, …
+        #   * Holdco SOTP            — BAJAJHLDNG, TATAINVEST, MAHSCOOTER,
+        #                              GRASIM, PILANIINVS, …
+        #
+        # 2 overlay engines (apply multiplier on the composite AFTER
+        # the weighted average; bounded [0.70, 1.30] defensively):
+        #   * IT services overlay     — TCS, INFY, WIPRO, HCLTECH,
+        #                              TECHM, LTIM, PERSISTENT, COFORGE,
+        #                              MPHASIS, …
+        #   * Utilities maintenance   — POWERGRID, NTPC and other
+        #                              UTILITIES_TICKERS members.
+        #
+        # Composite weight scheme when sector_specific_fv present:
+        #   sector_specific = 0.40  (primary)
+        #   dcf             = 0.20
+        #   multiples       = 0.15
+        #   analyst         = 0.10
+        #   three_stage     = 0.10
+        #   ddm             = 0.025
+        #   epv             = 0.025
+        #   probability_weighted = 0.00  (excluded from with-sector scheme)
+        # Pro-rata renormalization runs the same as the headline path
+        # when any estimator is missing.
+        #
+        # `fair_value` (DCF-only) stays byte-identical — only
+        # `composite_intrinsic_value` and `composite_components` shift.
+        # Scope is `*` because we cannot enumerate the full ~80
+        # routed-ticker universe without a manual cross-product of all
+        # 14 ticker registries. Field scope is precise.
+        "version_id": "v_phase_b_sector_routing_mega_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "composite_intrinsic_value",
+                "composite_components",
+            ],
+        },
+        "rationale": (
+            "Phase B mega-wiring — 14 sector engines now actually route "
+            "their tickers through composite_iv_service (was Phase A "
+            "standalone, dormant: imported nowhere from analysis). "
+            "Weights re-balanced when sector-specific FV available "
+            "(DCF 0.20 + Multiples 0.15 + Analyst 0.10 + Sector 0.40 "
+            "+ Three-stage 0.10 + DDM/EPV 0.05). Overlay engines (IT "
+            "services, utilities maintenance) apply a clamped multiplier "
+            "to composite. `fair_value` field byte-identical (DCF-only)."
+        ),
+    },
 ]
 
 
