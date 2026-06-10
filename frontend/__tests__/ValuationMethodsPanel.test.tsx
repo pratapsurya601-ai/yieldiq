@@ -280,15 +280,65 @@ describe("ValuationMethodsPanel — render coverage", () => {
 
   it("renders the method tag text for rows that carry one", () => {
     render(<ValuationMethodsPanel data={fullyPopulatedPayload()} />)
-    // three_stage_method = "explicit_fade" -> prettified to "explicit fade"
+    // three_stage_method = "explicit_fade" — unmapped, falls back to
+    // title-cased word-split: "Explicit Fade".
     const threeStageMethodTag = screen.getByTestId(
       "valuation-method-three_stage-method-tag",
     )
-    expect(threeStageMethodTag.textContent ?? "").toMatch(/explicit fade/)
+    expect(threeStageMethodTag.textContent ?? "").toMatch(/Explicit Fade/)
 
-    // ddm_method = "two_stage" -> "two stage"
+    // ddm_method = "two_stage" — unmapped, title-case fallback: "Two Stage".
     const ddmMethodTag = screen.getByTestId("valuation-method-ddm-method-tag")
-    expect(ddmMethodTag.textContent ?? "").toMatch(/two stage/)
+    expect(ddmMethodTag.textContent ?? "").toMatch(/Two Stage/)
+  })
+
+  it("renders the curated humanized label for known composite tags", () => {
+    // composite_components.method = "bank_composite_2_method" must NOT
+    // render as "bank composite 2 method" (underscores stripped only) —
+    // the curated METHOD_LABELS table maps it to a human-readable name.
+    const payload = basePayload({
+      composite_intrinsic_value: 1200,
+      composite_components: { method: "bank_composite_2_method" },
+    })
+    render(<ValuationMethodsPanel data={payload} />)
+    const tag = screen.getByTestId("valuation-method-composite-method-tag")
+    expect(tag.textContent ?? "").toMatch(/Bank Composite \(2-method\)/)
+    // The raw underscore-stripped form must NOT be present.
+    expect(tag.textContent ?? "").not.toMatch(/bank composite 2 method/)
+  })
+
+  it("humanizes every curated METHOD_LABELS entry consistently", () => {
+    // Spot-check a few more entries so a future edit to the table that
+    // accidentally drops these keys is caught.
+    const cases: Array<[string, RegExp]> = [
+      [
+        "composite_dcf_multiples_analyst",
+        /Composite \(DCF × Multiples × Wall St\)/,
+      ],
+      ["holdco_dcf_only", /Holdco — DCF only/],
+      ["dcf_only", /DCF only/],
+      ["multiples_only", /Multiples only/],
+      ["analyst_only", /Wall Street consensus only/],
+      ["unavailable", /Unavailable/],
+    ]
+    for (const [tag, expected] of cases) {
+      const { unmount } = render(
+        <ValuationMethodsPanel
+          data={basePayload({
+            composite_intrinsic_value: 1200,
+            composite_components: { method: tag },
+          })}
+        />,
+      )
+      const node = screen.getByTestId(
+        "valuation-method-composite-method-tag",
+      )
+      expect(
+        expected.test(node.textContent ?? ""),
+        `expected "${tag}" to render as ${expected.source}, got: ${node.textContent}`,
+      ).toBe(true)
+      unmount()
+    }
   })
 })
 
