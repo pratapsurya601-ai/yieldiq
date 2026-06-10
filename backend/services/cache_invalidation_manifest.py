@@ -379,6 +379,33 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # News ↔ Fair Value correlation panel (2026-06-10) — novel surface
+        # that links material FV history deltas to news headlines published
+        # within ±7 days. Lives at
+        #   backend/services/news_fv_correlation_service.py
+        #   GET /api/v1/public/news-fv-correlation/{ticker}
+        #   frontend/src/components/analysis/NewsFvCorrelationPanel.tsx
+        # Purely additive: reads fair_value_history (no writes) and the
+        # existing yfinance news pipeline. Never feeds FV / scoring /
+        # verdict. scope.fields=[] documents that no cached engine field
+        # changes its output as a result of this PR; downstream gates
+        # (cache_version_check, fair_value_history_gate, canary_diff)
+        # do not need to invalidate anything. scope.tickers="*" because
+        # the panel is universally available on every analysis page.
+        "version_id": "v_news_fv_correlation_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "News ↔ FV correlation panel — surfaces 'Last week's news "
+            "drove FV from ₹X to ₹Y because [headline]' linkage on "
+            "every analysis page. Read-only additive surface; no "
+            "FV / verdict / scoring change."
+        ),
+    },
+    {
         # Implied-Assumptions extension (2026-06-10) — AlphaSpread-style
         # "what does the market expect at the current price?" framing
         # added on top of backend/services/reverse_dcf_service.py via
