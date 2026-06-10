@@ -241,6 +241,104 @@ export const postAIExplain = (
     .post(`/api/v1/public/ai-explain`, { ticker, preset_id })
     .then(r => r.data)
 
+// ── AI Chat (T6.2 Phase A) ────────────────────────────────────
+// Multi-turn streaming chat panel on the analysis page. Backend
+// emits an SSE stream of {delta, done} JSON events; this helper
+// uses fetch() (NOT axios — axios doesn't surface a streaming body)
+// and yields each parsed event to the caller's onDelta callback.
+//
+// Why a hand-rolled streaming helper instead of EventSource: we
+// need POST with a JSON body (the message history). EventSource only
+// supports GET. So we stream the response body and parse "data:" lines
+// ourselves. Same wire shape — identical from the browser's POV.
+export interface ChatMessage {
+  role: "user" | "assistant"
+  content: string
+}
+
+export interface ChatStreamEvent {
+  delta: string
+  done: boolean
+  source?: string
+  event?: string
+  error?: string
+}
+
+export interface PostChatStreamArgs {
+  ticker: string
+  messages: ChatMessage[]
+  onEvent: (ev: ChatStreamEvent) => void
+  signal?: AbortSignal
+}
+
+export async function postChatStream(args: PostChatStreamArgs): Promise<void> {
+  const token = Cookies.get("yieldiq_token")
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Accept": "text/event-stream",
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const url = `${API_BASE}/api/v1/analysis/${encodeURIComponent(args.ticker)}/chat`
+  const resp = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      ticker: args.ticker,
+      messages: args.messages,
+    }),
+    signal: args.signal,
+  })
+
+  if (!resp.ok) {
+    // 429 -> daily limit; everything else -> generic failure. Caller
+    // checks ev.error / HTTP status to decide whether to surface a
+    // retry CTA or an upgrade CTA.
+    const text = await resp.text().catch(() => "")
+    const err = new Error(
+      `chat stream failed: ${resp.status} ${text.slice(0, 200)}`,
+    ) as Error & { status?: number }
+    err.status = resp.status
+    throw err
+  }
+
+  const reader = resp.body?.getReader()
+  if (!reader) {
+    throw new Error("chat stream: no response body")
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    // SSE events are separated by a blank line. Parse line-by-line
+    // and dispatch on completed events; keep the trailing partial
+    // event in the buffer for the next read.
+    let idx: number
+    while ((idx = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, idx)
+      buffer = buffer.slice(idx + 2)
+      for (const line of block.split("\n")) {
+        if (!line.startsWith("data:")) continue
+        const payload = line.slice("data:".length).trim()
+        if (!payload) continue
+        try {
+          const ev = JSON.parse(payload) as ChatStreamEvent
+          args.onEvent(ev)
+          if (ev.done) return
+        } catch {
+          // Ignore malformed event — the next read might bring
+          // a clean one. Logging would be too noisy.
+        }
+      }
+    }
+  }
+}
+
 // Coverage Tier (feat/coverage-tier-system) — returns the full A/B/C
 // rubric breakdown. Backed by a 6h server cache; pass refresh=true only
 // for admin/methodology tooling.

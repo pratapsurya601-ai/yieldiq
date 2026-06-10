@@ -975,6 +975,12 @@ app.include_router(eli15_thesis_router.router)
 #   POST /api/v1/public/ai-explain  { ticker, preset_id }
 from backend.routers import ai_explain as ai_explain_router
 app.include_router(ai_explain_router.router)
+# T6.2 Phase A — multi-turn streaming chat panel on the analysis
+# page. SSE stream of {delta, done} JSON events; same SEBI filter
+# and tier counter as ai_explain.
+#   POST /api/v1/analysis/{ticker}/chat
+from backend.routers import chat as chat_router
+app.include_router(chat_router.router)
 # Phase I-frontend (Block II): bank-specific operational KPIs for
 # the PURE_BANK_TICKERS_FOR_DE cohort.
 #   GET /api/v1/banks/{ticker}/kpis
