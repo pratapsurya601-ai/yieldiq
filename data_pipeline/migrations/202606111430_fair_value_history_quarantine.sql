@@ -34,9 +34,4 @@ CREATE INDEX IF NOT EXISTS idx_fv_history_quarantine_created
 CREATE INDEX IF NOT EXISTS idx_fv_history_quarantine_ticker
     ON fair_value_history_quarantine (ticker);
 
-COMMENT ON TABLE fair_value_history_quarantine IS
-    'FV-history rows rejected by the write-time sanity gate '
-    '(ROOT CAUSE #12). Daily |Δ| > 25%% without a corroborating '
-    'manifest entry / corporate action / concall summary lands here '
-    'instead of the canonical fair_value_history table. Read by an '
-    'operator review surface; never reflected in user-facing charts.';
+COMMENT ON TABLE fair_value_history_quarantine IS 'FV-history rows rejected by the write-time sanity gate (ROOT CAUSE 12). Daily delta > 25 percent without a corroborating manifest entry / corporate action / concall summary lands here instead of the canonical fair_value_history table. Read by an operator review surface; never reflected in user-facing charts.';
