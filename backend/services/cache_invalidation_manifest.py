@@ -324,6 +324,42 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # T2.3 Phase A — replacement value standalone service added at
+        # backend/services/replacement_value_service.py. Sibling to the
+        # T2.8 liquidation-value service (PR #795): liquidation = orderly
+        # asset-sale recovery floor (downside anchor); replacement = cost
+        # to recreate the asset base from scratch at current input prices
+        # (build-vs-buy anchor). Together they give the analyst a two-
+        # sided economic frame, and the ratio market_cap / replacement
+        # value is the canonical Tobin's Q.
+        #
+        # Phase A is the engine only — no wiring into the AnalysisResponse
+        # and no composite engine fold-in. Phase B (separate PR) will
+        # surface replacement_value + tobins_q on the analysis payload
+        # and add Tobin's Q to the confidence-signal mix.
+        #
+        # tickers="*" + fields=[] is the documented no-op invalidation
+        # idiom (mirrors v_t2_8_liquidation_value_phase_a above and the
+        # other Phase-A engine-services entries): the manifest row exists
+        # to record WHEN the engine acquired the capability and to satisfy
+        # the cache-version-bump CI gate (backend/services/ touched), not
+        # to invalidate any cached field — nothing reads from this module
+        # yet.
+        "version_id": "v_t2_3_replacement_value_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T2.3 Phase A — replacement value standalone service added "
+            "(Graham / Tobin Q framework). Sibling to T2.8 liquidation: "
+            "liquidation = orderly-sale floor; replacement = build-from-"
+            "scratch cost. Phase B wires into AnalysisResponse + adds "
+            "Tobin's Q to the confidence signal (separate PR)."
+        ),
+    },
+    {
         # T1.4 Phase A — holdco SOTP standalone service added.
         # Sum-of-the-Parts framework with sector-tuned holdco
         # discounts (22% pure-financial / 28% TATAINVEST / 30%
