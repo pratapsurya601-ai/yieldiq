@@ -10,6 +10,7 @@ import {
   getRatiosHistory,
 } from "@/lib/api"
 import { fetchPrism } from "@/lib/prism"
+import { TimeMachineProvider } from "@/lib/time-machine-context"
 import AnalysisTabs, { type AnalysisTabDef, type AnalysisTabKey } from "@/components/analysis/AnalysisTabs"
 import StickyAnalysisNav from "@/components/analysis/StickyAnalysisNav"
 import Reveal from "@/components/common/Reveal"
@@ -202,6 +203,21 @@ const FairValueHistory = dynamic(() => import("@/components/analysis/FairValueHi
 const ValuationTrajectoryChart = dynamic(
   () => import("@/components/analysis/ValuationTrajectoryChart"),
   { ssr: false, loading: chartSkeleton },
+)
+// T6.3 (2026-06-10) — Time Machine scrubber. Sits ABOVE the
+// ValuationTrajectoryChart on the History tab. Consumes the same
+// fv_history series via the shared React-Query cache key
+// (["fv-history", ticker, 5]) and broadcasts the selected date via
+// TimeMachineProvider so opt-in panels can render historical values.
+// The `Connected*` variant wires itself to the surrounding provider —
+// the loose-typed `dynamic` import below is the standard Next 16
+// pattern for code-splitting a named export.
+const ConnectedTimeMachineScrubber = dynamic(
+  () =>
+    import("@/components/analysis/TimeMachineScrubber").then(
+      (m) => m.ConnectedTimeMachineScrubber,
+    ),
+  { ssr: false, loading: smallSkeleton },
 )
 const FinancialBars = dynamic(() => import("@/components/analysis/FinancialBars"), {
   ssr: false,
@@ -1534,7 +1550,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       key: "history",
       label: "History",
       content: (
+        // T6.3 (2026-06-10): scope a TimeMachineProvider to the History
+        // tab. The scrubber writes the selected date here; opt-in
+        // sibling panels read it via `useTimeMachine()` and rewind
+        // their displayed FV/MoS to that date's fv_history row.
+        // Outside the History tab, `useTimeMachine()` resolves to the
+        // default (null) state — non-consumer panels see live values.
+        <TimeMachineProvider ticker={ticker}>
         <div className="space-y-4">
+          {/* T6.3: Time Machine — drag a slider to scrub the page back
+              to any date the engine has a persisted FV for. */}
+          <ConnectedTimeMachineScrubber
+            ticker={ticker}
+            currency={company.currency}
+          />
           {/* T5.2: AlphaSpread-grade trajectory — DCF history line plus
               today's bull/base/bear bands and composite IV overlay. */}
           <ValuationTrajectoryChart
@@ -1563,6 +1592,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
           </div>
         </div>
+        </TimeMachineProvider>
       ),
     },
     {
