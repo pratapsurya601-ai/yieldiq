@@ -98,6 +98,7 @@ import AnalysisPromptPresets from "@/components/analysis/AnalysisPromptPresets"
 import MobileScoreStrip from "@/components/analysis/MobileScoreStrip"
 import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
+import YIQScoreBreakdown from "@/components/analysis/YIQScoreBreakdown"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import CompoundedGrowthTrustStrip from "@/components/analysis/CompoundedGrowthTrustStrip"
@@ -2266,6 +2267,27 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 sticky side rail above the fold. ScoreBreakdownPanel
                 stays — it earns its space as the "Why this score?"
                 disclosure for users who want the per-component breakdown. */}
+            {/* YIQScoreBreakdown (feat/analysis-yiq-score-breakdown,
+                2026-06-10): Tickertape-style transparent reveal of the
+                5-pillar trust composition (DQ + MC + VS + Sens + CA)
+                that gates the headline score. Sits ABOVE
+                ScoreBreakdownPanel — this panel explains the GATING
+                pillars (why we trust the number), the panel below it
+                explains the SCORING components (how the number itself
+                was built). Both read additive, ungated server data;
+                each renders nothing when its data shape is empty. */}
+            <YIQScoreBreakdown
+              ticker={ticker}
+              pillars={{
+                data_quality: valuation.data_quality_score ?? null,
+                model_confidence: valuation.model_confidence_score ?? null,
+                valuation_stability:
+                  valuation.valuation_stability_score ?? null,
+                sensitivity: valuation.confidence_sensitivity ?? null,
+                composite_agreement:
+                  valuation.confidence_composite_agreement ?? null,
+              }}
+            />
             <div>
               <ScoreBreakdownPanel
                 breakdown={prismResolved?.quality?.score_breakdown}
