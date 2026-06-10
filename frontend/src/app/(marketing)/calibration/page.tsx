@@ -121,11 +121,8 @@ export default async function CalibrationPage() {
           Below is per-sector calibration over the last{" "}
           {meta?.lookback_days ?? 90} days, generated nightly. Sectors with
           under {meta?.min_observations ?? 30} observations are excluded.
-          Every number is computed from the same{" "}
-          <code className="text-xs bg-[color:var(--color-surface)] px-1 py-0.5 rounded">
-            fair_value_history
-          </code>{" "}
-          rows the platform uses internally — the public view sees what the
+          Every number is computed from the same fair-value history the
+          platform uses internally — the public view sees what the
           internal view sees, with quarantined rows removed.
         </p>
       </section>
