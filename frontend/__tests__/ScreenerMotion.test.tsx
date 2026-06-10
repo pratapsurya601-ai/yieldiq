@@ -85,7 +85,7 @@ describe("Screener page motion wiring", () => {
       ).toBeInTheDocument()
     })
 
-    // At least one preset tile should now carry the HoverCard marker.
+    // At least one preset tile now carries the HoverCard marker.
     const hoverCards = container.querySelectorAll("[data-motion='hover-card']")
     expect(hoverCards.length).toBeGreaterThan(0)
   })
