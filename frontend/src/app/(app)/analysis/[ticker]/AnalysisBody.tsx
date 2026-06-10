@@ -94,6 +94,7 @@ import {
   hasUserSeenPicker,
 } from "@/lib/personalization"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
+import ConfidenceRadar from "@/components/analysis/ConfidenceRadar"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import WorryIndex from "@/components/analysis/WorryIndex"
 import MetricWithContext from "@/components/analysis/MetricWithContext"
@@ -2054,6 +2055,29 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 breakdown={prismResolved?.quality?.score_breakdown}
               />
             </div>
+            {/* Competitor audit #5 (2026-06-10): 5-axis confidence
+                radar — Simply Wall St's most-screenshotted asset
+                reframed around our statistically computed pillars
+                (data quality, model fit, FV stability, sensitivity,
+                composite agreement). Sits ABOVE the chip-based
+                methodology block so the snowflake reads first, then
+                the per-chip tone-banded detail. The radar handles
+                its own empty / partial-pillar states, so banks
+                (sensitivity null) and holdcos (sensitivity +
+                composite-agreement null) still get a useful
+                polygon. */}
+            <ConfidenceRadar
+              ticker={ticker}
+              pillars={{
+                data_quality: valuation.data_quality_score ?? null,
+                model_confidence: valuation.model_confidence_score ?? null,
+                valuation_stability:
+                  valuation.valuation_stability_score ?? null,
+                sensitivity: valuation.confidence_sensitivity ?? null,
+                composite_agreement:
+                  valuation.confidence_composite_agreement ?? null,
+              }}
+            />
             {/* PR-3 (acquisition four-hero retire): the standalone
                 <ConfidenceIndicators> mount is RETIRED. Its data —
                 three 0-100 confidence scores + the defense-PSU

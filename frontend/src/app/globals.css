@@ -76,6 +76,15 @@
   --color-raised:    #FFFFFF;
   --color-overlay:   rgba(15,23,42,0.6);
 
+  /* ConfidenceRadar tokens (T1.6 + T2.7 — 5-axis snowflake).
+     Grid is a subtle slate gridline; stroke + fill ride --color-brand
+     so the radar inherits the active palette in both light and dark
+     mode. Fill carries its own alpha so consumers don't have to wrap
+     the colour in rgba() at call sites. */
+  --radar-grid-color:   #CBD5E1;
+  --radar-stroke-color: var(--color-brand);
+  --radar-fill-color:   rgba(37, 99, 235, 0.28);
+
   color-scheme: light;
 }
 
@@ -119,6 +128,14 @@ html.dark {
   /* New surface tokens — dark mode. */
   --color-raised:    #1A2336;
   --color-overlay:   rgba(0,0,0,0.7);
+
+  /* ConfidenceRadar tokens — dark-mode pair. Grid stays in the slate
+     family but lifts to a lighter tone so the radar polygon reads
+     against the darker surface. Stroke + fill ride the brighter
+     dark-mode --color-brand. */
+  --radar-grid-color:   #334155;
+  --radar-stroke-color: var(--color-brand);
+  --radar-fill-color:   rgba(96, 165, 250, 0.32);
 
   color-scheme: dark;
 }
