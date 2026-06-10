@@ -69,6 +69,7 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import HonestHero from "@/components/analysis/HonestHero"
 import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
+import SectorHeatmapMini from "@/components/analysis/SectorHeatmapMini"
 import AnalystConsensusReframePanel from "@/components/analysis/AnalystConsensusReframePanel"
 import EarningsImpactSimulator from "@/components/analysis/EarningsImpactSimulator"
 import DerivedInsightsPanel, {
@@ -1374,6 +1375,16 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               they land). Renders only the methods that returned a
               value; everything else collapses into a footnote. */}
           <ValuationMethodsPanel data={data} />
+          {/* Sector Heatmap Mini (2026-06-10) — novel cohort tile-grid
+              visualization, sized by market cap and colored by MoS.
+              Mounted directly below ValuationMethodsPanel so users
+              who scrolled to per-method valuations also see where
+              the subject sits across the entire sector. Self-hides
+              when the cohort endpoint returns empty / 503; no SSR
+              fallback needed because the panel is purely
+              informational and adds zero load to the critical
+              top-of-fold path. */}
+          <SectorHeatmapMini ticker={data.ticker} />
           {/* Competitor audit #2 (2026-06-10) — reframe the legacy
               "Independent" analyst-consensus card as a confident
               side-by-side: Wall Street's mean target vs YieldIQ's

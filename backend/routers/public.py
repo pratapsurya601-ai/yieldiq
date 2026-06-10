@@ -6130,3 +6130,272 @@ async def public_live_quote(ticker: str):
         # client keep its cached fallback price.
         pass
     return _cached_json(out, s_maxage=30, swr=120)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Sector Heatmap Mini (2026-06-10) — novel visualization
+# ═══════════════════════════════════════════════════════════════
+# Returns the subject ticker's sector cohort as a flat list of tiles,
+# sized by market cap weight and colored by margin-of-safety. The
+# frontend (SectorHeatmapMini) renders this as a tile grid; the data
+# is intentionally cohort-wide (not just top-5 peers) so the user can
+# see where their stock sits across the WHOLE sector at a glance.
+#
+# Differs from existing endpoints:
+#   - /api/v1/public/peers/{ticker}      → top-5 closest peers, no mcap
+#   - /api/v1/sectors/{slug}/prism       → aggregated stats per sector,
+#                                          not a tile-by-tile listing
+# This endpoint returns up to ~30 tiles in one shot, joined with
+# market_metrics for mcap. Cached 1h (same TTL as sector_prism since
+# the inputs are identical: stocks + analysis_cache + market_metrics).
+#
+# SEBI vocabulary: no advisory verbs in any caller-facing field.
+# Verdict comes through verdictDisplayLabel on the frontend; MoS is a
+# neutral percentage; sector name is descriptive.
+# ───────────────────────────────────────────────────────────────
+_SECTOR_HEATMAP_CACHE_TTL = 3600
+_SECTOR_HEATMAP_MAX_TILES = 30
+
+
+@router.get("/sector-heatmap/{ticker}")
+async def get_sector_heatmap(
+    ticker: str,
+    limit: int = Query(default=_SECTOR_HEATMAP_MAX_TILES, ge=3, le=50),
+):
+    """
+    Sector cohort for the heatmap visualization.
+
+    Resolves the subject ticker's canonical sector, then pulls all
+    same-sector stocks (top-`limit` by market cap), enriching each
+    with its latest analysis_cache snapshot for MoS / FV / verdict.
+
+    No auth. 1-hour in-memory cache; edge s-maxage=900, swr=3600.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+
+    cache_key = f"public:sector-heatmap:{full_ticker}:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=900, swr=3600)
+
+    db = _get_db_session()
+    if db is None:
+        return _data_unavailable_payload(full_ticker, "db_session_unavailable")
+
+    # Resolve the subject's canonical sector. Prefer stocks.canonical_sector
+    # (migration 035 backfill); fall back to live normalize_sector() on
+    # raw stocks.sector when the canonical column is empty.
+    try:
+        from backend.services.sector_taxonomy import normalize_sector
+        from sqlalchemy import text as _t
+
+        subj_row = db.execute(
+            _t(
+                "SELECT canonical_sector, sector, industry "
+                "  FROM stocks "
+                " WHERE ticker = :t "
+                " LIMIT 1"
+            ),
+            {"t": clean},
+        ).first()
+        if subj_row is None:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "not_found",
+                    "ticker": full_ticker,
+                    "message": f"No stocks row for {clean}",
+                },
+                headers={
+                    "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+                },
+            )
+
+        subj_canon = subj_row[0]
+        subj_raw_sector = subj_row[1]
+        subj_industry = subj_row[2]
+        canonical = subj_canon or normalize_sector(subj_raw_sector)
+        if not canonical:
+            payload = {
+                "ticker": full_ticker,
+                "sector": None,
+                "industry": subj_industry,
+                "tile_count": 0,
+                "subject_ticker": clean,
+                "tiles": [],
+                "caption": "Sector classification unavailable for this ticker.",
+            }
+            cache.set(cache_key, payload, ttl=_SECTOR_HEATMAP_CACHE_TTL)
+            return _cached_json(payload, s_maxage=900, swr=3600)
+
+        # Pull the cohort: top-N same-canonical-sector stocks by market
+        # cap. LEFT JOIN market_metrics so tickers without an mcap row
+        # still surface (small weight, gray tile) instead of being
+        # silently dropped.
+        cohort_rows = db.execute(
+            _t(
+                """
+                SELECT s.ticker,
+                       s.canonical_sector,
+                       s.sector,
+                       s.industry,
+                       mm.market_cap_cr
+                  FROM stocks s
+                  LEFT JOIN LATERAL (
+                       SELECT market_cap_cr
+                         FROM market_metrics
+                        WHERE ticker = s.ticker
+                          AND market_cap_cr IS NOT NULL
+                          AND market_cap_cr > 0
+                        ORDER BY as_of DESC NULLS LAST
+                        LIMIT 1
+                  ) mm ON TRUE
+                 WHERE COALESCE(s.is_active, TRUE) = TRUE
+                   AND (
+                        s.canonical_sector = :canon
+                        OR (s.canonical_sector IS NULL AND s.sector = :raw_sector)
+                   )
+                 ORDER BY mm.market_cap_cr DESC NULLS LAST, s.ticker
+                 LIMIT :lim
+                """
+            ),
+            {
+                "canon": canonical,
+                "raw_sector": subj_raw_sector,
+                "lim": limit,
+            },
+        ).fetchall()
+
+    except Exception as exc:
+        logger.warning(
+            "sector-heatmap cohort query failed for %s: %s", clean, exc,
+        )
+        return _data_unavailable_payload(full_ticker, "cohort_query_failed")
+
+    # Enrich each cohort ticker with analysis_cache snapshot. Try the
+    # in-memory cache first; fall back to the persistent tier.
+    tiles: list[dict] = []
+    subject_present = False
+    for row in cohort_rows:
+        try:
+            peer_clean = row[0]
+            peer_industry = row[3]
+            mcap_cr = row[4]
+        except Exception:
+            continue
+        if not peer_clean:
+            continue
+        peer_full = peer_clean if peer_clean.endswith((".NS", ".BO")) else f"{peer_clean}.NS"
+
+        company_name = None
+        fair_value = None
+        current_price = None
+        mos_pct = None
+        verdict = None
+
+        analysis = cache.get(f"analysis:{peer_full}")
+        if analysis is None:
+            try:
+                from backend.services import analysis_cache_service
+                from backend.models.responses import AnalysisResponse
+                payload_obj = analysis_cache_service.get_cached(peer_full)
+                if payload_obj:
+                    analysis = AnalysisResponse(**payload_obj)
+            except Exception:
+                analysis = None
+
+        if analysis is not None and hasattr(analysis, "valuation"):
+            try:
+                v = analysis.valuation
+                c = analysis.company
+                company_name = c.company_name
+                fair_value = round(v.fair_value, 2) if v.fair_value is not None else None
+                current_price = round(v.current_price, 2) if v.current_price is not None else None
+                mos_pct = round(v.margin_of_safety, 1) if v.margin_of_safety is not None else None
+                verdict = v.verdict
+            except Exception:
+                pass
+
+        is_subject = peer_clean == clean
+        if is_subject:
+            subject_present = True
+
+        try:
+            mcap_val = float(mcap_cr) if mcap_cr is not None else None
+        except (TypeError, ValueError):
+            mcap_val = None
+
+        tiles.append({
+            "ticker": peer_clean,
+            "name": company_name or peer_clean,
+            "market_cap_cr": mcap_val,
+            "mos_pct": mos_pct,
+            "fair_value": fair_value,
+            "current_price": current_price,
+            "verdict": verdict,
+            "industry": peer_industry,
+            "is_subject": is_subject,
+        })
+
+    # If the subject didn't surface in the top-N (rare: e.g. mid-cap
+    # in a sector with many large-caps and we capped at 30), inject
+    # a minimal subject tile so the user sees their stock highlighted.
+    if not subject_present and clean:
+        subj_full = full_ticker if full_ticker.endswith((".NS", ".BO")) else f"{clean}.NS"
+        subj_name = clean
+        subj_mos = None
+        subj_fv = None
+        subj_price = None
+        subj_verdict = None
+        try:
+            analysis = cache.get(f"analysis:{subj_full}")
+            if analysis is None:
+                from backend.services import analysis_cache_service
+                from backend.models.responses import AnalysisResponse
+                payload_obj = analysis_cache_service.get_cached(subj_full)
+                if payload_obj:
+                    analysis = AnalysisResponse(**payload_obj)
+            if analysis is not None and hasattr(analysis, "valuation"):
+                v = analysis.valuation
+                c = analysis.company
+                subj_name = c.company_name or clean
+                subj_fv = round(v.fair_value, 2) if v.fair_value is not None else None
+                subj_price = round(v.current_price, 2) if v.current_price is not None else None
+                subj_mos = round(v.margin_of_safety, 1) if v.margin_of_safety is not None else None
+                subj_verdict = v.verdict
+        except Exception:
+            pass
+        tiles.append({
+            "ticker": clean,
+            "name": subj_name,
+            "market_cap_cr": None,
+            "mos_pct": subj_mos,
+            "fair_value": subj_fv,
+            "current_price": subj_price,
+            "verdict": subj_verdict,
+            "industry": subj_industry,
+            "is_subject": True,
+        })
+
+    # Caption mirrors the sector-page convention: factual, descriptive,
+    # no advisory verbs. Counts and sector name only.
+    industry_count = sum(1 for t in tiles if t.get("industry") == subj_industry)
+    caption_parts = [f"{len(tiles)} {canonical} sector tickers"]
+    if subj_industry and industry_count > 1:
+        caption_parts.append(f"{industry_count} share the {subj_industry} industry")
+    caption = "; ".join(caption_parts)
+
+    payload = {
+        "ticker": full_ticker,
+        "sector": canonical,
+        "industry": subj_industry,
+        "subject_ticker": clean,
+        "tile_count": len(tiles),
+        "tiles": tiles,
+        "caption": caption,
+    }
+
+    payload = _nan_to_none(payload)
+    cache.set(cache_key, payload, ttl=_SECTOR_HEATMAP_CACHE_TTL)
+    return _cached_json(payload, s_maxage=900, swr=3600)

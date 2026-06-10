@@ -1723,4 +1723,39 @@ import type { FairValueHistoryResponse } from "@/types/api"
 export const getValuationHistory = (ticker: string): Promise<FairValueHistoryResponse> =>
   api.get(`/api/valuation-history/${ticker}`).then(r => r.data)
 
+// ── Sector Heatmap Mini (2026-06-10) ────────────────────────────
+// Returns the subject ticker's sector cohort as flat tiles for the
+// SectorHeatmapMini visualization. Read-only public endpoint; the
+// shape mirrors backend/routers/public.py::get_sector_heatmap.
+export interface SectorHeatmapTile {
+  ticker: string
+  name: string
+  market_cap_cr: number | null
+  mos_pct: number | null
+  fair_value: number | null
+  current_price: number | null
+  verdict: string | null
+  industry: string | null
+  is_subject: boolean
+}
+
+export interface SectorHeatmapResponse {
+  ticker: string
+  sector: string | null
+  industry: string | null
+  subject_ticker: string
+  tile_count: number
+  tiles: SectorHeatmapTile[]
+  caption: string | null
+}
+
+export const getSectorHeatmap = (
+  ticker: string,
+  limit: number = 30,
+): Promise<SectorHeatmapResponse | null> =>
+  publicGet<SectorHeatmapResponse>(
+    `/api/v1/public/sector-heatmap/${ticker}?limit=${limit}`,
+    3600,
+  )
+
 export default api

@@ -324,6 +324,32 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Sector Heatmap Mini (2026-06-10) — additive public endpoint
+        # /api/v1/public/sector-heatmap/{ticker} returning the subject
+        # ticker's sector cohort as a flat list of tiles (size by
+        # market_cap_cr, color by margin_of_safety). The endpoint is
+        # READ-ONLY: it joins existing stocks + market_metrics +
+        # analysis_cache rows and shapes them for the new
+        # SectorHeatmapMini frontend visualization. No engine math
+        # runs, no FV / verdict / scoring field changes its output
+        # as a result of this PR. scope.fields=[] documents that no
+        # cached field shifts; scope.tickers="*" only to mark the
+        # surface as universal (every ticker's analysis page now
+        # mounts the heatmap below ValuationMethodsPanel).
+        "version_id": "v_sector_heatmap_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Sector Heatmap Mini — additive read-only endpoint and "
+            "frontend tile-grid visualization. No engine math, no "
+            "cached field invalidated; purely a new way to look at "
+            "existing sector cohort data."
+        ),
+    },
+    {
         # Implied-Assumptions extension (2026-06-10) — AlphaSpread-style
         # "what does the market expect at the current price?" framing
         # added on top of backend/services/reverse_dcf_service.py via
