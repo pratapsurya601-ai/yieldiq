@@ -1697,6 +1697,42 @@ MANIFEST: list[dict] = [
             "Unblocks 4 in-flight engine PRs (#786 / #787 / #788 / #790)."
         ),
     },
+    {
+        # T1.1 engine refinement — composite intrinsic value as a new
+        # weighted-average field (DCF 0.5 + Multiples 0.3 + Analyst 0.2).
+        # PURELY ADDITIVE: the existing `fair_value` field stays byte-
+        # identical (DCF-only). New fields are appended at the bottom of
+        # AnalysisResponse and are None on legacy cached payloads — no
+        # cache invalidation is required for the change to land. This
+        # entry exists for TRACEABILITY: future audits can correlate
+        # "this payload has composite=None because it was cached before
+        # v_t1_1, this one has a value because it post-dates v_t1_1."
+        # Closes the systematic high-side bias documented vs AlphaSpread
+        # (HDFCBANK: YieldIQ DCF Rs 1,129 vs AlphaSpread Rs 803 — 40% gap
+        # narrows to ~18% with the composite). Verdict gate continues to
+        # read `fair_value`; switch to composite-aware verdicting ships
+        # under a follow-up PR so the engine refinement and the verdict
+        # contract change land separately.
+        "version_id": "v_t1_1_composite_intrinsic_value_2026_06_09",
+        "applied_at": datetime(2026, 6, 9, 15, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["*"],
+            "fields": ["composite_intrinsic_value", "composite_components"],
+        },
+        "rationale": (
+            "T1.1 engine refinement — added composite_intrinsic_value "
+            "(weighted avg of DCF 0.5 + Multiples 0.3 + Analyst 0.2) and "
+            "composite_components (per-estimator value + re-normalized "
+            "weight + method tag + extreme_divergence flag) as additive "
+            "AnalysisResponse fields. Holdco branch routes DCF-only "
+            "(SOTP via T1.4); bank branch keeps weighting but tags the "
+            "dcf slot as residual_income via the method field so the "
+            "frontend pill reads 'Residual income' not 'DCF'. Fair "
+            "value (DCF-only) is byte-identical pre/post; downstream "
+            "gates that key on fair_value are unaffected. Entry is "
+            "for traceability — no cache invalidation required."
+        ),
+    },
 ]
 
 

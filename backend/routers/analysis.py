@@ -233,6 +233,126 @@ def _inject_multiples_fv_model(result: "AnalysisResponse") -> "AnalysisResponse"
     return result
 
 
+def _composite_inputs_from_dict(payload: dict) -> tuple:
+    """Extract (dcf_fv, multiples_fv, analyst_avg, stock_kind, sector, ticker)
+    from a dict payload for composite_iv_service.compute_composite_iv.
+
+    Pulled out so the cold and warm paths share the exact same
+    extraction logic. The analyst slot prefers the full Finnhub
+    consensus block's price_target.mean (most precise); falls back to
+    the legacy wall_street_avg_target slot for older cached payloads.
+    """
+    valuation = payload.get("valuation") or {}
+    insights = payload.get("insights") or {}
+    quality = payload.get("quality") or {}
+    company = payload.get("company") or {}
+    dcf_fv = valuation.get("fair_value")
+    multiples_fv = payload.get("multiples_based_fv")
+    # Wall St analyst price-target mean — prefer the structured
+    # consensus block (Finnhub-shaped, populated by service.py) over
+    # the loose `wall_street_avg_target` slot.
+    analyst_avg = None
+    consensus = insights.get("analyst_consensus")
+    if isinstance(consensus, dict):
+        pt = consensus.get("price_target") or {}
+        analyst_avg = pt.get("mean") or pt.get("median")
+    if analyst_avg is None:
+        analyst_avg = insights.get("wall_street_avg_target")
+    # Stock kind / sector / ticker — used by the composite branch logic.
+    stock_kind: str | None = None
+    if quality.get("is_holdco"):
+        stock_kind = "holdco"
+    elif quality.get("is_bank"):
+        stock_kind = "bank"
+    sector = company.get("sector")
+    ticker = payload.get("ticker") or company.get("ticker")
+    return (dcf_fv, multiples_fv, analyst_avg, stock_kind, sector, ticker)
+
+
+def _inject_composite_iv_dict(payload: dict) -> dict:
+    """Populate `composite_intrinsic_value` + `composite_components` on a
+    dict payload.
+
+    T1.1 engine refinement (2026-06-09) — weighted average of DCF +
+    Multiples + Wall St. MUST run AFTER `_inject_multiples_fv_dict`
+    because it reads `payload["multiples_based_fv"]`. Pure derivation,
+    no DB / cache I/O, safe on every warm-path return.
+
+    Never raises — composite failure leaves both fields absent (the
+    frontend falls back to the DCF-only "Fair Value" headline).
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.composite_iv_service import (
+            compute_composite_iv,
+            composite_to_dict,
+        )
+        inputs = _composite_inputs_from_dict(payload)
+        result = compute_composite_iv(*inputs)
+        as_dict = composite_to_dict(result)
+        payload["composite_intrinsic_value"] = as_dict["value"]
+        # composite_components carries both the per-estimator values
+        # AND the method tag + extreme_divergence flag so the frontend
+        # can branch on a single object without a parallel lookup.
+        if as_dict["value"] is not None:
+            payload["composite_components"] = {
+                "components": as_dict["components"],
+                "method": as_dict["method"],
+                "extreme_divergence": as_dict["extreme_divergence"],
+            }
+        else:
+            payload["composite_components"] = None
+    except Exception:
+        # Field is purely additive — never break the response.
+        pass
+    return payload
+
+
+def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_composite_iv_dict`.
+
+    Used on the cold-compute return path. MUST run AFTER
+    `_inject_multiples_fv_model` so the multiples slot is populated.
+    Mutates in place — both fields are Optional, no re-validation
+    required.
+    """
+    try:
+        from backend.services.composite_iv_service import (
+            compute_composite_iv,
+            composite_to_dict,
+        )
+        # Build a focused dict so we re-use the same extractor as the
+        # warm path. Mirrors the multiples_fv_model contract.
+        _qual = result.quality.model_dump() if result.quality else {}
+        _val = result.valuation.model_dump() if result.valuation else {}
+        _ins = result.insights.model_dump() if result.insights else {}
+        _co = result.company.model_dump() if result.company else {}
+        _payload = {
+            "valuation": _val,
+            "quality": _qual,
+            "insights": _ins,
+            "company": _co,
+            "multiples_based_fv": result.multiples_based_fv,
+            "ticker": result.ticker,
+        }
+        inputs = _composite_inputs_from_dict(_payload)
+        composite = compute_composite_iv(*inputs)
+        as_dict = composite_to_dict(composite)
+        result.composite_intrinsic_value = as_dict["value"]
+        if as_dict["value"] is not None:
+            result.composite_components = {
+                "components": as_dict["components"],
+                "method": as_dict["method"],
+                "extreme_divergence": as_dict["extreme_divergence"],
+            }
+        else:
+            result.composite_components = None
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -382,12 +502,14 @@ async def get_analysis(
             _out["ai_summary"] = None
             _inject_sector_medians_dict(_out, ticker)
             _inject_multiples_fv_dict(_out)
+            _inject_composite_iv_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
         _out = dict(_raw_cached)
         _inject_sector_medians_dict(_out, ticker)
         _inject_multiples_fv_dict(_out)
+        _inject_composite_iv_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -415,6 +537,7 @@ async def get_analysis(
         _enc = _je(cached)
         _inject_sector_medians_dict(_enc, ticker)
         _inject_multiples_fv_dict(_enc)
+        _inject_composite_iv_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -456,6 +579,7 @@ async def get_analysis(
             _out = dict(_clean)
             _inject_sector_medians_dict(_out, ticker)
             _inject_multiples_fv_dict(_out)
+            _inject_composite_iv_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -655,6 +779,7 @@ async def get_analysis(
         from fastapi.encoders import jsonable_encoder as _je
         _inject_sector_medians_model(result, ticker)
         _inject_multiples_fv_model(result)
+        _inject_composite_iv_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

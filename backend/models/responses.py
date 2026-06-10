@@ -710,6 +710,35 @@ class AnalysisResponse(BaseModel):
     # know about the field see it as None and the chip self-hides.
     multiples_based_fv: Optional[float] = None
     multiples_method: Optional[Literal["pe", "pb", "ev_ebitda"]] = None
+    # ── Composite Intrinsic Value (T1.1, 2026-06-09) ───────────
+    # Weighted average of DCF + Multiples + Wall St analyst price
+    # target. Closes the systematic high-side bias the YieldIQ DCF
+    # carried vs AlphaSpread / Tickertape (HDFCBANK: DCF ₹1,129 vs
+    # AlphaSpread ₹803 — 40% high). The composite at ~₹952 narrows
+    # the gap to ~18% without throwing out the DCF signal.
+    #
+    # Purely ADDITIVE. The `fair_value` field above remains the
+    # DCF-only (or P/BV residual-income for banks) value — cache
+    # keys, manifest history, and downstream gates that key on
+    # `fair_value` are byte-identical pre/post this change. Only
+    # the verdict gate's MoS computation reads the composite when
+    # present, falling back to DCF when not.
+    #
+    # `composite_components` carries the per-estimator value + the
+    # RE-NORMALIZED weight (active weights always sum to 1.0). Keys
+    # are a subset of {"dcf", "multiples", "analyst"}. The frontend
+    # reads this to render the small contributors strip beneath the
+    # headline composite. `method` documents the assembly path —
+    # "composite_dcf_multiples_analyst" for the 3-way HDFCBANK case,
+    # "holdco_dcf_only" for pure holdcos (peer multiples meaningless),
+    # "bank_composite_residual_*" when the dcf slot is actually the
+    # P/BV residual-income value the bank engine emitted.
+    #
+    # Both fields are None on legacy cached payloads and on tickers
+    # where no estimator was usable. The frontend falls back to the
+    # DCF-only "Fair Value" headline in that case.
+    composite_intrinsic_value: Optional[float] = None
+    composite_components: Optional[dict] = None
 
 
 # ── The Honest Card response model ────────────────────────────
