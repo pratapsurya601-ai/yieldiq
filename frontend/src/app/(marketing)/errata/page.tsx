@@ -165,8 +165,22 @@ function EntryCard({ entry }: { entry: ErrataEntry }) {
 export default function ErrataPage() {
   return (
     <main className="bg-bg text-body">
+      {/* ── Dispute-channel banner ─────────────────────────────── */}
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 pt-10">
+        <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-body leading-relaxed">
+          Spot a mistake we haven&apos;t listed?{" "}
+          <Link
+            href="/disputes"
+            className="text-brand hover:underline underline-offset-4 font-medium"
+          >
+            Tell us at /disputes
+          </Link>
+          .
+        </div>
+      </section>
+
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 pt-16 pb-12">
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-12">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-caption mb-4">
           Errata
         </p>
