@@ -126,21 +126,59 @@ export default function HonestHero({
   const valueTrap = redFlagList.some((f) => f?.flag === "value_trap")
   const distress = hasDistressFlag(redFlagList)
 
+  // Phase C visual completion (T1.1 follow-through): when the backend
+  // emits a `composite_intrinsic_value` (weighted DCF + Peer Multiples +
+  // Wall Street consensus — see T1.1 PR #803 / Phase C wiring), the
+  // hero headline must read the composite, not the DCF-only fair_value.
+  //
+  // Background: T1.1 closed the ~40% HDFCBANK-class gap vs AlphaSpread
+  // by computing a composite IV. Phase C switched the verdict gate to
+  // the composite, but the hero headline figure was still reading
+  // `valuation.fair_value` (DCF-only) — producing a 4-5 rupee mismatch
+  // on HDFCBANK between the headline number (₹1,141.82, DCF) and the
+  // verdict the engine was actually scoring against (₹1,147.77,
+  // composite). The DCF stays visible inside the DcfMultiplesChip
+  // below, so users still see both estimators — only the SINGLE
+  // headline figure switches to the composite.
+  //
+  // Fallback chain: composite when present + finite + >0, else the
+  // resolver's signals.fairValue (which is already null-guarded for
+  // data-limited / non-positive cases).
+  const compositeIv = payload.composite_intrinsic_value
+  const headlineFv =
+    typeof compositeIv === "number" &&
+    Number.isFinite(compositeIv) &&
+    compositeIv > 0
+      ? compositeIv
+      : signals.fairValue
+  // Recompute the headline discount/premium off the headline FV when
+  // we promote the composite. Otherwise pass through the resolver's
+  // already-clamped discount (which is keyed off the DCF FV upstream).
+  const currentPrice = payload.valuation?.current_price
+  const headlineDiscount =
+    headlineFv != null &&
+    typeof currentPrice === "number" &&
+    Number.isFinite(currentPrice) &&
+    currentPrice > 0 &&
+    headlineFv !== signals.fairValue
+      ? ((headlineFv - currentPrice) / currentPrice) * 100
+      : signals.discount
+
   const fvDisplay =
-    signals.fairValue != null
-      ? formatCurrency(signals.fairValue, currency, ticker)
+    headlineFv != null
+      ? formatCurrency(headlineFv, currency, ticker)
       : "—"
 
   const discountDisplay = (() => {
     if (signals.degraded) return "+200% (clamp)"
-    if (signals.discount == null) return "—"
-    return formatPct(signals.discount)
+    if (headlineDiscount == null) return "—"
+    return formatPct(headlineDiscount)
   })()
 
   const discountTone: "good" | "bad" | "neutral" =
-    signals.discount == null || signals.dataLimited
+    headlineDiscount == null || signals.dataLimited
       ? "neutral"
-      : signals.discount >= 0
+      : headlineDiscount >= 0
         ? "good"
         : "bad"
 
@@ -226,9 +264,21 @@ export default function HonestHero({
                     label="Fair Value"
                     showLabel={false}
                     title="Fair Value"
-                    description="Our estimate of what one share is worth based on the cash the business looks set to generate in the future, discounted back to today."
-                    formula="Discounted Cash Flow — future FCF discounted at WACC"
-                    caveat="A DCF is only as good as its inputs — treat the number as a centre of gravity, not a precise figure."
+                    description={
+                      headlineFv !== signals.fairValue && headlineFv != null
+                        ? "Composite of three estimators: our DCF, a peer-multiples comparable, and the analyst consensus, weighted by reliability per ticker."
+                        : "Our estimate of what one share is worth based on the cash the business looks set to generate in the future, discounted back to today."
+                    }
+                    formula={
+                      headlineFv !== signals.fairValue && headlineFv != null
+                        ? "Composite IV = w₁·DCF + w₂·Peer Multiples + w₃·Wall Street consensus"
+                        : "Discounted Cash Flow — future FCF discounted at WACC"
+                    }
+                    caveat={
+                      headlineFv !== signals.fairValue && headlineFv != null
+                        ? "Each input has its own model risk; the composite reduces single-method bias but is not a forecast."
+                        : "A DCF is only as good as its inputs — treat the number as a centre of gravity, not a precise figure."
+                    }
                     value={
                       <span className="font-mono tabular-nums text-2xl font-semibold text-ink">
                         {fvDisplay}
@@ -244,7 +294,7 @@ export default function HonestHero({
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
-                  {signals.discount != null && signals.discount < 0
+                  {headlineDiscount != null && headlineDiscount < 0
                     ? "Premium to FV"
                     : "Discount to FV"}
                 </dt>
@@ -252,7 +302,7 @@ export default function HonestHero({
                   <MetricTooltip
                     metric="mos"
                     label={
-                      signals.discount != null && signals.discount < 0
+                      headlineDiscount != null && headlineDiscount < 0
                         ? "Premium to FV"
                         : "Discount to FV"
                     }
