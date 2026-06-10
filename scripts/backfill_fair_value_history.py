@@ -124,11 +124,20 @@ def _load_canary_universe(path: str | None = None) -> list[str]:
                     if isinstance(t, str) and t.strip():
                         out.append(t.strip())
         elif isinstance(data, dict):
-            tickers = data.get("tickers") or data.get("universe") or []
+            tickers = (
+                data.get("tickers")
+                or data.get("universe")
+                or data.get("stocks")
+                or []
+            )
             if isinstance(tickers, list):
-                for t in tickers:
-                    if isinstance(t, str) and t.strip():
-                        out.append(t.strip())
+                for r in tickers:
+                    if isinstance(r, str) and r.strip():
+                        out.append(r.strip())
+                    elif isinstance(r, dict):
+                        t = r.get("ticker") or r.get("symbol") or ""
+                        if isinstance(t, str) and t.strip():
+                            out.append(t.strip())
         # Strip suffixes — fair_value_history stores bare.
         bare: list[str] = []
         for t in out:
