@@ -5,7 +5,16 @@ import Link from "next/link"
 import WatchlistButton from "@/components/watchlist/WatchlistButton"
 import { cn } from "@/lib/utils"
 import EmptyState from "@/components/common/EmptyState"
+import { useInViewOnce } from "@/components/anim/useInViewOnce"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { DURATION, cssEase } from "@/lib/motion/timing"
 import type { ScreenerQueryRow } from "@/lib/screenerFilters"
+
+// Cap the visible stagger so >50-row results pages don't take a long
+// time to finish their entrance. Beyond MAX_STAGGER_ROWS we collapse
+// the per-row delay to 0, so rows still fade-in but in a single
+// coordinated gesture rather than a march.
+const MAX_STAGGER_ROWS = 50
 
 interface ResultsTableProps {
   rows: ScreenerQueryRow[]
@@ -87,6 +96,15 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
   }, [sorted, page, pageSize])
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize))
+
+  // Inline-stagger plumbing for table rows. We don't use the
+  // <RevealStagger> wrapper here because its outer element is a
+  // <div>, which is not a valid child of <table>/<tbody>. The hook
+  // setup mirrors what RevealStagger does internally.
+  const reduced = useReducedMotion()
+  const { ref: bodyRef, inView } = useInViewOnce<HTMLTableSectionElement>(0.05)
+  const rowsVisible = reduced || inView
+  const ease = cssEase("outExpo")
 
   const toggleSort = (key: string) => {
     if (sortKey === key) {
@@ -200,13 +218,33 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={bodyRef} data-anim="reveal-stagger">
             {paged.map((row, i) => {
               const tickerRaw = String(row.ticker ?? "")
               const tickerClean = tickerRaw.replace(".NS", "").replace(".BO", "")
               const href = `/analysis/${tickerRaw.includes(".") ? tickerRaw : tickerRaw + ".NS"}`
+              // Motion: 20ms inter-row stagger for the first
+              // MAX_STAGGER_ROWS rows; cap beyond that to keep large
+              // result sets from feeling like a parade.
+              const staggerMs = i < MAX_STAGGER_ROWS ? 20 : 0
+              const delay = reduced ? 0 : i * staggerMs
+              const rowStyle: React.CSSProperties = {
+                opacity: rowsVisible ? 1 : 0,
+                transform: rowsVisible
+                  ? "translate3d(0,0,0)"
+                  : "translate3d(0,6px,0)",
+                transition: reduced
+                  ? "none"
+                  : `opacity ${DURATION.normal}ms ease-out ${delay}ms, transform ${DURATION.normal}ms ${ease} ${delay}ms`,
+                willChange: rowsVisible ? "auto" : "opacity, transform",
+              }
               return (
-                <tr key={`${tickerRaw}-${i}`} className="border-b border-border/60 hover:bg-bg">
+                <tr
+                  key={`${tickerRaw}-${i}`}
+                  className="border-b border-border/60 hover:bg-bg"
+                  style={rowStyle}
+                  data-stagger-index={i}
+                >
                   {columns.map((col) => (
                     <td key={col} className="px-3 py-2 whitespace-nowrap">
                       {col === "ticker" ? (

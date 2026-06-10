@@ -22,6 +22,12 @@ import {
   type PortfolioUpdateCategory,
   type PortfolioUpdateItem,
 } from "@/lib/api"
+import { PressScale, RevealStagger } from "@/components/motion"
+
+// Cap the visible stagger so very long update lists don't take a long
+// time to finish their entrance. Per-page size is 25 today so this
+// only matters if PAGE_SIZE is bumped above 50.
+const MAX_STAGGER_ROWS = 50
 
 type FilterValue = PortfolioUpdateCategory | "all"
 
@@ -186,18 +192,30 @@ export default function UpdatesFeed({ initialCategory = "all" }: UpdatesFeedProp
         )}
         {!isLoading && !isError && items.length > 0 && (
           <>
-            {items.map((it) => (
-              <FeedRow key={it.id} item={it} />
-            ))}
+            {/* Motion: 30ms inter-row stagger on entrance. Wrapper key
+                changes when the page advances so newly loaded rows get
+                their own entrance treatment rather than re-running the
+                full list animation. */}
+            <RevealStagger
+              key={page}
+              staggerMs={items.length <= MAX_STAGGER_ROWS ? 30 : 0}
+              className="space-y-3"
+            >
+              {items.map((it) => (
+                <FeedRow key={it.id} item={it} />
+              ))}
+            </RevealStagger>
             {hasMore && (
               <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => p + 1)}
-                  className="w-full text-sm font-semibold text-blue-600 hover:text-tone-info-fg py-2 rounded-lg border border-tone-info-bd dark:border-blue-800"
-                >
-                  Load more
-                </button>
+                <PressScale>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => p + 1)}
+                    className="w-full text-sm font-semibold text-blue-600 hover:text-tone-info-fg py-2 rounded-lg border border-tone-info-bd dark:border-blue-800"
+                  >
+                    Load more
+                  </button>
+                </PressScale>
               </div>
             )}
             <p className="text-[11px] text-caption text-center pt-1">

@@ -22,6 +22,12 @@ import ModelDisclaimer from "@/components/ModelDisclaimer"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { PressScale, RevealStagger } from "@/components/motion"
+
+// Cap the visible stagger so large portfolios/watchlists/alerts don't
+// take a long time to finish their entrance. Beyond this index we let
+// the rows still fade-in but in a single coordinated gesture.
+const MAX_STAGGER_ROWS = 50
 
 type PortfolioTab = "holdings" | "watchlist" | "alerts" | "updates"
 
@@ -358,7 +364,9 @@ function PortfolioInner() {
                 / Updates tabs too (audit 2026-06-10 P2). The hero shows
                 total value, +/- P&L, invested, winners/losers, and a top
                 mover — the inline duplicate that used to live here was
-                redundant once the hero shipped. */}
+                redundant once the hero shipped. Motion treatment for the
+                Total Value + KPI tiles (NumberFlip + RevealStagger) lives
+                in `<PortfolioHero/>` itself — see PortfolioHero.tsx. */}
 
             {/* P0 #5 Feature C — return decomposition strip. Sits
                 between the gradient summary and the holdings list so
@@ -370,7 +378,15 @@ function PortfolioInner() {
             {/* Holdings List — key includes account_label so two rows of
                 the same ticker (e.g. SILVERBEES held in Zerodha AND ICICI)
                 stay as separate cards instead of colliding on the React key
-                and rendering as one merged/averaged position. */}
+                and rendering as one merged/averaged position.
+                Motion: 30ms inter-row stagger on entrance, capped so
+                very large portfolios still feel responsive. The
+                staggerMs collapses to 0 when there are more than
+                MAX_STAGGER_ROWS holdings to avoid a long parade. */}
+            <RevealStagger
+              staggerMs={holdings.length <= MAX_STAGGER_ROWS ? 30 : 0}
+              className="space-y-3"
+            >
             {holdings.map((h) => (
               <Link key={`${h.ticker}:${h.account_label || "default"}`} href={`/analysis/${h.ticker}`}
                 className="block bg-bg dark:bg-surface rounded-xl border border-border p-4 hover:border-blue-200 transition">
@@ -434,6 +450,7 @@ function PortfolioInner() {
                 )}
               </Link>
             ))}
+            </RevealStagger>
           </section>
         ) : (
           // UX activation fix (2026-05): explicit section + label so the
@@ -472,17 +489,21 @@ function PortfolioInner() {
           <Link href="/portfolio/tax-report" className="text-xs text-blue-600 font-semibold hover:underline">
             Tax Report &rarr;
           </Link>
-          <Link href="/portfolio/import" className="text-xs text-blue-600 font-semibold hover:underline">
-            + Import from broker CSV
-          </Link>
-          <button
-            type="button"
-            onClick={() => setResetConfirm(true)}
-            className="text-xs text-red-600 font-semibold hover:underline disabled:opacity-50"
-            disabled={resetHoldingsMut.isPending}
-          >
-            Reset holdings
-          </button>
+          <PressScale>
+            <Link href="/portfolio/import" className="text-xs text-blue-600 font-semibold hover:underline">
+              + Import from broker CSV
+            </Link>
+          </PressScale>
+          <PressScale disabled={resetHoldingsMut.isPending}>
+            <button
+              type="button"
+              onClick={() => setResetConfirm(true)}
+              className="text-xs text-red-600 font-semibold hover:underline disabled:opacity-50"
+              disabled={resetHoldingsMut.isPending}
+            >
+              Reset holdings
+            </button>
+          </PressScale>
         </div>
       )}
 
@@ -581,7 +602,13 @@ function PortfolioInner() {
       {tab === "watchlist" && (
         watchlist && watchlist.length > 0 ? (
           watchlistView === "list" && (
-          <section aria-label="Watchlist" data-testid="watchlist-list" className="space-y-2">
+          <section aria-label="Watchlist" data-testid="watchlist-list">
+            {/* Motion: 30ms inter-row stagger on entrance; capped so
+                very long watchlists still finish their entrance quickly. */}
+            <RevealStagger
+              staggerMs={watchlist.length <= MAX_STAGGER_ROWS ? 30 : 0}
+              className="space-y-2"
+            >
             {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
               <div key={w.ticker} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-border hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
@@ -612,19 +639,22 @@ function PortfolioInner() {
                     )}
                   </div>
                 </Link>
-                <button
-                  onClick={() => removeWatchlistMut.mutate(w.ticker)}
-                  disabled={removeWatchlistMut.isPending}
-                  aria-label={`Remove ${w.ticker.replace(".NS", "")} from watchlist`}
-                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-red-500 active:scale-90 transition shrink-0"
-                  title="Remove from watchlist"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <PressScale disabled={removeWatchlistMut.isPending}>
+                  <button
+                    onClick={() => removeWatchlistMut.mutate(w.ticker)}
+                    disabled={removeWatchlistMut.isPending}
+                    aria-label={`Remove ${w.ticker.replace(".NS", "")} from watchlist`}
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-red-500 transition shrink-0"
+                    title="Remove from watchlist"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </PressScale>
               </div>
             ))}
+            </RevealStagger>
           </section>
           )
         ) : (
@@ -642,7 +672,12 @@ function PortfolioInner() {
       {/* Alerts tab */}
       {tab === "alerts" && (
         alerts && alerts.length > 0 ? (
-          <div className="space-y-2">
+          // Motion: 30ms inter-row stagger on the alerts list; capped
+          // so very long alert lists still finish their entrance fast.
+          <RevealStagger
+            staggerMs={alerts.length <= MAX_STAGGER_ROWS ? 30 : 0}
+            className="space-y-2"
+          >
             {alerts.map((a: { id: number; ticker: string; alert_type: string; target_price: number; created_at: string }) => (
               <div key={a.id} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-border p-4">
                 <Link href={`/analysis/${a.ticker}`} className="flex-1">
@@ -656,20 +691,22 @@ function PortfolioInner() {
                     {"\u20b9"}{a.target_price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                   </p>
                 </Link>
-                <button
-                  onClick={() => removeAlertMut.mutate(a.id)}
-                  disabled={removeAlertMut.isPending}
-                  aria-label={`Delete ${a.ticker.replace(".NS", "")} price alert`}
-                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-red-500 active:scale-90 transition shrink-0"
-                  title="Delete alert"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <PressScale disabled={removeAlertMut.isPending}>
+                  <button
+                    onClick={() => removeAlertMut.mutate(a.id)}
+                    disabled={removeAlertMut.isPending}
+                    aria-label={`Delete ${a.ticker.replace(".NS", "")} price alert`}
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-red-500 transition shrink-0"
+                    title="Delete alert"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </PressScale>
               </div>
             ))}
-          </div>
+          </RevealStagger>
         ) : (
           <div className="text-center py-12">
             <div className="w-16 h-16 mx-auto mb-4 text-caption">
@@ -679,7 +716,9 @@ function PortfolioInner() {
             </div>
             <p className="text-base font-semibold text-ink mb-1">No active alerts</p>
             <p className="text-sm text-caption mb-4">Set price alerts on any analysis page to get notified by email.</p>
-            <Link href="/search" className="text-sm text-blue-600 font-medium hover:underline">Search stocks</Link>
+            <PressScale>
+              <Link href="/search" className="text-sm text-blue-600 font-medium hover:underline">Search stocks</Link>
+            </PressScale>
           </div>
         )
       )}

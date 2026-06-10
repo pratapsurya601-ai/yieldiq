@@ -27,6 +27,13 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import type { WatchlistItemResponse } from "@/types/api"
 import { formatCurrency } from "@/lib/utils"
+import { useInViewOnce } from "@/components/anim/useInViewOnce"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { DURATION, cssEase } from "@/lib/motion/timing"
+
+// Cap the visible stagger to keep large watchlists from feeling like a
+// march. Beyond MAX_STAGGER_ROWS the per-row delay collapses to 0.
+const MAX_STAGGER_ROWS = 50
 
 // ── Sort keys ────────────────────────────────────────────────
 //
@@ -197,6 +204,14 @@ export function WatchlistRanking({ holdings, onRemove, removeDisabled }: Watchli
     return copy
   }, [holdings, sortKey, direction])
 
+  // Inline-stagger plumbing for the ranked <ol>. We don't use
+  // <RevealStagger> here because its outer is a <div>, which is not a
+  // valid child of <ol>. The hook setup mirrors RevealStagger.
+  const reduced = useReducedMotion()
+  const { ref: listRef, inView } = useInViewOnce<HTMLOListElement>(0.05)
+  const rowsVisible = reduced || inView
+  const ease = cssEase("outExpo")
+
   if (!holdings || holdings.length === 0) {
     return (
       <section
@@ -267,14 +282,35 @@ export function WatchlistRanking({ holdings, onRemove, removeDisabled }: Watchli
           "biggest gap today" tile so the watchlist feels alive. */}
       <TopOpportunityHighlight first={top} sortKey={sortKey} />
 
-      <ol className="space-y-2" data-testid="watchlist-ranking-list">
+      <ol
+        ref={listRef}
+        className="space-y-2"
+        data-testid="watchlist-ranking-list"
+        data-anim="reveal-stagger"
+      >
         {sorted.map((h, idx) => {
           const metric = formatMetric(h, sortKey)
           const isLeader = idx === 0 && metric !== "" && metric !== "—"
+          // Motion: 30ms inter-row stagger up to the cap; beyond it the
+          // delay collapses so very large watchlists don't crawl in.
+          const staggerMs = idx < MAX_STAGGER_ROWS ? 30 : 0
+          const delay = reduced ? 0 : idx * staggerMs
+          const rowStyle: React.CSSProperties = {
+            opacity: rowsVisible ? 1 : 0,
+            transform: rowsVisible
+              ? "translate3d(0,0,0)"
+              : "translate3d(0,8px,0)",
+            transition: reduced
+              ? "none"
+              : `opacity ${DURATION.normal}ms ease-out ${delay}ms, transform ${DURATION.normal}ms ${ease} ${delay}ms`,
+            willChange: rowsVisible ? "auto" : "opacity, transform",
+          }
           return (
             <li
               key={h.ticker}
               data-testid={`watchlist-ranking-row-${h.ticker}`}
+              data-stagger-index={idx}
+              style={rowStyle}
               className={`flex items-center bg-bg dark:bg-surface rounded-xl border ${
                 isLeader ? "border-blue-200" : "border-gray-100"
               } hover:border-blue-200 transition`}
