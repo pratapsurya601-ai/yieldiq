@@ -70,6 +70,9 @@ import EarningsImpactSimulator from "@/components/analysis/EarningsImpactSimulat
 import DerivedInsightsPanel, {
   type DerivedInsights as DerivedInsightsShape,
 } from "@/components/analysis/DerivedInsightsPanel"
+import ConsensusSignalBadge, {
+  type ConsensusSignal as ConsensusSignalShape,
+} from "@/components/analysis/ConsensusSignalBadge"
 import MobileScoreStrip from "@/components/analysis/MobileScoreStrip"
 import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
@@ -1780,6 +1783,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             honestCardTeaser={data.honest_card?.best_estimate ?? null}
           />
         </Reveal>
+
+        {/* Cross-engine consensus signal (2026-06-10): direction-
+            agreement count across the 7+ standalone estimators. Sits
+            directly under the hero so the "N of M estimators agree"
+            headline reads as a complementary anchor to the verdict
+            triad above. Hides itself when the payload predates this
+            PR or no estimator returned a usable value. Backend lives
+            in backend/services/consensus_signal_service.py. */}
+        <ConsensusSignalBadge
+          signal={
+            (data.cross_engine_consensus as ConsensusSignalShape | null)
+            ?? null
+          }
+        />
 
         {/* Per-ticker model caveat banner — surfaced for conglomerates,
             holdcos, turnarounds, and pre-profit names where the generic
