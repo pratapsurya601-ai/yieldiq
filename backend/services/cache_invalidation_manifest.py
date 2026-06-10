@@ -3077,6 +3077,47 @@ MANIFEST: list[dict] = [
             "PR #818."
         ),
     },
+    {
+        # T6.2 Phase A (2026-06-10) — multi-turn streaming AI chat
+        # panel on the analysis page. New router POST
+        # /api/v1/analysis/{ticker}/chat emits an SSE stream of
+        # {delta, done} JSON events. The system prompt embeds a
+        # compact AnalysisResponse summary so multi-turn questions
+        # reference real numbers (fair value, MoS, scenarios) without
+        # re-running the engine. SEBI defence-in-depth: every delta
+        # window passes through the shared banned-vocab scrubber
+        # before reaching the client.
+        #
+        # Manifest entry exists for two reasons:
+        #   1. It records WHEN the chat surface launched, so a future
+        #      audit of "AI panel rendered banned vocab on YYYY-MM-DD"
+        #      can correlate against this entry.
+        #   2. The Phase B drain-on-apply hook will refresh in-memory
+        #      caches that the prompt-context builder reads, so the
+        #      chat answers stay numerically consistent with the rest
+        #      of the analysis page.
+        #
+        # No engine fields change; tickers="*" with empty fields[]
+        # signals "behaviour change, not data change" — same shape as
+        # the v_t1_2 calibration-page entry.
+        "version_id": "v_t6_2_ai_chat_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T6.2 Phase A — multi-turn streaming chat panel on the "
+            "analysis page. SSE stream of {delta, done} JSON events "
+            "with a system prompt that embeds the cached "
+            "AnalysisResponse summary so answers quote real model "
+            "numbers. SEBI-strict register enforced by system prompt "
+            "AND per-delta banned-vocab scrubber. Shares the daily "
+            "tier counter with analyze() / ai_explain so a single "
+            "user cannot grind the LLM budget through repeated chat "
+            "turns."
+        ),
+    },
 ]
 
 

@@ -269,6 +269,14 @@ const AIPromptPresetsPanel = dynamic(() => import("@/components/analysis/AIPromp
   ssr: false,
   loading: smallSkeleton,
 })
+// AnalysisChatPanel — T6.2 Phase A (2026-06-10). Floating bottom-
+// right launcher + slide-in side drawer for multi-turn streaming
+// chat about THIS ticker. The R4 preset cards are single-shot; this
+// adds conversational follow-ups. SSE-streamed and SEBI-filtered on
+// the backend; the bubble assembles deltas live.
+const AnalysisChatPanel = dynamic(() => import("@/components/analysis/AnalysisChatPanel"), {
+  ssr: false,
+})
 const ManifestHistoryPanel = dynamic(() => import("@/components/analysis/ManifestHistoryPanel"), {
   ssr: false,
   loading: smallSkeleton,
@@ -2161,6 +2169,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           setActiveStyle(picked)
         }}
       />
+      {/* T6.2 — multi-turn AI chat. Single floating launcher + side
+          drawer; lives at the page level so it stays visible while
+          the user scrolls through any tab. */}
+      <AnalysisChatPanel ticker={ticker} />
     </div>
     </div>
     </FormulasProvider>
