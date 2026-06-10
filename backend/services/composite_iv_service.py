@@ -85,6 +85,49 @@ DEFAULT_WEIGHT_EPV: float = 0.05              # NEW Phase C
 DEFAULT_WEIGHT_PROBABILITY_WEIGHTED: float = 0.05  # NEW Phase C
 # Total = 1.00 when all seven are present.
 
+# ─────────────────────────────────────────────────────────────────
+# Phase B mega-wiring (2026-06-10) — sector-specific weight scheme.
+# ─────────────────────────────────────────────────────────────────
+# When a sector-primary engine (NBFC ROA, Insurance EV/VNB, Pharma
+# pipeline rNPV, Telecom ARPU DCF, Oil&Gas reserves/SOTP, Auto OEM
+# mid-cycle, Cement utilization, Steel cost-curve, RE developer NAV,
+# Consumer durables WC, Media subscriber LTV, Logistics freight,
+# Holdco SOTP) produces a value, it becomes the PRIMARY estimator.
+# The composite weights tilt heavily toward it because the sector
+# engine encodes domain math the generic DCF/Multiples don't see.
+#
+# DCF / Multiples / Analyst stay in the blend as sanity checks —
+# they pull the composite back toward consensus when the sector
+# engine swings hard on a single curated input. Phase-C estimators
+# (Three-stage / DDM / EPV / Prob-weighted) keep their small slots
+# so the composite still benefits from their cross-check when the
+# applicability gate fires.
+DEFAULT_WEIGHT_SECTOR_SPECIFIC: float = 0.40
+DEFAULT_WEIGHT_DCF_WITH_SECTOR: float = 0.20
+DEFAULT_WEIGHT_MULTIPLES_WITH_SECTOR: float = 0.15
+DEFAULT_WEIGHT_ANALYST_WITH_SECTOR: float = 0.10
+DEFAULT_WEIGHT_THREE_STAGE_WITH_SECTOR: float = 0.10
+DEFAULT_WEIGHT_DDM_WITH_SECTOR: float = 0.025
+DEFAULT_WEIGHT_EPV_WITH_SECTOR: float = 0.025
+DEFAULT_WEIGHT_PROBABILITY_WEIGHTED_WITH_SECTOR: float = 0.0
+# Total = 0.925 when sector + dcf + mult + analyst + three_stage +
+# DDM + EPV all present. (Probability-weighted excluded by default
+# from the with-sector scheme so the sector signal dominates without
+# the scenario-mix layer doubling up.) The normalizer below makes
+# active weights sum to 1.0 — missing slots redistribute pro-rata as
+# in the headline scheme.
+
+# Overlay multiplier bounds — Phase B overlay engines (IT services
+# overlay + utilities maintenance) emit a multiplier that's then
+# applied to the composite_intrinsic_value AFTER the weighted
+# average is computed. The bounds here are the documented
+# applicability bands from each service; out-of-band values are
+# clamped defensively so a bad input can't 10x the composite.
+IT_OVERLAY_MULTIPLIER_MIN: float = 0.70
+IT_OVERLAY_MULTIPLIER_MAX: float = 1.30
+UTILITIES_OVERLAY_MULTIPLIER_MIN: float = 0.70
+UTILITIES_OVERLAY_MULTIPLIER_MAX: float = 1.30
+
 # Extreme divergence flag — when the spread between max and min
 # active estimator exceeds 2x of the min, we still emit the composite
 # but flag the components dict so the frontend can render a caveat.
@@ -146,6 +189,10 @@ class CompositeIV:
     components: dict[str, CompositeIVComponent] = field(default_factory=dict)
     method: str = "unavailable"
     extreme_divergence: bool = False
+    # Phase B mega-wiring (2026-06-10): tag identifying which sector
+    # engine produced the sector_specific component, when present.
+    # None for tickers that didn't route to any sector engine.
+    sector_specific_label: Optional[str] = None
 
 
 def _coerce_pos_float(v: Any) -> Optional[float]:
@@ -248,6 +295,8 @@ def compute_composite_iv(
     ddm_fv: Optional[float] = None,
     epv_fv: Optional[float] = None,
     probability_weighted_fv: Optional[float] = None,
+    sector_specific_fv: Optional[float] = None,
+    sector_specific_label: Optional[str] = None,
     stock_kind: Optional[str] = None,
     sector: Optional[str] = None,
     ticker: Optional[str] = None,
@@ -283,6 +332,26 @@ def compute_composite_iv(
     probability_weighted_fv
         Probability-weighted scenario average FV (T2.4 service).
         None when bull/base/bear are not all positive.
+    sector_specific_fv
+        Phase B mega-wiring (2026-06-10). The fair value emitted by
+        the ticker's sector-primary engine — NBFC ROA / Insurance
+        EV/VNB / Pharma pipeline rNPV / Telecom ARPU DCF / Oil&Gas
+        reserves / Auto OEM cycle / Cement utilization / Steel cost-
+        curve / RE developer NAV / Consumer durables WC / Media LTV /
+        Logistics freight / Holdco SOTP. When present, the composite
+        weighting tilts heavily toward this slot (0.40) and reduces
+        DCF/Multiples/Analyst to ~0.45 combined so the domain math
+        dominates without abandoning the sanity-check estimators.
+        None for tickers that don't route to any sector engine — the
+        composite falls back to the headline DCF + Multiples + Analyst
+        + Phase-C scheme.
+    sector_specific_label
+        Tag identifying which sector engine produced sector_specific_fv —
+        "nbfc_roa" / "insurance_ev_vnb" / "pharma_pipeline" / "telecom_arpu"
+        / "oil_gas" / "auto_oem" / "cement_utilization" / "steel_cost_curve"
+        / "re_developer" / "consumer_durables_wc" / "media_subscriber_ltv"
+        / "logistics_freight" / "holdco_sotp". Surfaced in the components
+        dict so the frontend can render the correct pill label.
     stock_kind
         Optional kind tag — "holdco" / "bank" routes to the curated
         branches. When None we fall back to ticker / sector classifiers.
@@ -320,10 +389,17 @@ def compute_composite_iv(
     _ddm = _coerce_pos_float(ddm_fv)
     _epv = _coerce_pos_float(epv_fv)
     _pw = _coerce_pos_float(probability_weighted_fv)
+    _sector_fv = _coerce_pos_float(sector_specific_fv)
+    _sector_label = (
+        str(sector_specific_label).strip()
+        if sector_specific_label and _sector_fv is not None
+        else None
+    )
 
     # ── Step 2: branch routing.
     is_holdco = _is_holdco(stock_kind, ticker)
     is_bank = _is_bank(stock_kind, sector)
+    has_sector_specific = _sector_fv is not None
 
     # ── Step 3: holdco branch — DCF only, multiples skipped.
     # SOTP is the right framework for holdcos but ships under T1.4;
@@ -334,6 +410,22 @@ def compute_composite_iv(
     # for holdcos — their applicability gates already exclude holdcos
     # at the Phase-B inject layer, so they will be None here anyway.
     if is_holdco:
+        # Phase B mega-wiring: when the SOTP engine produced a value,
+        # surface it as the holdco's primary estimator and tag it
+        # "holdco_sotp" — the right framework for a pass-through
+        # holding company. DCF stays as the fallback when SOTP failed
+        # for a holdco (no resolvable underlyings, zero shares, etc.).
+        if _sector_fv is not None:
+            return CompositeIV(
+                value=round(_sector_fv, 2),
+                components={
+                    "sector_specific": CompositeIVComponent(
+                        value=round(_sector_fv, 2), weight=1.0,
+                    ),
+                },
+                method=f"holdco_{_sector_label or 'sotp'}",
+                sector_specific_label=_sector_label or "holdco_sotp",
+            )
         if _dcf is None:
             return CompositeIV(
                 value=None,
@@ -354,20 +446,41 @@ def compute_composite_iv(
     # estimator priority for documentation purposes; it does not
     # affect the weighted average.
     raw_weights: dict[str, float] = {}
-    if _dcf is not None:
-        raw_weights["dcf"] = DEFAULT_WEIGHT_DCF
-    if _mult is not None:
-        raw_weights["multiples"] = DEFAULT_WEIGHT_MULTIPLES
-    if _ana is not None:
-        raw_weights["analyst"] = DEFAULT_WEIGHT_ANALYST
-    if _ts is not None:
-        raw_weights["three_stage"] = DEFAULT_WEIGHT_THREE_STAGE
-    if _ddm is not None:
-        raw_weights["ddm"] = DEFAULT_WEIGHT_DDM
-    if _epv is not None:
-        raw_weights["epv"] = DEFAULT_WEIGHT_EPV
-    if _pw is not None:
-        raw_weights["probability_weighted"] = DEFAULT_WEIGHT_PROBABILITY_WEIGHTED
+    # Phase B mega-wiring: pick the with-sector or headline scheme up
+    # front. The two schemes use DIFFERENT default weights for the same
+    # estimator (e.g. DCF 0.35 headline → 0.20 with-sector), so the
+    # normalizer must operate on a coherent set — we don't mix and match.
+    if has_sector_specific:
+        raw_weights["sector_specific"] = DEFAULT_WEIGHT_SECTOR_SPECIFIC
+        if _dcf is not None:
+            raw_weights["dcf"] = DEFAULT_WEIGHT_DCF_WITH_SECTOR
+        if _mult is not None:
+            raw_weights["multiples"] = DEFAULT_WEIGHT_MULTIPLES_WITH_SECTOR
+        if _ana is not None:
+            raw_weights["analyst"] = DEFAULT_WEIGHT_ANALYST_WITH_SECTOR
+        if _ts is not None:
+            raw_weights["three_stage"] = DEFAULT_WEIGHT_THREE_STAGE_WITH_SECTOR
+        if _ddm is not None:
+            raw_weights["ddm"] = DEFAULT_WEIGHT_DDM_WITH_SECTOR
+        if _epv is not None:
+            raw_weights["epv"] = DEFAULT_WEIGHT_EPV_WITH_SECTOR
+        if _pw is not None:
+            raw_weights["probability_weighted"] = DEFAULT_WEIGHT_PROBABILITY_WEIGHTED_WITH_SECTOR
+    else:
+        if _dcf is not None:
+            raw_weights["dcf"] = DEFAULT_WEIGHT_DCF
+        if _mult is not None:
+            raw_weights["multiples"] = DEFAULT_WEIGHT_MULTIPLES
+        if _ana is not None:
+            raw_weights["analyst"] = DEFAULT_WEIGHT_ANALYST
+        if _ts is not None:
+            raw_weights["three_stage"] = DEFAULT_WEIGHT_THREE_STAGE
+        if _ddm is not None:
+            raw_weights["ddm"] = DEFAULT_WEIGHT_DDM
+        if _epv is not None:
+            raw_weights["epv"] = DEFAULT_WEIGHT_EPV
+        if _pw is not None:
+            raw_weights["probability_weighted"] = DEFAULT_WEIGHT_PROBABILITY_WEIGHTED
 
     if not raw_weights:
         return CompositeIV(
@@ -378,6 +491,8 @@ def compute_composite_iv(
 
     final_weights = _normalize_weights(raw_weights)
     values_by_key: dict[str, float] = {}
+    if has_sector_specific:
+        values_by_key["sector_specific"] = _sector_fv  # type: ignore[assignment]
     if _dcf is not None:
         values_by_key["dcf"] = _dcf
     if _mult is not None:
@@ -425,10 +540,20 @@ def compute_composite_iv(
     #     dict carries the per-estimator labels and weights.
     keys = set(values_by_key.keys())
     n_estimators = len(keys)
+    # Phase B mega-wiring: sector-routed tickers get a sector-tagged
+    # method so the frontend can render the right "primary estimator"
+    # pill ("NBFC ROA tree" / "Insurance EV+VNB" / "Cement mid-cycle"
+    # / etc.) instead of a generic "DCF". The sector_specific_label
+    # is included verbatim in the tag.
+    if has_sector_specific:
+        if n_estimators == 1:
+            method = f"sector_{_sector_label or 'specific'}_only"
+        else:
+            method = f"sector_{_sector_label or 'specific'}_composite_{n_estimators}_method"
     # Bank branch tag: the "dcf" slot is actually the residual-income
     # FV the primary engine emitted. We surface this in the method tag
     # so the frontend can render the pill as "Residual income" not "DCF".
-    if is_bank and "dcf" in keys:
+    elif is_bank and "dcf" in keys:
         if n_estimators == 1:
             method = "bank_residual_income"
         else:
@@ -456,6 +581,7 @@ def compute_composite_iv(
         components=components,
         method=method,
         extreme_divergence=extreme,
+        sector_specific_label=_sector_label if has_sector_specific else None,
     )
 
 
@@ -531,4 +657,79 @@ def composite_to_dict(c: CompositeIV) -> dict:
         },
         "method": c.method,
         "extreme_divergence": c.extreme_divergence,
+        "sector_specific_label": c.sector_specific_label,
     }
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase B mega-wiring (2026-06-10) — overlay multipliers
+# ─────────────────────────────────────────────────────────────────
+# Two Phase-A services emit a MULTIPLIER on the composite rather
+# than a standalone fair value:
+#
+#   * `it_services_overlay_service.compute_it_overlay` — adjusts DCF
+#     for IT-specific risks the generic DCF doesn't see (client
+#     concentration, vertical/geo concentration, SBC intensity,
+#     growth-quality). Compound multiplier bounded [0.74, 1.16]
+#     by the service; we widen to [0.70, 1.30] here as the defensive
+#     outer clamp so even a buggy upstream multiplier can't 10x the
+#     composite.
+#   * `utilities_maintenance_capex_service.compute_maintenance_adjustment`
+#     — Munger / Buffett owner-earnings adjustment that strips out the
+#     part of reported FCF that came from UNDER-spending vs D&A.
+#     Surfaces as a ratio (owner_earnings / reported_fcf) which we
+#     apply as a multiplier on the composite. Bounded [0.70, 1.30] for
+#     the same defensive reason.
+#
+# Both overlays run AFTER `compute_composite_iv` — they multiply the
+# headline composite value and tag the components dict so the
+# frontend can render an "overlay applied" badge. The original
+# composite (pre-overlay) is preserved in `composite_components`
+# for transparency.
+# ─────────────────────────────────────────────────────────────────
+
+def apply_overlay_to_composite(
+    composite_value: Optional[float],
+    multiplier: Optional[float],
+    overlay_label: str,
+    *,
+    min_multiplier: float = 0.70,
+    max_multiplier: float = 1.30,
+) -> tuple[Optional[float], Optional[float], Optional[str]]:
+    """Apply an overlay multiplier to a composite value defensively.
+
+    Returns ``(adjusted_value, applied_multiplier, applied_label)``:
+      * ``adjusted_value`` — ``composite_value * clamped_multiplier``,
+        rounded to 2dp. None when either input was None.
+      * ``applied_multiplier`` — the clamped multiplier actually used.
+        None when no overlay was applied.
+      * ``applied_label`` — the overlay label tag, None when not applied.
+
+    Defensive contract:
+      * None/NaN/non-finite inputs → return ``(composite_value, None, None)``
+        (no-op).
+      * Multiplier outside [min, max] → clamped to the band.
+      * Multiplier <= 0 is rejected (treated as no-op).
+    """
+    if composite_value is None:
+        return None, None, None
+    try:
+        cv = float(composite_value)
+    except (TypeError, ValueError):
+        return composite_value, None, None
+    if cv != cv or cv in (float("inf"), float("-inf")):
+        return composite_value, None, None
+    if multiplier is None:
+        return cv, None, None
+    try:
+        m = float(multiplier)
+    except (TypeError, ValueError):
+        return cv, None, None
+    if m != m or m in (float("inf"), float("-inf")) or m <= 0:
+        return cv, None, None
+    if m < min_multiplier:
+        m = min_multiplier
+    elif m > max_multiplier:
+        m = max_multiplier
+    adjusted = round(cv * m, 2)
+    return adjusted, round(m, 4), str(overlay_label) if overlay_label else None

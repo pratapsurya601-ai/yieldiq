@@ -830,6 +830,34 @@ class AnalysisResponse(BaseModel):
     #                        non-positive
     probability_weighted_fv: Optional[float] = None
     probability_weighted_method: Optional[str] = None
+    # ── Phase B mega-wiring (2026-06-10) — sector engine routing ──
+    # `sector_specific_fv` is the fair value the ticker's primary
+    # sector engine emitted — populated for tickers in any of the 13
+    # routed cohorts (NBFC / Insurance / Pharma pipeline / Telecom /
+    # Oil&Gas / Auto OEM / Cement / Steel / RE Developer / Consumer
+    # Durables / Media / Logistics / Holdco SOTP). When present,
+    # `composite_intrinsic_value` weights it at 0.40 (vs DCF 0.20 +
+    # Multiples 0.15 + Analyst 0.10 + Phase-C estimators 0.15
+    # combined). `sector_specific_label` identifies which engine — e.g.
+    # "nbfc_roa", "insurance_ev_vnb", "cement_utilization",
+    # "holdco_sotp". Both fields are None for non-routed tickers and
+    # the composite falls back to the headline DCF+Multiples+Analyst
+    # +Phase-C scheme.
+    sector_specific_fv: Optional[float] = None
+    sector_specific_label: Optional[str] = None
+    # ── Phase B mega-wiring (2026-06-10) — overlay multiplier ──
+    # Two overlay engines emit a multiplier on the composite rather
+    # than a standalone FV: IT services overlay (TCS/INFY/WIPRO/...
+    # — adjusts for client concentration, geo/vertical concentration,
+    # SBC, growth quality) and utilities maintenance capex
+    # (POWERGRID/NTPC — owner-earnings adjustment). When present, the
+    # multiplier is applied to `composite_intrinsic_value` AFTER the
+    # weighted average runs, clamped to [0.70, 1.30] defensively.
+    # `sector_overlay_label` is "it_services_overlay" or
+    # "utilities_maintenance". Both fields are None for tickers not in
+    # either overlay cohort.
+    sector_overlay_multiplier: Optional[float] = None
+    sector_overlay_label: Optional[str] = None
 
     # T5.3 (2026-06-10): 4 derived insights — synthesize composite +
     # confidence + floor/ceiling + sector calibration into clear

@@ -274,6 +274,16 @@ def _composite_inputs_from_dict(payload: dict) -> dict:
     ddm_fv = payload.get("ddm_fv")
     epv_fv = payload.get("epv_per_share")
     probability_weighted_fv = payload.get("probability_weighted_fv")
+    # Phase B mega-wiring (2026-06-10) — sector-primary engine output.
+    # Populated by `_inject_sector_specific_dict` upstream. None for
+    # tickers that don't route to any of the 13 sector-primary
+    # engines (NBFC ROA / Insurance EV+VNB / Pharma pipeline / Telecom
+    # ARPU / Oil&Gas / Auto OEM / Cement / Steel / RE developer /
+    # Consumer durables / Media / Logistics / Holdco SOTP). When
+    # present, composite_iv_service tilts the weights toward this
+    # slot (0.40 default) and reduces DCF/Multiples/Analyst.
+    sector_specific_fv = payload.get("sector_specific_fv")
+    sector_specific_label = payload.get("sector_specific_label")
     # Stock kind / sector / ticker — used by the composite branch logic.
     stock_kind: str | None = None
     if quality.get("is_holdco"):
@@ -290,6 +300,8 @@ def _composite_inputs_from_dict(payload: dict) -> dict:
         "ddm_fv": ddm_fv,
         "epv_fv": epv_fv,
         "probability_weighted_fv": probability_weighted_fv,
+        "sector_specific_fv": sector_specific_fv,
+        "sector_specific_label": sector_specific_label,
         "stock_kind": stock_kind,
         "sector": sector,
         "ticker": ticker,
@@ -326,6 +338,28 @@ def _inject_composite_iv_dict(payload: dict) -> dict:
         inputs = _composite_inputs_from_dict(payload)
         result = compute_composite_iv(**inputs)
         as_dict = composite_to_dict(result)
+        # ── Phase B mega-wiring: apply overlay multiplier when set ──
+        # Overlay injects (`_inject_overlay_dict`) run BEFORE composite
+        # and write `sector_overlay_multiplier` + `sector_overlay_label`
+        # on the payload. The multiplier is applied here so the
+        # composite's weighted-average math runs FIRST and the overlay
+        # adjusts the headline value at the boundary.
+        from backend.services.composite_iv_service import (
+            apply_overlay_to_composite,
+        )
+        overlay_mult = payload.get("sector_overlay_multiplier")
+        overlay_label = payload.get("sector_overlay_label")
+        if as_dict["value"] is not None and overlay_mult is not None:
+            adjusted, applied_mult, applied_label = apply_overlay_to_composite(
+                as_dict["value"], overlay_mult, overlay_label or "overlay",
+            )
+            if adjusted is not None and applied_mult is not None:
+                as_dict["value"] = adjusted
+                if isinstance(as_dict.get("components"), dict):
+                    as_dict["components"]["overlay_applied"] = {
+                        "multiplier": applied_mult,
+                        "label": applied_label,
+                    }
         payload["composite_intrinsic_value"] = as_dict["value"]
         # composite_components carries both the per-estimator values
         # AND the method tag + extreme_divergence flag so the frontend
@@ -335,6 +369,7 @@ def _inject_composite_iv_dict(payload: dict) -> dict:
                 "components": as_dict["components"],
                 "method": as_dict["method"],
                 "extreme_divergence": as_dict["extreme_divergence"],
+                "sector_specific_label": as_dict.get("sector_specific_label"),
             }
         else:
             payload["composite_components"] = None
@@ -379,17 +414,46 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
             "probability_weighted_fv": getattr(
                 result, "probability_weighted_fv", None
             ),
+            "sector_specific_fv": getattr(result, "sector_specific_fv", None),
+            "sector_specific_label": getattr(
+                result, "sector_specific_label", None
+            ),
             "ticker": result.ticker,
         }
         inputs = _composite_inputs_from_dict(_payload)
         composite = compute_composite_iv(**inputs)
         as_dict = composite_to_dict(composite)
+        # ── Phase B mega-wiring: apply overlay multiplier when set ──
+        # Overlay injects (`_inject_overlay_*`) run BEFORE composite and
+        # write `sector_overlay_multiplier` + `sector_overlay_label` on
+        # the model. The multiplier is applied here so the composite's
+        # weighted-average math runs FIRST and the overlay adjusts the
+        # headline value at the boundary.
+        from backend.services.composite_iv_service import (
+            apply_overlay_to_composite,
+        )
+        overlay_mult = getattr(result, "sector_overlay_multiplier", None)
+        overlay_label = getattr(result, "sector_overlay_label", None)
+        if as_dict["value"] is not None and overlay_mult is not None:
+            adjusted, applied_mult, applied_label = apply_overlay_to_composite(
+                as_dict["value"], overlay_mult, overlay_label or "overlay",
+            )
+            if adjusted is not None and applied_mult is not None:
+                as_dict["value"] = adjusted
+                # Stamp the overlay on the components dict so the
+                # frontend can render an "overlay applied" badge.
+                if isinstance(as_dict.get("components"), dict):
+                    as_dict["components"]["overlay_applied"] = {
+                        "multiplier": applied_mult,
+                        "label": applied_label,
+                    }
         result.composite_intrinsic_value = as_dict["value"]
         if as_dict["value"] is not None:
             result.composite_components = {
                 "components": as_dict["components"],
                 "method": as_dict["method"],
                 "extreme_divergence": as_dict["extreme_divergence"],
+                "sector_specific_label": as_dict.get("sector_specific_label"),
             }
         else:
             result.composite_components = None
@@ -950,6 +1014,1021 @@ def _inject_probability_weighted_model(result: "AnalysisResponse") -> "AnalysisR
     return result
 
 
+def _inject_sector_specific_dict(payload: dict) -> dict:
+    """Populate ``sector_specific_fv`` + ``sector_specific_label``.
+
+    Phase B mega-wiring (2026-06-10). Routes the ticker through the
+    appropriate sector-primary engine when applicable. Returns the
+    same dict with two new keys set (both None on a non-routed ticker).
+
+    Engines tried, in priority order — first that returns a positive
+    FV wins:
+      1. Holdco SOTP        (HOLDING_COMPANIES set membership)
+      2. NBFC ROA tree      (NBFC_TICKERS map)
+      3. Insurance EV+VNB   (life insurance ticker set)
+      4. Pharma pipeline    (pharma cohort + curated seed data)
+      5. Telecom ARPU DCF   (TELECOM_TICKERS set)
+      6. Oil&Gas SOTP       (OIL_GAS_TICKERS map)
+      7. Auto OEM cycle     (AUTO_OEM_TICKERS map)
+      8. Cement utilization (CEMENT_TICKERS map)
+      9. Steel cost curve   (STEEL_TICKERS map)
+     10. RE developer NAV   (RE_DEVELOPER_TICKERS map)
+     11. Consumer durables  (CONSUMER_DURABLES_TICKERS set)
+     12. Media LTV          (MEDIA_TICKERS map)
+     13. Logistics freight  (LOGISTICS_TICKERS map)
+
+    Each engine call is wrapped in its own try/except so a single
+    engine failing for one ticker can never break the response — the
+    field stays None and the composite falls back to the headline
+    DCF + Multiples + Wall St scheme. Engines that need data the
+    payload doesn't carry (e.g. operating-cycle history for consumer
+    durables, full subscriber forecasts for telecom) return None
+    here and the composite is unaffected.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    # Defensive default — never let downstream readers crash on a
+    # missing key.
+    payload.setdefault("sector_specific_fv", None)
+    payload.setdefault("sector_specific_label", None)
+    try:
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        fv, label = _resolve_sector_primary_fv(ticker, sector, payload)
+        if fv is not None and label:
+            payload["sector_specific_fv"] = fv
+            payload["sector_specific_label"] = label
+    except Exception:
+        # Defensive — never break the response on a single estimator.
+        pass
+    return payload
+
+
+def _inject_sector_specific_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_sector_specific_dict`."""
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "company": result.company.model_dump() if result.company else {},
+            "insights": result.insights.model_dump() if result.insights else {},
+            "computation_inputs": result.computation_inputs,
+        }
+        _inject_sector_specific_dict(_payload)
+        result.sector_specific_fv = _payload.get("sector_specific_fv")
+        result.sector_specific_label = _payload.get("sector_specific_label")
+    except Exception:
+        pass
+    return result
+
+
+def _inject_overlay_dict(payload: dict) -> dict:
+    """Populate ``sector_overlay_multiplier`` + ``sector_overlay_label``.
+
+    Phase B mega-wiring (2026-06-10). Two overlay engines:
+
+      * IT services overlay (`it_services_overlay_service.compute_it_overlay`)
+        — applies to TCS / INFY / WIPRO / HCLTECH / TECHM / LTIM and the
+        broader IT_TICKERS set. Compound multiplier in [0.74, 1.16].
+      * Utilities maintenance (`utilities_maintenance_capex_service`)
+        — applies to POWERGRID / NTPC and the broader UTILITIES_TICKERS
+        set. Owner-earnings / reported-FCF ratio as multiplier.
+
+    The multiplier is APPLIED to the composite by
+    `_inject_composite_iv_dict` AFTER it computes the weighted average
+    — this helper just records the multiplier on the payload so the
+    composite step can pick it up. Setting two fields keeps the
+    contract symmetric with sector_specific (both are populated by
+    inject helpers; both are consumed by the composite step).
+
+    Defensive — when neither overlay applies, both fields stay None
+    and the composite goes through unchanged.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    payload.setdefault("sector_overlay_multiplier", None)
+    payload.setdefault("sector_overlay_label", None)
+    try:
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        mult, label = _resolve_overlay_multiplier(ticker, sector, payload)
+        if mult is not None and label:
+            payload["sector_overlay_multiplier"] = mult
+            payload["sector_overlay_label"] = label
+    except Exception:
+        pass
+    return payload
+
+
+def _inject_overlay_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_overlay_dict`."""
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "company": result.company.model_dump() if result.company else {},
+            "computation_inputs": result.computation_inputs,
+        }
+        _inject_overlay_dict(_payload)
+        result.sector_overlay_multiplier = _payload.get(
+            "sector_overlay_multiplier"
+        )
+        result.sector_overlay_label = _payload.get("sector_overlay_label")
+    except Exception:
+        pass
+    return result
+
+
+def _resolve_sector_primary_fv(
+    ticker: str,
+    sector: "str | None",
+    payload: dict,
+) -> "tuple[float | None, str | None]":
+    """Try each sector-primary engine in priority order.
+
+    Returns ``(fair_value_per_share, engine_label)`` on the first
+    engine that emits a positive FV. ``(None, None)`` when no engine
+    applies OR when every applicable engine returned None.
+
+    The dispatcher uses the payload to source inputs for each engine.
+    When the payload doesn't carry an engine's required inputs (e.g.
+    `computation_inputs.nbfc_inputs` missing for a routed NBFC ticker),
+    that engine returns None and the dispatcher falls through to the
+    next candidate. Per-engine input mapping lives in
+    `_compute_<engine>_fv` helpers below for testability.
+    """
+    if not ticker:
+        return None, None
+    quality = _safe_payload_section(payload, "quality")
+    valuation = _safe_payload_section(payload, "valuation")
+    insights = _safe_payload_section(payload, "insights")
+    company = _safe_payload_section(payload, "company")
+    ci = payload.get("computation_inputs") if isinstance(
+        payload.get("computation_inputs"), dict
+    ) else {}
+
+    # ── 1. Holdco SOTP — pure holding companies bypass everything.
+    try:
+        from backend.services.holdco_sotp_service import (
+            is_holdco_sotp_applicable,
+        )
+        from backend.services.analysis.constants import HOLDING_COMPANIES
+        applicable, _ = is_holdco_sotp_applicable(ticker, HOLDING_COMPANIES)
+        if applicable:
+            fv = _compute_holdco_sotp_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "holdco_sotp"
+            # If applicable but FV failed, still no fallback to
+            # NBFC/other sector engines — holdcos are a hard route.
+            return None, None
+    except Exception:
+        pass
+
+    # ── 2. NBFC ROA tree.
+    try:
+        from backend.services.nbfc_roa_service import is_nbfc_applicable
+        applicable, _ = is_nbfc_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_nbfc_fv(ticker, ci, quality, valuation)
+            if fv is not None:
+                return fv, "nbfc_roa"
+    except Exception:
+        pass
+
+    # ── 3. Insurance EV+VNB.
+    try:
+        from backend.services.insurance_appraisal_service import (
+            is_ev_vnb_applicable,
+        )
+        if is_ev_vnb_applicable(ticker, sector):
+            fv = _compute_insurance_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "insurance_ev_vnb"
+    except Exception:
+        pass
+
+    # ── 4. Pharma pipeline rNPV (only with curated data).
+    try:
+        from backend.services.pharma_pipeline_service import (
+            has_curated_pipeline_data,
+            is_pharma_pipeline_meaningful,
+        )
+        has_data = False
+        try:
+            has_data = bool(has_curated_pipeline_data(ticker))
+        except Exception:
+            has_data = False
+        meaningful, _ = is_pharma_pipeline_meaningful(
+            ticker, sector, has_data,
+        )
+        if meaningful:
+            fv = _compute_pharma_pipeline_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "pharma_pipeline"
+    except Exception:
+        pass
+
+    # ── 5. Telecom ARPU DCF.
+    try:
+        from backend.services.telecom_arpu_service import (
+            is_telecom_arpu_applicable,
+        )
+        applicable, _ = is_telecom_arpu_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_telecom_fv(ticker, ci, quality, valuation)
+            if fv is not None:
+                return fv, "telecom_arpu"
+    except Exception:
+        pass
+
+    # ── 6. Oil & Gas (upstream / downstream / integrated SOTP).
+    try:
+        from backend.services.oil_gas_valuation_service import (
+            is_oil_gas_applicable,
+        )
+        applicable, _ = is_oil_gas_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_oil_gas_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "oil_gas"
+    except Exception:
+        pass
+
+    # ── 7. Auto OEM cycle-adjusted.
+    try:
+        from backend.services.auto_oem_cycle_service import (
+            is_auto_oem_applicable,
+        )
+        applicable, _ = is_auto_oem_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_auto_oem_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "auto_oem_cycle"
+    except Exception:
+        pass
+
+    # ── 8. Cement capacity utilization.
+    try:
+        from backend.services.cement_utilization_service import (
+            is_cement_applicable,
+        )
+        applicable, _ = is_cement_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_cement_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "cement_utilization"
+    except Exception:
+        pass
+
+    # ── 9. Steel cost-curve quartile.
+    try:
+        from backend.services.steel_cost_curve_service import (
+            is_steel_applicable,
+        )
+        applicable, _ = is_steel_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_steel_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "steel_cost_curve"
+    except Exception:
+        pass
+
+    # ── 10. Real estate developer NAV.
+    try:
+        from backend.services.real_estate_developer_service import (
+            is_re_developer_applicable,
+        )
+        gate_result = is_re_developer_applicable(ticker, sector)
+        # service returns either (bool, str) tuple or just bool depending
+        # on caller — normalize defensively.
+        applicable = (
+            gate_result[0] if isinstance(gate_result, tuple) else bool(gate_result)
+        )
+        if applicable:
+            fv = _compute_re_developer_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "re_developer_nav"
+    except Exception:
+        pass
+
+    # ── 11. Consumer durables WC drag.
+    try:
+        from backend.services.consumer_durables_wc_service import (
+            is_consumer_durables_applicable,
+        )
+        applicable, _ = is_consumer_durables_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_consumer_durables_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "consumer_durables_wc"
+    except Exception:
+        pass
+
+    # ── 12. Media subscriber LTV.
+    try:
+        from backend.services.media_subscriber_ltv_service import (
+            is_media_applicable,
+        )
+        applicable, _ = is_media_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_media_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "media_subscriber_ltv"
+    except Exception:
+        pass
+
+    # ── 13. Logistics freight volume × yield.
+    try:
+        from backend.services.logistics_freight_service import (
+            is_logistics_applicable,
+        )
+        applicable, _ = is_logistics_applicable(ticker, sector)
+        if applicable:
+            fv = _compute_logistics_fv(ticker, ci, quality)
+            if fv is not None:
+                return fv, "logistics_freight"
+    except Exception:
+        pass
+
+    return None, None
+
+
+def _resolve_overlay_multiplier(
+    ticker: str,
+    sector: "str | None",
+    payload: dict,
+) -> "tuple[float | None, str | None]":
+    """Try IT-services and utilities-maintenance overlays in priority order.
+
+    Returns ``(multiplier, label)`` on the first applicable overlay.
+    ``(None, None)`` when no overlay applies or when the engine
+    couldn't compute (missing inputs).
+
+    Only ONE overlay is applied per ticker — IT services takes
+    precedence over utilities maintenance because the IT_TICKERS and
+    UTILITIES_TICKERS sets don't intersect in practice anyway, but
+    documenting the priority makes the contract explicit.
+    """
+    if not ticker:
+        return None, None
+    quality = _safe_payload_section(payload, "quality")
+    valuation = _safe_payload_section(payload, "valuation")
+    company = _safe_payload_section(payload, "company")
+    ci = payload.get("computation_inputs") if isinstance(
+        payload.get("computation_inputs"), dict
+    ) else {}
+
+    # ── IT services overlay.
+    try:
+        from backend.services.it_services_overlay_service import (
+            is_it_overlay_applicable,
+        )
+        applicable, _ = is_it_overlay_applicable(ticker, sector)
+        if applicable:
+            mult = _compute_it_overlay_multiplier(ticker, ci, quality, valuation)
+            if mult is not None:
+                return mult, "it_services_overlay"
+    except Exception:
+        pass
+
+    # ── Utilities maintenance overlay.
+    try:
+        from backend.services.utilities_maintenance_capex_service import (
+            is_utilities_maint_applicable,
+        )
+        applicable, _ = is_utilities_maint_applicable(ticker, sector)
+        if applicable:
+            mult = _compute_utilities_overlay_multiplier(
+                ticker, ci, quality, valuation,
+            )
+            if mult is not None:
+                return mult, "utilities_maintenance"
+    except Exception:
+        pass
+
+    return None, None
+
+
+# ─────────────────────────────────────────────────────────────────
+# Per-engine FV helpers — each pulls inputs from the payload-level
+# `computation_inputs` snapshot (when the cold-compute path captured
+# them) and short-circuits to None when the inputs aren't available.
+# Returning None is honest — the dispatcher falls through and the
+# composite uses the headline DCF + Multiples + Wall St scheme.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _ci_block(ci: dict, key: str) -> dict:
+    """Return ``ci[key]`` as a dict, with a defensive {} fallback."""
+    if not isinstance(ci, dict):
+        return {}
+    block = ci.get(key)
+    if not isinstance(block, dict):
+        return {}
+    return block
+
+
+def _coerce_pos(value) -> "float | None":
+    """Return float(value) > 0, else None. Same posture as composite_iv_service."""
+    if value is None:
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f in (float("inf"), float("-inf")) or f <= 0:
+        return None
+    return f
+
+
+def _compute_holdco_sotp_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.holdco_sotp_service import (
+            HoldcoSOTPInputs,
+            UnderlyingHolding,
+            compute_sotp,
+        )
+        block = _ci_block(ci, "holdco_sotp")
+        underlyings_raw = block.get("underlyings") or []
+        if not isinstance(underlyings_raw, list) or not underlyings_raw:
+            return None
+        underlyings = []
+        for u in underlyings_raw:
+            if not isinstance(u, dict):
+                continue
+            try:
+                underlyings.append(UnderlyingHolding(
+                    ticker=str(u.get("ticker") or ""),
+                    stake_pct=float(u.get("stake_pct") or 0.0),
+                    underlying_market_cap_inr_cr=(
+                        float(u["underlying_market_cap_inr_cr"])
+                        if u.get("underlying_market_cap_inr_cr") is not None
+                        else None
+                    ),
+                    is_listed=bool(u.get("is_listed", True)),
+                ))
+            except (TypeError, ValueError):
+                continue
+        if not underlyings:
+            return None
+        inputs = HoldcoSOTPInputs(
+            holdco_ticker=ticker,
+            underlyings=underlyings,
+            holdco_net_cash_inr_cr=float(block.get("net_cash_inr_cr") or 0.0),
+            holdco_shares_outstanding=float(
+                block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0
+            ),
+        )
+        result = compute_sotp(inputs)
+        return _coerce_pos(result.sotp_per_share)
+    except Exception:
+        return None
+
+
+def _compute_nbfc_fv(ticker: str, ci: dict, quality: dict, valuation: dict) -> "float | None":
+    try:
+        from backend.services.nbfc_roa_service import (
+            NBFCInputs,
+            NBFC_TICKERS,
+            compute_nbfc_fair_value,
+            get_segment_defaults,
+        )
+        block = _ci_block(ci, "nbfc")
+        bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+        segment = NBFC_TICKERS.get(bare, "diversified")
+        defaults = get_segment_defaults(segment)
+        avg_assets = _coerce_pos(block.get("average_assets_inr_cr"))
+        if avg_assets is None:
+            return None
+        avg_equity = _coerce_pos(block.get("average_equity_inr_cr")) or (avg_assets * 0.12)
+        inputs = NBFCInputs(
+            average_assets_inr_cr=avg_assets,
+            average_equity_inr_cr=avg_equity,
+            yield_on_assets_pct=float(block.get("yield_on_assets_pct") or defaults["expected_yield"]),
+            cost_of_funds_pct=float(block.get("cost_of_funds_pct") or defaults["expected_cof"]),
+            credit_cost_pct=float(block.get("credit_cost_pct") or defaults["expected_credit_cost"]),
+            opex_ratio_pct=float(block.get("opex_ratio_pct") or defaults["expected_opex_ratio"]),
+            fee_income_pct=float(block.get("fee_income_pct") or 0.0),
+            tax_rate=float(block.get("tax_rate") or 0.25),
+            expected_loan_growth_pct=float(block.get("expected_loan_growth_pct") or defaults["expected_growth"]),
+            payout_ratio=float(block.get("payout_ratio") or quality.get("payout_ratio") or 0.20),
+            cost_of_equity=float(block.get("cost_of_equity") or defaults["cost_of_equity"]),
+            sustainable_growth=float(block.get("sustainable_growth") or 0.10),
+            shares_outstanding=float(block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0),
+            book_value_per_share=float(block.get("book_value_per_share") or quality.get("book_value_per_share") or 0.0),
+            segment=segment,
+        )
+        result = compute_nbfc_fair_value(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_insurance_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.insurance_appraisal_service import (
+            EVVNBInputs,
+            compute_ev_vnb_appraisal,
+            select_vnb_multiple,
+        )
+        block = _ci_block(ci, "insurance")
+        ev = _coerce_pos(block.get("embedded_value"))
+        if ev is None:
+            return None
+        vnb = float(block.get("new_business_value") or 0.0)
+        # select_vnb_multiple returns a recommended multiple; defensive fallback to 22 mid-band.
+        try:
+            mult = select_vnb_multiple(ticker)
+            if not mult or mult <= 0:
+                mult = 22.0
+        except Exception:
+            mult = 22.0
+        inputs = EVVNBInputs(
+            embedded_value=ev,
+            new_business_value=vnb,
+            vnb_multiple=float(block.get("vnb_multiple") or mult),
+        )
+        shares = float(block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0)
+        result = compute_ev_vnb_appraisal(inputs, shares_outstanding=shares if shares > 0 else None)
+        return _coerce_pos(result.appraisal_per_share)
+    except Exception:
+        return None
+
+
+def _compute_pharma_pipeline_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.pharma_pipeline_service import (
+            load_curated_assets,
+            value_pipeline,
+        )
+        assets = load_curated_assets(ticker)
+        if not assets:
+            return None
+        result = value_pipeline(assets)
+        if result.method == "unavailable":
+            return None
+        # Aggregate INR-cr → per-share. shares_outstanding in Cr per
+        # Indian convention; total_pipeline_rnpv_inr_cr / shares = ₹/share.
+        block = _ci_block(ci, "pharma_pipeline")
+        shares = (
+            _coerce_pos(block.get("shares_outstanding"))
+            or _coerce_pos(quality.get("shares_outstanding"))
+        )
+        if shares is None:
+            return None
+        per_share = result.total_pipeline_rnpv_inr_cr / shares
+        return _coerce_pos(per_share)
+    except Exception:
+        return None
+
+
+def _compute_telecom_fv(ticker: str, ci: dict, quality: dict, valuation: dict) -> "float | None":
+    try:
+        from backend.services.telecom_arpu_service import (
+            TelecomInputs,
+            compute_arpu_driven_fv,
+        )
+        block = _ci_block(ci, "telecom")
+        current_subs = _coerce_pos(block.get("current_subscribers_millions"))
+        current_arpu = _coerce_pos(block.get("current_arpu_inr"))
+        if current_subs is None or current_arpu is None:
+            return None
+        inputs = TelecomInputs(
+            current_subscribers_millions=current_subs,
+            current_arpu_inr=current_arpu,
+            forecast_horizon_years=int(block.get("forecast_horizon_years") or 5),
+            operating_margin_pct=float(block.get("operating_margin_pct") or 30.0),
+            maintenance_capex_pct_of_revenue=float(
+                block.get("maintenance_capex_pct_of_revenue") or 12.0
+            ),
+            growth_capex_pct_of_revenue=float(
+                block.get("growth_capex_pct_of_revenue") or 5.0
+            ),
+            spectrum_capex_one_time=float(block.get("spectrum_capex_one_time") or 0.0),
+            tax_rate=float(block.get("tax_rate") or 0.22),
+            discount_rate=float(
+                block.get("discount_rate")
+                or valuation.get("discount_rate")
+                or valuation.get("wacc")
+                or 0.11
+            ),
+            terminal_growth=float(
+                block.get("terminal_growth") or valuation.get("terminal_growth") or 0.04
+            ),
+            shares_outstanding=float(
+                block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0
+            ),
+        )
+        result = compute_arpu_driven_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_oil_gas_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    """Resolve per-share FV for the oil & gas cohort.
+
+    The oil_gas service returns AGGREGATE values (₹Cr) — this helper
+    handles the per-share conversion (equity_value_inr_cr × 1e7 / shares).
+    Each segment helper returns a dict; integrated SOTP returns the
+    OilGasValuationResult with fair_value_per_share already.
+    """
+    try:
+        from backend.services.oil_gas_valuation_service import (
+            UpstreamReserveInputs,
+            DownstreamRefiningInputs,
+            CityGasInputs,
+            compute_integrated_sotp,
+            compute_upstream_reserves_npv,
+            compute_downstream_ev_ebitda,
+            compute_city_gas_value,
+            select_method_for_ticker,
+        )
+        segment = select_method_for_ticker(ticker)
+        if not segment:
+            return None
+        block = _ci_block(ci, "oil_gas")
+        shares = float(
+            block.get("shares_outstanding")
+            or quality.get("shares_outstanding")
+            or 0.0
+        )
+        if shares <= 0:
+            return None
+
+        def _to_per_share(equity_cr: "float | None") -> "float | None":
+            if equity_cr is None or equity_cr <= 0:
+                return None
+            return (float(equity_cr) * 1e7) / shares
+
+        if segment == "upstream":
+            ups = block.get("upstream") if isinstance(block.get("upstream"), dict) else block
+            if not _coerce_pos(ups.get("proved_reserves_mmboe")):
+                return None
+            ui = UpstreamReserveInputs(
+                proved_reserves_mmboe=float(ups["proved_reserves_mmboe"]),
+                probable_reserves_mmboe=float(ups.get("probable_reserves_mmboe") or 0.0),
+                annual_production_mmboe=float(ups.get("annual_production_mmboe") or 0.0),
+                realized_price_usd_per_boe=float(ups.get("realized_price_usd_per_boe") or 70.0),
+                operating_cost_usd_per_boe=float(ups.get("operating_cost_usd_per_boe") or 25.0),
+                royalty_pct=float(ups.get("royalty_pct") or 20.0),
+                cess_pct=float(ups.get("cess_pct") or 20.0),
+                income_tax_pct=float(ups.get("income_tax_pct") or 25.0),
+                discount_rate=float(ups.get("discount_rate") or 0.12),
+            )
+            res = compute_upstream_reserves_npv(ui)
+            npv_cr = res.get("npv_inr_cr")
+            net_debt = float(ups.get("net_debt_inr_cr") or block.get("net_debt_inr_cr") or 0.0)
+            equity_cr = (npv_cr or 0.0) - net_debt
+            return _coerce_pos(_to_per_share(equity_cr))
+        if segment == "downstream":
+            ds = block.get("downstream") if isinstance(block.get("downstream"), dict) else block
+            if not _coerce_pos(ds.get("refining_throughput_mmt")):
+                return None
+            di = DownstreamRefiningInputs(
+                refining_throughput_mmt=float(ds["refining_throughput_mmt"]),
+                gross_refining_margin_usd_per_bbl=float(ds.get("gross_refining_margin_usd_per_bbl") or 8.0),
+                capacity_utilization_pct=float(ds.get("capacity_utilization_pct") or 95.0),
+                ev_ebitda_multiple=float(ds.get("ev_ebitda_multiple") or 6.5),
+                net_debt_inr_cr=float(ds.get("net_debt_inr_cr") or 0.0),
+            )
+            res = compute_downstream_ev_ebitda(di)
+            return _coerce_pos(_to_per_share(res.get("equity_value_inr_cr")))
+        if segment == "city_gas":
+            cg = block.get("city_gas") if isinstance(block.get("city_gas"), dict) else block
+            if not (_coerce_pos(cg.get("cng_volume_mmscm_per_day")) or _coerce_pos(cg.get("png_volume_mmscm_per_day"))):
+                return None
+            ci_in = CityGasInputs(
+                cng_volume_mmscm_per_day=float(cg.get("cng_volume_mmscm_per_day") or 0.0),
+                png_volume_mmscm_per_day=float(cg.get("png_volume_mmscm_per_day") or 0.0),
+                ebitda_per_unit_inr_per_scm=float(cg.get("ebitda_per_unit_inr_per_scm") or 6.5),
+                ebitda_multiple=float(cg.get("ebitda_multiple") or 14.0),
+                net_debt_inr_cr=float(cg.get("net_debt_inr_cr") or 0.0),
+            )
+            res = compute_city_gas_value(ci_in)
+            return _coerce_pos(_to_per_share(res.get("equity_value_inr_cr")))
+        if segment == "integrated":
+            # compute_integrated_sotp takes per-segment EQUITY VALUES,
+            # not Inputs dataclasses. Read pre-computed segment values
+            # from the block; absent segments contribute None.
+            res = compute_integrated_sotp(
+                upstream_value_inr_cr=block.get("upstream_value_inr_cr"),
+                downstream_value_inr_cr=block.get("downstream_value_inr_cr"),
+                petrochem_value_inr_cr=block.get("petrochem_value_inr_cr"),
+                other_value_inr_cr=block.get("other_value_inr_cr"),
+                net_debt_inr_cr=float(block.get("net_debt_inr_cr") or 0.0),
+                shares_outstanding=shares,
+            )
+            return _coerce_pos(res.fair_value_per_share)
+        # gas_transmission has no dedicated method — fall through.
+        return None
+    except Exception:
+        return None
+
+
+def _compute_auto_oem_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.auto_oem_cycle_service import (
+            AUTO_OEM_TICKERS,
+            AutoOEMInputs,
+            compute_auto_oem_fv,
+        )
+        block = _ci_block(ci, "auto_oem")
+        bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+        segment = AUTO_OEM_TICKERS.get(bare, "pv_4w")
+        current = _coerce_pos(block.get("current_year_volume_units"))
+        peak = _coerce_pos(block.get("peak_year_volume_units"))
+        trough = _coerce_pos(block.get("trough_year_volume_units"))
+        realization = _coerce_pos(block.get("realization_per_unit_inr"))
+        if not (current and peak and trough and realization):
+            return None
+        inputs = AutoOEMInputs(
+            current_year_volume_units=current,
+            peak_year_volume_units=peak,
+            trough_year_volume_units=trough,
+            realization_per_unit_inr=realization,
+            operating_margin_current_pct=float(block.get("operating_margin_current_pct") or 11.0),
+            operating_margin_mid_cycle_pct=float(block.get("operating_margin_mid_cycle_pct") or 12.0),
+            ev_ebitda_multiple_mid_cycle=float(block.get("ev_ebitda_multiple_mid_cycle") or 12.0),
+            net_debt_inr_cr=float(block.get("net_debt_inr_cr") or 0.0),
+            shares_outstanding=float(
+                block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0
+            ),
+            segment=segment,
+        )
+        result = compute_auto_oem_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_cement_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.cement_utilization_service import (
+            CEMENT_TICKERS,
+            CementInputs,
+            compute_cement_fv,
+        )
+        block = _ci_block(ci, "cement")
+        bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+        sub_segment = CEMENT_TICKERS.get(bare, "mid_tier")
+        capacity = _coerce_pos(block.get("installed_capacity_mtpa"))
+        if capacity is None:
+            return None
+        inputs = CementInputs(
+            installed_capacity_mtpa=capacity,
+            current_utilization_pct=float(block.get("current_utilization_pct") or 80.0),
+            mid_cycle_utilization_pct=float(block.get("mid_cycle_utilization_pct") or 80.0),
+            realization_per_tonne_inr=float(block.get("realization_per_tonne_inr") or 5800.0),
+            ebitda_per_tonne_inr=float(block.get("ebitda_per_tonne_inr") or 1100.0),
+            ev_ebitda_multiple=float(block.get("ev_ebitda_multiple") or 14.0),
+            net_debt_inr_cr=float(block.get("net_debt_inr_cr") or 0.0),
+            shares_outstanding=float(
+                block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0
+            ),
+            sub_segment=sub_segment,
+        )
+        result = compute_cement_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_steel_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.steel_cost_curve_service import (
+            STEEL_TICKERS,
+            SteelInputs,
+            compute_steel_fv,
+        )
+        block = _ci_block(ci, "steel")
+        bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+        quartile = STEEL_TICKERS.get(bare, "second_quartile")
+        capacity = _coerce_pos(block.get("crude_steel_capacity_mtpa"))
+        if capacity is None:
+            return None
+        inputs = SteelInputs(
+            crude_steel_capacity_mtpa=capacity,
+            current_utilization_pct=float(block.get("current_utilization_pct") or 80.0),
+            mid_cycle_utilization_pct=float(block.get("mid_cycle_utilization_pct") or 82.0),
+            realization_per_tonne_inr=float(
+                block.get("realization_per_tonne_inr") or 55000.0
+            ),
+            cost_per_tonne_inr=float(
+                block.get("cost_per_tonne_inr") or 45000.0
+            ),
+            cost_curve_quartile=quartile,
+            ev_ebitda_multiple_mid_cycle=float(
+                block.get("ev_ebitda_multiple_mid_cycle") or 6.0
+            ),
+            iron_ore_integration_pct=float(block.get("iron_ore_integration_pct") or 0.0),
+            net_debt_inr_cr=float(block.get("net_debt_inr_cr") or 0.0),
+            shares_outstanding=float(
+                block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0
+            ),
+        )
+        result = compute_steel_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_re_developer_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.real_estate_developer_service import (
+            REDeveloperInputs,
+            compute_developer_nav,
+        )
+        block = _ci_block(ci, "re_developer")
+        # NAV needs at least a land bank value. When missing, skip.
+        if not block:
+            return None
+        try:
+            inputs = REDeveloperInputs(**block)
+        except TypeError:
+            return None
+        result = compute_developer_nav(inputs)
+        return _coerce_pos(result.nav_per_share)
+    except Exception:
+        return None
+
+
+def _compute_consumer_durables_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.consumer_durables_wc_service import (
+            ConsumerDurablesInputs,
+            compute_consumer_durables_fv,
+        )
+        block = _ci_block(ci, "consumer_durables")
+        revenue = _coerce_pos(block.get("revenue_inr_cr"))
+        if revenue is None:
+            return None
+        inputs = ConsumerDurablesInputs(
+            revenue_inr_cr=revenue,
+            inventory_inr_cr=float(block.get("inventory_inr_cr") or 0.0),
+            receivables_inr_cr=float(block.get("receivables_inr_cr") or 0.0),
+            payables_inr_cr=float(block.get("payables_inr_cr") or 0.0),
+            operating_cycle_days_history=list(block.get("operating_cycle_days_history") or []),
+            wc_intensity_pct_history=list(block.get("wc_intensity_pct_history") or []),
+            margin_pct=float(block.get("margin_pct") or 12.0),
+            ev_ebitda_multiple=float(block.get("ev_ebitda_multiple") or 20.0),
+            net_debt_inr_cr=float(block.get("net_debt_inr_cr") or 0.0),
+            shares_outstanding=float(
+                block.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0
+            ),
+            cost_of_equity=float(block.get("cost_of_equity") or 0.115),
+        )
+        result = compute_consumer_durables_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_media_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.media_subscriber_ltv_service import (
+            MediaSubscriberInputs,
+            compute_media_fv,
+        )
+        block = _ci_block(ci, "media")
+        if not block:
+            return None
+        try:
+            inputs = MediaSubscriberInputs(**block)
+        except TypeError:
+            return None
+        result = compute_media_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_logistics_fv(ticker: str, ci: dict, quality: dict) -> "float | None":
+    try:
+        from backend.services.logistics_freight_service import (
+            LogisticsInputs,
+            compute_logistics_fv,
+        )
+        block = _ci_block(ci, "logistics")
+        if not block:
+            return None
+        try:
+            inputs = LogisticsInputs(**block)
+        except TypeError:
+            return None
+        result = compute_logistics_fv(inputs)
+        return _coerce_pos(result.fair_value_per_share)
+    except Exception:
+        return None
+
+
+def _compute_it_overlay_multiplier(
+    ticker: str, ci: dict, quality: dict, valuation: dict,
+) -> "float | None":
+    try:
+        from backend.services.it_services_overlay_service import (
+            IT_TICKERS,
+            ITServicesOverlayInputs,
+            compute_it_overlay,
+        )
+        block = _ci_block(ci, "it_overlay")
+        bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+        tier = IT_TICKERS.get(bare, "tier_2")
+        base_dcf = _coerce_pos(valuation.get("fair_value")) or 100.0
+        inputs = ITServicesOverlayInputs(
+            base_dcf_fv=base_dcf,
+            top_5_client_concentration_pct=float(
+                block.get("top_5_client_concentration_pct") or 25.0
+            ),
+            bfsi_revenue_share_pct=float(
+                block.get("bfsi_revenue_share_pct")
+                or block.get("bfsi_revenue_pct")
+                or 30.0
+            ),
+            usd_revenue_share_pct=float(
+                block.get("usd_revenue_share_pct")
+                or block.get("us_revenue_pct")
+                or 50.0
+            ),
+            europe_revenue_share_pct=float(
+                block.get("europe_revenue_share_pct")
+                or block.get("europe_revenue_pct")
+                or 25.0
+            ),
+            sbc_pct_of_fcf=float(block.get("sbc_pct_of_fcf") or 5.0),
+            headcount_growth_pct=float(
+                block.get("headcount_growth_pct")
+                or block.get("headcount_growth_yoy_pct")
+                or 8.0
+            ),
+            revenue_growth_3y_cagr_pct=float(
+                block.get("revenue_growth_3y_cagr_pct")
+                or block.get("revenue_growth_yoy_pct")
+                or 10.0
+            ),
+            operating_margin_pct=float(block.get("operating_margin_pct") or 24.0),
+            tier=tier,
+        )
+        result = compute_it_overlay(inputs)
+        if result.adjusted_fv is None or base_dcf <= 0:
+            adjustments = result.adjustments or {}
+            mult = adjustments.get("compound_multiplier")
+            return _coerce_pos(mult)
+        mult = float(result.adjusted_fv) / float(base_dcf)
+        return _coerce_pos(mult)
+    except Exception:
+        return None
+
+
+def _compute_utilities_overlay_multiplier(
+    ticker: str, ci: dict, quality: dict, valuation: dict,
+) -> "float | None":
+    try:
+        from backend.services.utilities_maintenance_capex_service import (
+            UTILITIES_TICKERS,
+            UtilitiesMaintenanceInputs,
+            compute_maintenance_adjustment,
+        )
+        block = _ci_block(ci, "utilities_maintenance")
+        bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+        sub_segment = UTILITIES_TICKERS.get(bare, "generation_thermal")
+        reported_fcf = _coerce_pos(block.get("reported_fcf_inr_cr"))
+        if reported_fcf is None:
+            return None
+        inputs = UtilitiesMaintenanceInputs(
+            reported_fcf_inr_cr=reported_fcf,
+            da_inr_cr=float(block.get("da_inr_cr") or 0.0),
+            total_capex_inr_cr=float(block.get("total_capex_inr_cr") or 0.0),
+            maintenance_capex_fraction=float(
+                block.get("maintenance_capex_fraction") or 0.65
+            ),
+            growth_capex_inr_cr=(
+                float(block["growth_capex_inr_cr"])
+                if block.get("growth_capex_inr_cr") is not None
+                else None
+            ),
+            asset_base_age_years=(
+                float(block["asset_base_age_years"])
+                if block.get("asset_base_age_years") is not None
+                else None
+            ),
+            rab_per_unit_inr_cr=float(block.get("rab_per_unit_inr_cr") or 0.0),
+            sub_segment=sub_segment,
+        )
+        result = compute_maintenance_adjustment(inputs)
+        # owner_earnings / reported_fcf is the relevant multiplier on FV.
+        if result.reported_fcf <= 0:
+            return None
+        mult = result.owner_earnings_inr_cr / result.reported_fcf
+        return _coerce_pos(mult)
+    except Exception:
+        return None
+
+
 def _inject_phase_b_estimators_dict(payload: dict) -> dict:
     """Run all five Phase-B estimator injects against a dict payload.
 
@@ -958,12 +2037,18 @@ def _inject_phase_b_estimators_dict(payload: dict) -> dict:
     reordered the cache-path chains so this orchestrator runs BEFORE
     `_inject_composite_iv_dict` (its outputs feed the composite
     weighted average).
+
+    Phase B mega-wiring (2026-06-10) — also runs the sector-specific
+    router and the overlay router so the composite has all per-ticker
+    signals available before the weighted average runs.
     """
     _inject_ddm_dict(payload)
     _inject_epv_dict(payload)
     _inject_three_stage_dict(payload)
     _inject_liquidation_dict(payload)
     _inject_probability_weighted_dict(payload)
+    _inject_sector_specific_dict(payload)
+    _inject_overlay_dict(payload)
     return payload
 
 
@@ -977,6 +2062,8 @@ def _inject_phase_b_estimators_model(result: "AnalysisResponse") -> "AnalysisRes
     _inject_three_stage_model(result)
     _inject_liquidation_model(result)
     _inject_probability_weighted_model(result)
+    _inject_sector_specific_model(result)
+    _inject_overlay_model(result)
     return result
 
 
