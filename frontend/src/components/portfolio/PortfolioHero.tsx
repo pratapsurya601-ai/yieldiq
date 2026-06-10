@@ -27,6 +27,7 @@
  */
 import Link from "next/link"
 import type { LiveHolding, HoldingsLiveResponse } from "@/lib/api"
+import { NumberFlip, RevealStagger } from "@/components/motion"
 
 type Summary = HoldingsLiveResponse["summary"]
 
@@ -136,8 +137,14 @@ export default function PortfolioHero({ summary, holdings, isLoading }: Portfoli
       <p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">
         Total Value
       </p>
+      {/* Motion: NumberFlip on Total Value so a holding-add or price
+          tick is acknowledged with a flip rather than silently swapping.
+          Custom `format` keeps the compact-rupees rendering (Cr/L/K). */}
       <p className="text-3xl font-black mb-1" data-testid="portfolio-hero-total-value">
-        {fmtRsCompact(summary!.total_current_value)}
+        <NumberFlip
+          value={summary!.total_current_value}
+          format={fmtRsCompact}
+        />
       </p>
       <div className="flex items-baseline gap-2">
         <p
@@ -155,19 +162,33 @@ export default function PortfolioHero({ summary, holdings, isLoading }: Portfoli
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/20 text-xs">
+      {/* Motion: RevealStagger entrance for the KPI tiles + NumberFlip
+          on the numeric values so the Invested/Holdings/Winners-Losers
+          counters acknowledge any holdings-feed refresh. */}
+      <RevealStagger
+        staggerMs={80}
+        className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/20 text-xs"
+      >
         <div>
           <p className="opacity-80">Invested</p>
-          <p className="font-bold text-sm">{fmtRsCompact(summary!.total_invested)}</p>
+          <p className="font-bold text-sm">
+            <NumberFlip
+              value={summary!.total_invested}
+              format={fmtRsCompact}
+            />
+          </p>
         </div>
         <div>
           <p className="opacity-80">Holdings</p>
           <p className="font-bold text-sm" data-testid="portfolio-hero-count">
-            {summary!.count}
+            <NumberFlip value={summary!.count} />
           </p>
         </div>
         <div>
           <p className="opacity-80">Winners / Losers</p>
+          {/* Winners/Losers kept as a single text node (no NumberFlip
+              wrapper) so `getByText(/2 \/ 1/)` continues to match the
+              combined "n / m" string in PortfolioHero.test.tsx. */}
           <p className="font-bold text-sm">
             {winners} / {losers}
           </p>
@@ -190,7 +211,7 @@ export default function PortfolioHero({ summary, holdings, isLoading }: Portfoli
             </p>
           </div>
         )}
-      </div>
+      </RevealStagger>
     </section>
   )
 }

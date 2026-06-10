@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import FilterBuilder from "@/components/screener/FilterBuilder"
 import ResultsTable from "@/components/screener/ResultsTable"
 import SavedQueries from "@/components/screener/SavedQueries"
+import { HoverCard, PressScale, RevealStagger } from "@/components/motion"
 import {
   SCREENER_PRESETS,
   buildShareUrl,
@@ -241,32 +242,42 @@ function ScreenerInner() {
           <h2 className="text-sm font-semibold text-ink mb-3">Start with a preset</h2>
           {/* Day-33 (2026-05-20): added lg:grid-cols-3 since
               SCREENER_PRESETS expanded from 4 → 9 entries; 3-across
-              on desktop reads better than 2 rows of 4-5. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              on desktop reads better than 2 rows of 4-5.
+              Motion: RevealStagger entrance for the 9 preset tiles and
+              HoverCard lift on each card. The reduced-motion fallback
+              keeps shadow feedback so the "this is clickable" cue
+              survives. */}
+          <RevealStagger
+            staggerMs={50}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+          >
             {SCREENER_PRESETS.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => applyPreset(p.key)}
-                className={cn(
-                  "text-left rounded-xl border border-border bg-bg p-4",
-                  "hover:border-blue-300 hover:bg-blue-50/40 transition-colors"
-                )}
-              >
-                <div className="text-sm font-semibold text-ink">{p.label}</div>
-                <div className="text-xs text-caption mt-1">{p.description}</div>
-              </button>
+              <HoverCard key={p.key} className="rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => applyPreset(p.key)}
+                  className={cn(
+                    "w-full h-full text-left rounded-xl border border-border bg-bg p-4",
+                    "hover:border-blue-300 hover:bg-blue-50/40 transition-colors"
+                  )}
+                >
+                  <div className="text-sm font-semibold text-ink">{p.label}</div>
+                  <div className="text-xs text-caption mt-1">{p.description}</div>
+                </button>
+              </HoverCard>
             ))}
-          </div>
+          </RevealStagger>
           <div className="mt-4 flex items-center gap-2">
             <span className="text-xs text-caption">or</span>
-            <button
-              type="button"
-              onClick={() => setClauses([newClause()])}
-              className="text-xs font-medium text-blue-600 hover:text-blue-700"
-            >
-              build from scratch
-            </button>
+            <PressScale>
+              <button
+                type="button"
+                onClick={() => setClauses([newClause()])}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                build from scratch
+              </button>
+            </PressScale>
           </div>
         </div>
       ) : (

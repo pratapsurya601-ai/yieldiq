@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import FilterRow from "@/components/screener/FilterRow"
+import { PressScale, RevealStagger } from "@/components/motion"
 import {
   newClause,
   type FilterClause,
@@ -67,7 +68,15 @@ export default function FilterBuilder({
       {clauses.length === 0 ? (
         <p className="text-xs text-caption">No filters yet. Add one to begin.</p>
       ) : (
-        <div className="space-y-2">
+        // Motion: filter chips fade-in with a tight 30ms stagger so the
+        // entrance reads as one composed gesture, not nine separate
+        // reveals. Wrapper key changes when the clause set grows or
+        // shrinks so the new row gets the entrance treatment too.
+        <RevealStagger
+          key={clauses.length}
+          staggerMs={30}
+          className="space-y-2"
+        >
           {clauses.map((c, i) => (
             <FilterRow
               key={c.id}
@@ -77,7 +86,7 @@ export default function FilterBuilder({
               onRemove={() => removeAt(i)}
             />
           ))}
-        </div>
+        </RevealStagger>
       )}
 
       <div className="flex flex-col gap-3 pt-3 border-t border-border sm:flex-row sm:items-end sm:justify-between">
@@ -120,28 +129,32 @@ export default function FilterBuilder({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={!canSave}
-            className={cn(
-              "rounded-lg border border-border bg-bg px-4 py-2 text-sm font-medium text-body",
-              "hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            )}
-          >
-            Save query
-          </button>
-          <button
-            type="button"
-            onClick={onRun}
-            disabled={isRunning}
-            className={cn(
-              "rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white",
-              "hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            )}
-          >
-            {isRunning ? "Running..." : "Run Screener"}
-          </button>
+          <PressScale disabled={!canSave}>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={!canSave}
+              className={cn(
+                "rounded-lg border border-border bg-bg px-4 py-2 text-sm font-medium text-body",
+                "hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              Save query
+            </button>
+          </PressScale>
+          <PressScale disabled={isRunning}>
+            <button
+              type="button"
+              onClick={onRun}
+              disabled={isRunning}
+              className={cn(
+                "rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white",
+                "hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              {isRunning ? "Running..." : "Run Screener"}
+            </button>
+          </PressScale>
         </div>
       </div>
     </div>
