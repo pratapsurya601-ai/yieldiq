@@ -142,7 +142,7 @@ export default function MutualFundHoldersPanel({ ticker }: { ticker: string }) {
           <div>
             <h3 className="text-sm font-semibold text-ink">Mutual Fund Holders</h3>
             <p className="text-xs text-caption mt-0.5">
-              Which mutual funds hold this stock + how their position moved last quarter.
+              Which mutual funds own this stock + how their position moved last quarter.
             </p>
           </div>
         </div>
