@@ -82,6 +82,29 @@ const SERIES = [
   { key: "public_pct",   label: "Public",   color: "#94a3b8" }, // slate-400
 ] as const
 
+/** Names of the four series keys for null-coverage checks. */
+const SERIES_KEYS = ["promoter_pct", "fii_pct", "dii_pct", "public_pct"] as const
+type SeriesKey = (typeof SERIES_KEYS)[number]
+
+/** True when every row's value for `key` is null/undefined/NaN.
+ *
+ *  ROOT CAUSE #4 (2026-06-11): the previous behaviour rendered a
+ *  series whose values were all null as zero-height bars stacked at
+ *  the chart floor, which read as "FII flat at 0%" rather than
+ *  "FII history incomplete". Suppressing the series entirely is the
+ *  honest signal; the overlay caption explains what's missing. */
+function isSeriesAllNull(
+  rows: HoldingsTrendDataPoint[],
+  key: SeriesKey,
+): boolean {
+  if (!rows.length) return true
+  for (const r of rows) {
+    const v = r[key]
+    if (v != null && !Number.isNaN(v)) return false
+  }
+  return true
+}
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -346,6 +369,32 @@ export function HoldingsTrendMiniChart({
     )
   }
 
+  // ROOT CAUSE #4 (2026-06-11): de-dupe quarter_label defensively so
+  // a stale cached payload from before the backend dedup landed
+  // can't draw two bars on the same x-tick. The backend now emits
+  // unique labels but the frontend stays robust.
+  const seen = new Set<string>()
+  const safeTrend: HoldingsTrendDataPoint[] = []
+  for (const pt of trend) {
+    const key = pt.quarter_label || pt.quarter_end || ""
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    safeTrend.push(pt)
+  }
+
+  // Per-series null-coverage check — drop a series entirely when
+  // every row's value is null, and surface a single overlay caption
+  // listing what's incomplete so the user understands the absence
+  // rather than reading flat zero bars as "0%".
+  const incompleteLabels: string[] = []
+  const liveSeries = SERIES.filter((s) => {
+    if (isSeriesAllNull(safeTrend, s.key)) {
+      incompleteLabels.push(s.label)
+      return false
+    }
+    return true
+  })
+
   return (
     <section
       className={
@@ -356,24 +405,41 @@ export function HoldingsTrendMiniChart({
     >
       <header className="mb-3">
         <h3 className="text-sm font-semibold text-ink">
-          Holding pattern — {trend.length}-quarter trend
+          Holding pattern — {safeTrend.length}-quarter trend
         </h3>
         <p className="text-xs text-caption mt-0.5">
           Promoter, FII, DII and public shareholding from quarterly filings.
         </p>
+        {incompleteLabels.length > 0 && (
+          <p
+            className="text-[11px] text-caption mt-1"
+            data-testid="holdings-trend-incomplete-overlay"
+          >
+            {incompleteLabels.join(" / ")} history incomplete — series omitted.
+          </p>
+        )}
       </header>
 
       <div className="w-full" style={{ height: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
+          {/* `data` flows in canonical date order from the backend
+              (ASC by quarter_end). recharts respects array order —
+              no string-sort on the dataKey — so the x-axis reads
+              left-to-right chronologically. */}
           <AreaChart
-            data={trend}
-            margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
+            data={safeTrend}
+            margin={{ top: 4, right: 16, bottom: 8, left: -16 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
             <XAxis
               dataKey="quarter_label"
               tick={{ fontSize: 10, fill: "currentColor" }}
               interval={0}
+              // Reserve a little extra horizontal room on the right
+              // and prevent the rightmost FY suffix from being clipped
+              // ("Q4 FY" -> "Q4 FY26"). Padded margin above handles
+              // the pixel slack; tickFormatter keeps the label whole.
+              tickFormatter={(v) => String(v ?? "")}
             />
             <YAxis
               domain={[0, 100]}
@@ -386,7 +452,7 @@ export function HoldingsTrendMiniChart({
               iconType="circle"
               wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
             />
-            {SERIES.map((s) => (
+            {liveSeries.map((s) => (
               <Area
                 key={s.key}
                 type="monotone"
@@ -398,16 +464,17 @@ export function HoldingsTrendMiniChart({
                 fillOpacity={0.55}
                 strokeWidth={1.2}
                 isAnimationActive={false}
+                connectNulls
               />
             ))}
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      <TrendInsights data={trend} />
+      <TrendInsights data={safeTrend} />
     </section>
   )
 }
 
 export default HoldingsTrendMiniChart
-export { HoldingsCurrentOnly, ppDelta, trendPhrase }
+export { HoldingsCurrentOnly, ppDelta, trendPhrase, isSeriesAllNull }

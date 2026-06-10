@@ -1689,110 +1689,93 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               key metric shows where it sits vs peer median (and own
               5y avg where ratiosHistory is loaded). Reads from
               AnalysisResponse.peer_context; self-hides per-metric
-              when peer sample is < 3 tickers. */}
-          {data.peer_context && Object.keys(data.peer_context).length > 0 && (
-            <div className="bg-surface rounded-2xl border border-border p-4 space-y-2.5">
-              <h3 className="text-sm font-semibold text-ink">
-                Where you stand vs peers
-              </h3>
-              <p className="text-[11px] text-caption mb-2">
-                Slider runs from 5th to 95th peer percentile. Tick = peer
-                median. Dot = this company.
-              </p>
-              {/* ROE applies to every cohort. */}
-              {data.peer_context.roe_pct && (
-                <MetricWithContext
-                  label="ROE"
-                  value={data.peer_context.roe_pct.value}
-                  format={(n) => `${n.toFixed(1)}%`}
-                  peerMedian={data.peer_context.roe_pct.median}
-                  peerP5={data.peer_context.roe_pct.p5}
-                  peerP95={data.peer_context.roe_pct.p95}
-                  direction="higher_is_better"
-                />
-              )}
-              {/* Bank-specific peer rows. The backend may emit
-                  `nim_pct`, `casa_pct`, `gnpa_pct` keys on
-                  peer_context for bank tickers; each row self-hides
-                  when the key isn't present, so the panel degrades
-                  gracefully on banks whose backend cohort has not
-                  yet been backfilled with the deepening metrics. */}
-              {isPureBank(ticker) && data.peer_context.nim_pct && (
-                <MetricWithContext
-                  label="NIM"
-                  value={data.peer_context.nim_pct.value}
-                  format={(n) => `${n.toFixed(2)}%`}
-                  peerMedian={data.peer_context.nim_pct.median}
-                  peerP5={data.peer_context.nim_pct.p5}
-                  peerP95={data.peer_context.nim_pct.p95}
-                  direction="higher_is_better"
-                />
-              )}
-              {isPureBank(ticker) && data.peer_context.casa_pct && (
-                <MetricWithContext
-                  label="CASA"
-                  value={data.peer_context.casa_pct.value}
-                  format={(n) => `${n.toFixed(1)}%`}
-                  peerMedian={data.peer_context.casa_pct.median}
-                  peerP5={data.peer_context.casa_pct.p5}
-                  peerP95={data.peer_context.casa_pct.p95}
-                  direction="higher_is_better"
-                />
-              )}
-              {isPureBank(ticker) && data.peer_context.gnpa_pct && (
-                <MetricWithContext
-                  label="GNPA"
-                  value={data.peer_context.gnpa_pct.value}
-                  format={(n) => `${n.toFixed(2)}%`}
-                  peerMedian={data.peer_context.gnpa_pct.median}
-                  peerP5={data.peer_context.gnpa_pct.p5}
-                  peerP95={data.peer_context.gnpa_pct.p95}
-                  direction="lower_is_better"
-                />
-              )}
-              {/* Non-bank fundamental rows. We deliberately hide PE
-                  / D/E / Net margin for bank tickers because their
-                  cohort interpretation differs (a bank's PE is read
-                  vs other banks; D/E includes deposits — and the
-                  bank-specific rows above are the right read).
-                  Without this gate, the user saw three confusing
-                  rows side-by-side with the bank-specific rows
-                  above. */}
-              {!isPureBank(ticker) && data.peer_context.pe_ratio && (
-                <MetricWithContext
-                  label="PE"
-                  value={data.peer_context.pe_ratio.value}
-                  format={(n) => `${n.toFixed(1)}x`}
-                  peerMedian={data.peer_context.pe_ratio.median}
-                  peerP5={data.peer_context.pe_ratio.p5}
-                  peerP95={data.peer_context.pe_ratio.p95}
-                  direction="lower_is_better"
-                />
-              )}
-              {!isPureBank(ticker) && data.peer_context.debt_to_equity && (
-                <MetricWithContext
-                  label="D/E"
-                  value={data.peer_context.debt_to_equity.value}
-                  format={(n) => n.toFixed(2)}
-                  peerMedian={data.peer_context.debt_to_equity.median}
-                  peerP5={data.peer_context.debt_to_equity.p5}
-                  peerP95={data.peer_context.debt_to_equity.p95}
-                  direction="lower_is_better"
-                />
-              )}
-              {!isPureBank(ticker) && data.peer_context.net_margin_pct && (
-                <MetricWithContext
-                  label="Net margin"
-                  value={data.peer_context.net_margin_pct.value}
-                  format={(n) => `${n.toFixed(1)}%`}
-                  peerMedian={data.peer_context.net_margin_pct.median}
-                  peerP5={data.peer_context.net_margin_pct.p5}
-                  peerP95={data.peer_context.net_margin_pct.p95}
-                  direction="higher_is_better"
-                />
-              )}
-            </div>
-          )}
+              when peer sample is < 3 tickers.
+
+              ROOT CAUSE #5 (2026-06-11): rows now derive from an
+              explicit row spec where label, metric key, formatter and
+              direction are co-located. The earlier inline-JSX layout
+              had the per-row conditional gates intermixed with the
+              prop wiring, which made it easy to drift the label/key
+              pairing under copy edits — a single mis-paired row would
+              render the slider with an empty metric name (the symptom
+              the user reported as "missing 3rd row label + value").
+              The new shape forces label and key to travel together
+              and makes the regression test trivial. */}
+          {data.peer_context && Object.keys(data.peer_context).length > 0 && (() => {
+            const pc = data.peer_context
+            const bank = isPureBank(ticker)
+            const rowSpec: Array<{
+              key: string
+              metricKey: keyof typeof pc
+              label: string
+              format: (n: number) => string
+              direction: "higher_is_better" | "lower_is_better"
+              visible: boolean
+            }> = [
+              // ROE applies to every cohort.
+              { key: "roe", metricKey: "roe_pct", label: "ROE",
+                format: (n) => `${n.toFixed(1)}%`,
+                direction: "higher_is_better", visible: true },
+              // Bank-specific rows. Cohort interpretation diverges
+              // from non-banks so we never mix them on the same panel.
+              { key: "nim", metricKey: "nim_pct", label: "NIM",
+                format: (n) => `${n.toFixed(2)}%`,
+                direction: "higher_is_better", visible: bank },
+              { key: "casa", metricKey: "casa_pct", label: "CASA",
+                format: (n) => `${n.toFixed(1)}%`,
+                direction: "higher_is_better", visible: bank },
+              { key: "gnpa", metricKey: "gnpa_pct", label: "GNPA",
+                format: (n) => `${n.toFixed(2)}%`,
+                direction: "lower_is_better", visible: bank },
+              // Non-bank fundamental rows. Banks render NIM/CASA/GNPA
+              // above instead; D/E and PE on a bank read against a
+              // different cohort interpretation (deposits-inclusive).
+              { key: "pe", metricKey: "pe_ratio", label: "PE",
+                format: (n) => `${n.toFixed(1)}x`,
+                direction: "lower_is_better", visible: !bank },
+              { key: "de", metricKey: "debt_to_equity", label: "D/E",
+                format: (n) => n.toFixed(2),
+                direction: "lower_is_better", visible: !bank },
+              { key: "net_margin", metricKey: "net_margin_pct", label: "Net margin",
+                format: (n) => `${n.toFixed(1)}%`,
+                direction: "higher_is_better", visible: !bank },
+            ]
+            const renderedRows = rowSpec.filter((r) => {
+              if (!r.visible) return false
+              const block = pc[r.metricKey]
+              return block != null
+            })
+            if (renderedRows.length === 0) return null
+            return (
+              <div
+                className="bg-surface rounded-2xl border border-border p-4 space-y-2.5"
+                data-testid="peer-percentiles-panel"
+              >
+                <h3 className="text-sm font-semibold text-ink">
+                  Where you stand vs peers
+                </h3>
+                <p className="text-[11px] text-caption mb-2">
+                  Slider runs from 5th to 95th peer percentile. Tick = peer
+                  median. Dot = this company.
+                </p>
+                {renderedRows.map((row) => {
+                  const block = pc[row.metricKey]!
+                  return (
+                    <MetricWithContext
+                      key={row.key}
+                      label={row.label}
+                      value={block.value}
+                      format={row.format}
+                      peerMedian={block.median}
+                      peerP5={block.p5}
+                      peerP95={block.p95}
+                      direction={row.direction}
+                    />
+                  )
+                })}
+              </div>
+            )
+          })()}
           {/* ROOT CAUSE #2 (2026-06-11) — post-merger ratio caption on
               the dedicated Quality tab. Self-hides when ma_event is
               absent or out of the normalisation window. */}

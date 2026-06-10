@@ -967,8 +967,15 @@ async def get_holdings_trend(
         return _cached_json(cached, s_maxage=21600, swr=43200)
 
     desc_rows = _query_holdings_history(t, quarters)
-    rows: list[dict] = [_format_holdings_row(r) for r in reversed(desc_rows)]
-    current: dict | None = _format_holdings_row(desc_rows[0]) if desc_rows else None
+    # Format every DESC row, then sort ASC by canonical quarter_end so
+    # the chart renders left-to-right without relying on string sort
+    # (which mis-orders e.g. "Q1 FY26" after "Q4 FY26"). The DB query
+    # itself returns DESC, but a follow-on dedup may collapse
+    # near-duplicate quarter_ends (e.g. 2025-09-29 vs 2025-09-30) that
+    # would otherwise produce two "Q2 FY26" bars on the same axis.
+    all_rows: list[dict] = [_format_holdings_row(r) for r in desc_rows]
+    rows = _dedup_and_sort_holdings_rows(all_rows)
+    current: dict | None = all_rows[0] if all_rows else None
 
     payload = {
         "ticker": t,
@@ -1028,6 +1035,46 @@ def _format_holdings_row(r) -> dict:
     }
 
 
+def _dedup_and_sort_holdings_rows(rows: list[dict]) -> list[dict]:
+    """Dedup by quarter_label and sort ASC by quarter_end.
+
+    ROOT CAUSE #4 (2026-06-11): the underlying ``shareholding_pattern``
+    table has a uniqueness constraint on ``(ticker, quarter_end)`` so
+    exact-date duplicates can't enter. But near-duplicate dates within
+    the same fiscal quarter — e.g. one filing dated 2025-09-29 and a
+    re-filing dated 2025-09-30 — both land cleanly in the table and
+    then collapse to the same ``quarter_label`` on the chart. The
+    visible artefact was an x-axis with "Q2 FY26" appearing twice.
+
+    Rule: when two rows share the same ``quarter_label``, keep the one
+    with the more recent ``quarter_end``. Rows missing
+    ``quarter_label`` are dropped (no meaningful x-tick anyway).
+    Output is ASC by ``quarter_end`` so the chart reads left-to-right
+    chronologically without re-sorting on the frontend.
+
+    Rows are NOT filtered on missing FII/DII columns — the per-series
+    skip happens on the frontend so the user still sees the promoter
+    bar across all quarters even when FII history is incomplete for
+    some of them. The recharts ``connectNulls`` and per-series gating
+    on the frontend handle the rendering.
+    """
+    by_label: dict[str, dict] = {}
+    for row in rows:
+        label = row.get("quarter_label") or ""
+        if not label:
+            continue
+        prior = by_label.get(label)
+        if prior is None:
+            by_label[label] = row
+            continue
+        # Prefer the row with the later quarter_end (more recent filing).
+        if (row.get("quarter_end") or "") > (prior.get("quarter_end") or ""):
+            by_label[label] = row
+    deduped = list(by_label.values())
+    deduped.sort(key=lambda r: r.get("quarter_end") or "")
+    return deduped
+
+
 def _f(v) -> Optional[float]:
     if v is None:
         return None
@@ -1041,22 +1088,36 @@ def _f(v) -> Optional[float]:
 
 
 def _quarter_label(qe) -> str:
-    """Format a quarter_end date as the Indian FY label, e.g. 'Q4 FY24'.
+    """Format a quarter_end date as the Indian FY label, e.g. 'Q4 FY26'.
 
-    Indian fiscal year runs Apr–Mar. Filings cluster on calendar
-    quarter-ends (Mar/Jun/Sep/Dec), but tolerate any month and pick
-    the nearest FY quarter.
+    Indian fiscal year runs Apr–Mar and is named by its END year:
+        FY26 = Apr 2025 – Mar 2026.
+
+    Quarter-to-FY mapping (qe.year = calendar year of quarter_end):
+        Apr-Jun (Q1): FY = qe.year + 1   e.g. Jun 2025 -> Q1 FY26
+        Jul-Sep (Q2): FY = qe.year + 1   e.g. Sep 2025 -> Q2 FY26
+        Oct-Dec (Q3): FY = qe.year + 1   e.g. Dec 2025 -> Q3 FY26
+        Jan-Mar (Q4): FY = qe.year       e.g. Mar 2026 -> Q4 FY26
+
+    The label is the full year-end string ``Q{n} FY{YY}`` with a
+    two-digit padded year — never truncated. ROOT CAUSE #4 fix
+    (2026-06-11): the prior implementation tagged Q1/Q2 with the
+    start-year (qe.year), producing labels one year stale ("Q1 FY25"
+    for Jun 2025) which sorted out of order vs Q3/Q4 of the same FY
+    on the chart x-axis. Now every quarter of a given FY shares the
+    same FY suffix and the natural date ordering produces the
+    expected left-to-right FY sequence.
     """
     if not qe:
         return ""
     m = qe.month
     if m in (4, 5, 6):
-        q, fy = 1, qe.year
+        q, fy = 1, qe.year + 1
     elif m in (7, 8, 9):
-        q, fy = 2, qe.year
+        q, fy = 2, qe.year + 1
     elif m in (10, 11, 12):
         q, fy = 3, qe.year + 1
-    else:  # Jan/Feb/Mar — Q4 of the FY that started prior April
+    else:  # Jan/Feb/Mar — Q4 of the FY whose end year matches qe.year
         q, fy = 4, qe.year
     return f"Q{q} FY{fy % 100:02d}"
 
