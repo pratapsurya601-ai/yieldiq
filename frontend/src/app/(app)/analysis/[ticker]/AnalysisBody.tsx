@@ -18,6 +18,7 @@ import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
+import HoldingsTrendMiniChart from "@/components/analysis/HoldingsTrendMiniChart"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
 import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
 import BankKpiPanel from "@/components/banks/BankKpiPanel"
@@ -1496,6 +1497,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ratioHistory={ratiosHistoryQuery.data ?? null}
           />
           <PromoterPledgePanel ticker={ticker} />
+          {/* Holdings trend (2026-06-10): 8-quarter promoter/FII/DII/public
+              stacked-area chart sourced from /api/v1/public/holdings-trend.
+              Falls back to a current-quarter readout when no historical
+              rows are on file. `currentPattern` is sourced from the
+              analyze response so the fallback never renders blank. */}
+          <HoldingsTrendMiniChart
+            ticker={ticker}
+            currentPattern={{
+              promoter_pct: quality?.promoter_pct ?? null,
+              fii_pct: quality?.fii_pct ?? null,
+              dii_pct: quality?.dii_pct ?? null,
+              public_pct: quality?.public_pct ?? null,
+            }}
+          />
           {/* Phase I-frontend (Block II): per-bank operational + asset-
               quality KPIs. Only renders for tickers in
               PURE_BANK_TICKERS_FOR_DE; non-banks skip the fetch entirely

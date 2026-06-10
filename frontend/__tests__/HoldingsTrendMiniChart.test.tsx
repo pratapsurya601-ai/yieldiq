@@ -1,0 +1,178 @@
+/**
+ * HoldingsTrendMiniChart (feat/analysis-holdings-trend-chart, 2026-06-10).
+ *
+ * Covers:
+ *   - Render-path: ResponsiveContainer + 4 stacked Areas materialize
+ *     when we supply trendData directly (no self-fetch).
+ *   - Fallback: when trendData is empty AND currentPattern is provided,
+ *     the current-only readout renders with the 4 percentages.
+ *   - Empty state: when both are missing, the panel renders the "no
+ *     data on file" line rather than collapsing.
+ *   - Insights helpers: ppDelta + trendPhrase produce the expected
+ *     values (and trendPhrase NEVER returns SEBI banned vocab — the
+ *     diff-only lint is fragile around words like "accumulate" so the
+ *     component sticks to neutral descriptions like "rose" / "fell").
+ *
+ * Recharts is shimmed so ResponsiveContainer paints in JSDOM (mirrors
+ * the pattern used in PwaFunnelPage.test.tsx + FundsPhase3Slim.test.tsx).
+ */
+
+import React from "react"
+import { describe, it, expect, vi } from "vitest"
+import { render, screen } from "@testing-library/react"
+
+vi.mock("recharts", async () => {
+  const actual = await vi.importActual<typeof import("recharts")>("recharts")
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="recharts-container" style={{ width: 600, height: 220 }}>
+        {children}
+      </div>
+    ),
+  }
+})
+
+import {
+  HoldingsTrendMiniChart,
+  ppDelta,
+  trendPhrase,
+  type HoldingsTrendDataPoint,
+} from "@/components/analysis/HoldingsTrendMiniChart"
+
+const FIXTURE: HoldingsTrendDataPoint[] = [
+  { quarter_end: "2024-06-30", quarter_label: "Q1 FY25", promoter_pct: 50.8, fii_pct: 19.8, dii_pct: 17.9, public_pct: 11.5 },
+  { quarter_end: "2024-09-30", quarter_label: "Q2 FY25", promoter_pct: 50.6, fii_pct: 20.2, dii_pct: 17.8, public_pct: 11.4 },
+  { quarter_end: "2024-12-31", quarter_label: "Q3 FY26", promoter_pct: 50.5, fii_pct: 20.5, dii_pct: 17.7, public_pct: 11.3 },
+  { quarter_end: "2025-03-31", quarter_label: "Q4 FY25", promoter_pct: 50.4, fii_pct: 20.9, dii_pct: 17.6, public_pct: 11.1 },
+  { quarter_end: "2025-06-30", quarter_label: "Q1 FY25", promoter_pct: 50.3, fii_pct: 21.2, dii_pct: 17.5, public_pct: 11.0 },
+  { quarter_end: "2025-09-30", quarter_label: "Q2 FY25", promoter_pct: 50.2, fii_pct: 21.5, dii_pct: 17.4, public_pct: 10.9 },
+  { quarter_end: "2025-12-31", quarter_label: "Q3 FY26", promoter_pct: 50.1, fii_pct: 21.8, dii_pct: 17.2, public_pct: 10.9 },
+  { quarter_end: "2026-03-31", quarter_label: "Q4 FY26", promoter_pct: 50.0, fii_pct: 22.0, dii_pct: 17.0, public_pct: 11.0 },
+]
+
+describe("HoldingsTrendMiniChart", () => {
+  it("renders the chart wrapper when trendData has 2+ points", () => {
+    render(
+      <HoldingsTrendMiniChart
+        ticker="RELIANCE"
+        trendData={FIXTURE}
+        currentPattern={null}
+      />
+    )
+    expect(screen.getByTestId("holdings-trend-chart")).toBeInTheDocument()
+    expect(screen.getByTestId("recharts-container")).toBeInTheDocument()
+    expect(screen.getByText(/8-quarter trend/i)).toBeInTheDocument()
+  })
+
+  it("falls back to current-only when trendData is empty", () => {
+    render(
+      <HoldingsTrendMiniChart
+        ticker="NEWCO"
+        trendData={[]}
+        currentPattern={{
+          promoter_pct: 65.4,
+          fii_pct: 12.1,
+          dii_pct: 8.3,
+          public_pct: 14.2,
+        }}
+      />
+    )
+    expect(screen.getByTestId("holdings-trend-current-only")).toBeInTheDocument()
+    // All four percentages render.
+    expect(screen.getByText("65.4%")).toBeInTheDocument()
+    expect(screen.getByText("12.1%")).toBeInTheDocument()
+    expect(screen.getByText("8.3%")).toBeInTheDocument()
+    expect(screen.getByText("14.2%")).toBeInTheDocument()
+  })
+
+  it("renders the empty-state line when both trend and current are missing", () => {
+    render(
+      <HoldingsTrendMiniChart
+        ticker="UNKNOWN"
+        trendData={[]}
+        currentPattern={null}
+      />
+    )
+    expect(screen.getByTestId("holdings-trend-empty")).toBeInTheDocument()
+    expect(screen.getByText(/No shareholding pattern/i)).toBeInTheDocument()
+  })
+
+  it("renders the insights strip with computed deltas when trend is present", () => {
+    render(
+      <HoldingsTrendMiniChart
+        ticker="RELIANCE"
+        trendData={FIXTURE}
+        currentPattern={null}
+      />
+    )
+    // Promoter fell from 50.8 to 50.0 = -0.8pp
+    expect(screen.getByText("-0.8pp")).toBeInTheDocument()
+    // FII rose from 19.8 to 22.0 = +2.2pp
+    expect(screen.getByText("+2.2pp")).toBeInTheDocument()
+  })
+})
+
+describe("ppDelta", () => {
+  it("returns null when fewer than 2 numeric points exist", () => {
+    expect(ppDelta([], "promoter_pct")).toBeNull()
+    expect(
+      ppDelta(
+        [
+          { quarter_end: "2026-03-31", quarter_label: "Q4 FY26", promoter_pct: 50.0, fii_pct: null, dii_pct: null, public_pct: null },
+        ],
+        "fii_pct"
+      )
+    ).toBeNull()
+  })
+
+  it("returns latest minus earliest across non-null values", () => {
+    const d = ppDelta(FIXTURE, "fii_pct")
+    expect(d).not.toBeNull()
+    expect(d!).toBeCloseTo(2.2, 5)
+  })
+})
+
+describe("trendPhrase SEBI compliance", () => {
+  // Banned-vocab list mirrors scripts/check_sebi_words.py BANNED_WORDS.
+  // Built from string fragments so the SEBI diff-only linter doesn't
+  // trip on the fixture (Pattern B from CLAUDE.md standing rule 5).
+  const BANNED: string[] = [
+    "b" + "uy",
+    "se" + "ll",
+    "ho" + "ld",
+    "accum" + "ulate",
+    "accum" + "ulating",
+    "out" + "perform",
+    "under" + "perform",
+    "rec" + "ommend",
+    "rec" + "ommendation",
+    "att" + "ractive",
+    "ex" + "pensive",
+    "ch" + "eap",
+    "str" + "ong",
+    "we" + "ak",
+  ]
+
+  const samples = [
+    trendPhrase("Promoter", -0.8, 8),
+    trendPhrase("FII", 2.2, 8),
+    trendPhrase("DII", 0.0, 8),
+    trendPhrase("Promoter", null, 8),
+  ]
+
+  it("never emits banned vocab in any phrase", () => {
+    for (const phrase of samples) {
+      for (const word of BANNED) {
+        const re = new RegExp(`\\b${word}\\b`, "i")
+        expect(phrase, `phrase: "${phrase}" matched banned word "${word}"`).not.toMatch(re)
+      }
+    }
+  })
+
+  it("produces neutral movement language", () => {
+    expect(trendPhrase("FII", 2.2, 8)).toMatch(/rose/i)
+    expect(trendPhrase("Promoter", -0.8, 8)).toMatch(/fell/i)
+    expect(trendPhrase("DII", 0.0, 8)).toMatch(/little changed/i)
+  })
+})

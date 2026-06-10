@@ -887,6 +887,161 @@ async def get_promoter_pledge(ticker: str):
 
 
 # ─────────────────────────────────────────────────────────────────
+# Holdings trend (2026-06-10): 8-quarter promoter/FII/DII/public series.
+#
+# Tickertape-parity. The latest quarter is already exposed via the
+# /analyze response (promoter_pct/fii_pct/dii_pct/public_pct on the
+# QualityOutput), but the historical trend is what lets users see
+# "FII inflows persistent" or "promoter holding flat" — a small but
+# load-bearing piece of context for governance + flow analysis.
+#
+# Data already lives in shareholding_pattern (populated by
+# data_pipeline.sources.nse_shareholding.run_daily plus
+# scripts/backfill_shareholding_history.py which pulls historical
+# quarters from the NSE per-symbol API). This endpoint is a thin
+# read over that table — no ingestion changes.
+#
+# Returns up to 8 most-recent quarters, ASC by quarter_end so the
+# frontend can render left-to-right without re-sorting. Includes
+# the latest snapshot inline so the chart fallback path doesn't
+# have to round-trip a second endpoint.
+#
+# Additive surface — no CACHE_VERSION bump, no manifest entry.
+# Public; no auth. 6h CDN cache (quarterly filings update slowly).
+# ─────────────────────────────────────────────────────────────────
+@router.get("/holdings-trend/{ticker}")
+async def get_holdings_trend(
+    ticker: str,
+    quarters: int = Query(default=8, ge=1, le=20),
+):
+    """Return up to `quarters` quarters of promoter/FII/DII/public history.
+
+    Response shape::
+
+        {"ticker": "RELIANCE",
+         "trend": [
+           {"quarter_end": "2024-03-31",
+            "quarter_label": "Q4 FY24",
+            "promoter_pct": 50.3,
+            "fii_pct":      22.1,
+            "dii_pct":      16.8,
+            "public_pct":   10.8},
+           ...
+         ],
+         "current": {"quarter_end": "2026-03-31",
+                     "promoter_pct": 50.3, ...} | null,
+         "source": "shareholding_pattern"}
+
+    Returns 200 with empty ``trend`` and null ``current`` when the
+    ticker has no rows on file — the frontend renders a fallback
+    "current quarter only" view in that case without branching on
+    status codes.
+    """
+    t = (ticker or "").strip().upper().replace(".NS", "").replace(".BO", "")
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    _cache_key = f"public:holdings-trend:{t}:{quarters}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=43200)
+
+    desc_rows = _query_holdings_history(t, quarters)
+    rows: list[dict] = [_format_holdings_row(r) for r in reversed(desc_rows)]
+    current: dict | None = _format_holdings_row(desc_rows[0]) if desc_rows else None
+
+    payload = {
+        "ticker": t,
+        "trend": rows,
+        "current": current,
+        "source": "shareholding_pattern",
+    }
+    # Empty payloads cached briefly so a freshly-ingested ticker
+    # doesn't have to wait 6h to surface — 5 min keeps the protective
+    # cache value without locking out new data.
+    ttl = 21600 if rows else 300
+    cache.set(_cache_key, payload, ttl=ttl, version_keyed=False)
+    return _cached_json(payload, s_maxage=ttl, swr=max(ttl, 3600))
+
+
+def _query_holdings_history(ticker: str, quarters: int) -> list:
+    """Fetch up to `quarters` newest ShareholdingPattern rows for `ticker`.
+
+    Returns rows in DESC order by quarter_end (newest first). Returns
+    an empty list when the table is missing, the ORM import fails, the
+    DB session is unavailable, or no rows match. Never raises — any
+    failure surfaces as an empty trend rather than a 5xx.
+
+    Extracted from the endpoint body so tests can monkeypatch this
+    helper instead of having to fake SQLAlchemy column descriptors.
+    """
+    db = _get_db_session()
+    if db is None:
+        return []
+    try:
+        from data_pipeline.models import ShareholdingPattern
+        from sqlalchemy import desc
+        return (
+            db.query(ShareholdingPattern)
+            .filter(ShareholdingPattern.ticker == ticker)
+            .order_by(desc(ShareholdingPattern.quarter_end))
+            .limit(quarters)
+            .all()
+        )
+    except Exception as exc:
+        logger.warning("holdings-trend query failed for %s: %s", ticker, exc)
+        return []
+    finally:
+        _safe_close(db)
+
+
+def _format_holdings_row(r) -> dict:
+    """Convert a ShareholdingPattern ORM row to the public response shape."""
+    qe = r.quarter_end
+    return {
+        "quarter_end": qe.isoformat() if qe else None,
+        "quarter_label": _quarter_label(qe),
+        "promoter_pct": _f(r.promoter_pct),
+        "fii_pct":      _f(r.fii_pct),
+        "dii_pct":      _f(r.dii_pct),
+        "public_pct":   _f(r.public_pct),
+    }
+
+
+def _f(v) -> Optional[float]:
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return round(f, 2)
+
+
+def _quarter_label(qe) -> str:
+    """Format a quarter_end date as the Indian FY label, e.g. 'Q4 FY24'.
+
+    Indian fiscal year runs Apr–Mar. Filings cluster on calendar
+    quarter-ends (Mar/Jun/Sep/Dec), but tolerate any month and pick
+    the nearest FY quarter.
+    """
+    if not qe:
+        return ""
+    m = qe.month
+    if m in (4, 5, 6):
+        q, fy = 1, qe.year
+    elif m in (7, 8, 9):
+        q, fy = 2, qe.year
+    elif m in (10, 11, 12):
+        q, fy = 3, qe.year + 1
+    else:  # Jan/Feb/Mar — Q4 of the FY that started prior April
+        q, fy = 4, qe.year
+    return f"Q{q} FY{fy % 100:02d}"
+
+
+# ─────────────────────────────────────────────────────────────────
 # Day-103b (2026-05-22): per-ticker annual-report PDF links.
 #
 # Closes the Screener.in parity gap flagged in the Day-102 audit —
