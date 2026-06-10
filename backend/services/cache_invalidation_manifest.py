@@ -3118,6 +3118,68 @@ MANIFEST: list[dict] = [
             "turns."
         ),
     },
+    {
+        # T3.9 Phase A (2026-06-10): Steel cost-curve valuation
+        # service in backend/services/steel_cost_curve_service.py.
+        # Sector-specific framework for the eight listed Indian
+        # primary-steel + primary-aluminium tickers (TATASTEEL,
+        # JSWSTEEL, SAIL, JINDALSTEL, HINDALCO, VEDL, WELCORP, JSL).
+        #
+        # Steel is a commodity whose realized price moves on a global
+        # cycle while each producer's cost per tonne is fixed by its
+        # position on the global cost curve. Generic DCF on trailing
+        # FCF whipsaws with the cycle (TTM at peak overstates
+        # intrinsic value; TTM at trough understates it). The
+        # cost-curve / mid-cycle EBITDA frame is the analyst-standard
+        # anchor:
+        #
+        #   through_cycle_EBITDA/t = realization - cost
+        #   mid_cycle_EBITDA       = capacity × mid_util × EBITDA/t
+        #   EV                     = mid_cycle_EBITDA
+        #                            × (quartile_multiple
+        #                               + integration_premium)
+        #   equity                 = EV - net_debt
+        #   FV/share               = equity ÷ shares_outstanding
+        #
+        # Cost-curve quartile dictates the multiple (Q1 lowest cost
+        # → highest multiple 7.5x; Q4 highest cost → lowest 4.0x).
+        # Iron-ore / coking-coal integration adds a tiered premium
+        # (≥70% +1.0x, 40-69% +0.5x, <40% none) reflecting EBITDA
+        # durability through troughs when a captive miner harvests
+        # the spot-vs-cost spread.
+        #
+        # HINDALCO / VEDL are primary-aluminium but value the same
+        # way (commodity × cost-curve position × cycle), so the
+        # framework intentionally covers both via the "aluminium"
+        # sector hint.
+        #
+        # Phase A is standalone — no router wiring, no read-path
+        # entry in the analysis cache shape. Phase B (separate PR)
+        # routes the eight tickers through this engine and surfaces
+        # the per-component waterfall on the analysis page.
+        #
+        # Empty fields list means _field_in_scope() returns False
+        # for any caller's fields_needed iterable, so this entry is
+        # effectively a documentation-only no-op for the read-
+        # validity gate — by design for Phase A.
+        "version_id": "v_t3_9_steel_cost_curve_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "TATASTEEL", "JSWSTEEL", "SAIL", "JINDALSTEL",
+                "HINDALCO", "VEDL", "WELCORP", "JSL",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.9 Phase A — steel cost-curve quartile + integration "
+            "premium framework. Through-cycle EBITDA/tonne × mid-cycle "
+            "utilization × quartile-anchored EV/EBITDA multiple, with "
+            "an iron-ore / coking-coal integration premium. Phase B "
+            "routes the eight steel / primary-aluminium tickers "
+            "through this engine."
+        ),
+    },
 ]
 
 
