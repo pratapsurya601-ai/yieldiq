@@ -27,8 +27,8 @@
  * SEBI lens:
  *   - All copy is descriptive. The gap-vs-price line reads as
  *     "MoS +24% vs current price" (when FV > CP) or "-12% vs current
- *     price" (when FV < CP). No imperative verbs, no buy/sell/hold/
- *     recommend/cheap/expensive/attractive vocabulary.
+ *     price" (when FV < CP). No imperative verbs from the banned-
+ *     vocabulary list in scripts/check_sebi_words.py.
  *   - The "not applicable" footnotes explain WHY each method was
  *     skipped (e.g. "DDM needs payout >= 30% and a 5+ year dividend
  *     streak") without implying directionality.
@@ -427,7 +427,7 @@ function computeGapPct(value: number | null, currentPrice: number | null): numbe
 /**
  * Descriptive gap line. Positive values frame as "MoS +N% vs current
  * price" (the engine's estimate sits above current); negative values
- * read as "-N% vs current price". Never imperative — no buy/sell verbs.
+ * read as "-N% vs current price". Descriptive only — never imperative.
  */
 function formatGap(gap: number | null): string | null {
   if (gap == null || !Number.isFinite(gap)) return null
