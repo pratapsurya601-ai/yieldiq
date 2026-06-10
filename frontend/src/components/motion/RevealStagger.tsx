@@ -65,9 +65,9 @@ export default function RevealStagger({
   const items = Children.toArray(children)
   const Wrapper: React.ElementType = as
 
-  // String built once per render — cheap; main cost would be the
-  // template-literal allocation per child, which is unavoidable
-  // because each child has its own delay.
+  // String built once per render — low cost; main allocation is the
+  // template-literal per child, which is unavoidable because each
+  // child has its own delay.
   const ease = cssEase("outExpo")
 
   return (

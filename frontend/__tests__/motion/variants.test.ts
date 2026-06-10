@@ -68,7 +68,7 @@ describe("motion/variants — shape", () => {
         expect(typeof dur).toBe("number")
         expect(dur as number).toBeGreaterThan(0)
       }
-      // Easing should be an array (cubic-bezier) — we never use Framer's
+      // Easing must be an array (cubic-bezier) — we never use Framer's
       // string easings in this lib.
       const ease = t.ease as unknown
       if (ease !== undefined) {

@@ -49,7 +49,7 @@ export default function ShimmerSkeleton({
         : "rounded-sm"
 
   // Sensible defaults: text is a 1em-tall line; block fills the
-  // parent; circle is square so width/height should match.
+  // parent; circle is square so width/height match by convention.
   const sizeStyle: React.CSSProperties = {
     width: toCss(width),
     height: toCss(height) ?? (variant === "text" ? "1em" : undefined),

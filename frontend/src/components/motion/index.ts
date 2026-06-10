@@ -7,7 +7,7 @@
  *   - is SSR-safe (no hydration mismatch on first paint),
  *   - tunes timing via `@/lib/motion/timing` constants.
  *
- * Existing call-sites should migrate to these gradually. The legacy
+ * Existing call-sites can migrate to these gradually. The legacy
  * primitives in `@/components/anim` and `@/components/common/Reveal`
  * continue to work — they're not deprecated by this PR.
  */

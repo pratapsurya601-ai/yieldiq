@@ -9,7 +9,7 @@
  * duplicate-children + pause-on-hover concerns.
  *
  * Implementation note: an infinite marquee needs the children
- * duplicated so the loop appears seamless. We render the children
+ * duplicated so the loop reads as seamless. We render the children
  * twice (the original set + a clone) and translate -50% over the
  * duration — the clone slides in just as the original slides out.
  *

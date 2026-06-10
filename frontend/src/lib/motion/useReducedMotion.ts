@@ -1,6 +1,6 @@
 "use client"
 /**
- * motion/useReducedMotion.ts — single source of truth for "should we
+ * motion/useReducedMotion.ts — single source of truth for "do we
  * animate at all?".
  *
  * Returns `true` (skip motion) when EITHER:
@@ -135,7 +135,7 @@ function getServerSnapshot(): boolean {
 }
 
 /**
- * `useReducedMotion()` — returns `true` when motion should be SKIPPED
+ * `useReducedMotion()` — returns `true` when motion must be SKIPPED
  * (either OS-level pref OR in-app override). Components consult this
  * and either render the reduced-motion variant or skip the animation
  * entirely.

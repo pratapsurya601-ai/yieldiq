@@ -3,8 +3,7 @@
  *
  * Springs are physics objects (stiffness, damping, mass) rather than
  * duration + easing. Four named presets cover ~95% of in-app uses;
- * if a call-site needs something different it should land here as a
- * 5th preset rather than inlined.
+ * a 5th preset lands here rather than getting inlined at a call site.
  *
  * Frozen at module-load so the same object identity is reused on
  * every render — Framer can shallow-compare and skip re-allocating

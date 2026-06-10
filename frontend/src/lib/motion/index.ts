@@ -3,8 +3,8 @@
  *
  * Single source of truth for durations, easings, springs, variants,
  * and reduced-motion handling across the app. Components in
- * `@/components/motion` build on top of this layer; pages should
- * generally reach for the components, not these raw constants.
+ * `@/components/motion` build on top of this layer; pages generally
+ * reach for the components, not these raw constants.
  *
  * See `frontend/src/lib/motion/README.md` (when added) for the full
  * map. Until then this index plus the per-file JSDoc IS the docs.

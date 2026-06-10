@@ -8,7 +8,7 @@
  * styling without the scale (lift is meaningful state feedback, the
  * scale is decorative).
  *
- * Design intent: hover feedback should read as "this is clickable"
+ * Design intent: hover feedback must read as "this is clickable"
  * in ~120ms (DURATION.instant). Anything slower starts to feel
  * laggy on a mouse-driven UI.
  */
