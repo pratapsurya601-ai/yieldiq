@@ -318,4 +318,90 @@ describe("ComparePage", () => {
     const trioBtn = screen.getByRole("button", { name: /TCS \/ INFY \/ WIPRO/i })
     expect(trioBtn).toBeInTheDocument()
   })
+
+  // ROOT CAUSE #1 (2026-06-10) — the Fair Value row MUST read the
+  // canonical `headline_fair_value` field the /public/stock-summary
+  // endpoint stamps (composite-IV preferred), NOT the raw `fair_value`
+  // slot. Reading the raw slot leaks the DCF-only number into the
+  // table even when the backend resolved a different headline
+  // composite — exact regression the prod audit caught on HDFCBANK
+  // (table showed ₹1,141.82 DCF while the AnalysisHero pill showed
+  // composite ₹1,147.77).
+  it("renders Fair Value from headline_fair_value (composite), not raw fair_value (DCF)", async () => {
+    const HDFC_SSOT = mkSummary({
+      ticker: "HDFCBANK.NS",
+      company_name: "HDFC Bank",
+      // Backend wire format: `fair_value` is back-compat-equal to the
+      // headline number under the SSOT contract, BUT a stale cached
+      // payload could carry a raw DCF here. The component must read
+      // the headline field.
+      fair_value: 1141.82,
+      headline_fair_value: 1147.77,
+      headline_fair_value_method: "composite",
+      current_price: 1000,
+    })
+    const ICICI_SSOT = mkSummary({
+      ticker: "ICICIBANK.NS",
+      company_name: "ICICI Bank",
+      fair_value: 1500,
+      headline_fair_value: 1558.56,
+      headline_fair_value_method: "composite",
+      current_price: 1200,
+    })
+    getStockSummaryStatusMock.mockImplementation((t: string) => {
+      const key = t.toUpperCase()
+      if (key === "HDFCBANK" || key === "HDFCBANK.NS")
+        return Promise.resolve({ kind: "ok", summary: HDFC_SSOT })
+      if (key === "ICICIBANK" || key === "ICICIBANK.NS")
+        return Promise.resolve({ kind: "ok", summary: ICICI_SSOT })
+      return Promise.resolve({ kind: "unavailable", ticker: t })
+    })
+
+    searchParamsImpl = new URLSearchParams("tickers=HDFCBANK,ICICIBANK")
+    const ComparePage = await loadPage()
+    renderWithClient(<ComparePage />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText("HDFC Bank").length).toBeGreaterThanOrEqual(1)
+    })
+
+    // The headline composite number must appear; the DCF-only number
+    // must NOT (it would be the regression the prod audit caught).
+    expect(screen.getAllByText(/1,147\.77/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/1,558\.56/).length).toBeGreaterThan(0)
+    expect(screen.queryAllByText(/1,141\.82/).length).toBe(0)
+  })
+
+  // Legacy-payload fallback: when the backend hasn't yet stamped
+  // `headline_fair_value` (stale cache, old version), the cell must
+  // still render via the `fair_value` fallback so the table doesn't
+  // empty out.
+  it("falls back to fair_value when headline_fair_value is missing (legacy payload)", async () => {
+    const LEGACY = mkSummary({
+      ticker: "LEGACY.NS",
+      company_name: "Legacy Co",
+      fair_value: 999.55,
+      current_price: 800,
+      // headline_fair_value intentionally absent — legacy cached payload.
+    })
+    getStockSummaryStatusMock.mockImplementation((t: string) => {
+      const key = t.toUpperCase()
+      if (key === "LEGACY" || key === "LEGACY.NS")
+        return Promise.resolve({ kind: "ok", summary: LEGACY })
+      const summary = SUMMARIES[key]
+      if (summary) return Promise.resolve({ kind: "ok", summary })
+      return Promise.resolve({ kind: "unavailable", ticker: t })
+    })
+
+    searchParamsImpl = new URLSearchParams("tickers=HDFCBANK,LEGACY")
+    const ComparePage = await loadPage()
+    renderWithClient(<ComparePage />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Legacy Co").length).toBeGreaterThanOrEqual(1)
+    })
+    // Fallback path: the cell renders the raw `fair_value` when no
+    // headline is stamped.
+    expect(screen.getAllByText(/999\.55/).length).toBeGreaterThan(0)
+  })
 })

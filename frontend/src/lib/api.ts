@@ -1484,6 +1484,20 @@ export interface StockSummary {
   exchange: string
   currency: string
   fair_value: number
+  /**
+   * ROOT CAUSE #1 (2026-06-10) — canonical headline Fair Value the
+   * /public/stock-summary endpoint surfaces alongside `fair_value`.
+   * Populated by routers/public.py `_extract_analysis_summary` from
+   * the same `headline_fair_value` field every analysis surface
+   * reads (composite IV preferred, DCF fallback). Optional so legacy
+   * cached payloads — written before the backend started stamping
+   * the field — still deserialise cleanly; consumers must fall back
+   * to `fair_value` when this is null/undefined. ComparePage and any
+   * future summary-driven surface MUST prefer this when present so
+   * the "Fair Value" cell agrees with the AnalysisHero pill.
+   */
+  headline_fair_value?: number | null
+  headline_fair_value_method?: "composite" | "dcf" | null
   current_price: number
   mos: number
   verdict: string

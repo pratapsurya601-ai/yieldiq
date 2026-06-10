@@ -176,6 +176,28 @@ function AddStockInput({
 }
 
 // ---------------------------------------------------------------------------
+// Canonical headline Fair Value resolver (ROOT CAUSE #1, 2026-06-10).
+//
+// The /public/stock-summary endpoint now surfaces both `fair_value`
+// (back-compat: same number as headline) and `headline_fair_value`
+// (the canonical composite-IV-preferred field). The analyst-visible
+// "Fair Value" row in the compare table MUST read the headline value
+// so the cell agrees with the AnalysisHero pill on every per-ticker
+// drill-down. Falls back to `fair_value` only when the headline field
+// is missing — covers legacy cached payloads predating the field.
+function resolveHeadlineFv(s: StockSummary): number {
+  const headline = s.headline_fair_value
+  if (
+    typeof headline === "number" &&
+    Number.isFinite(headline) &&
+    headline > 0
+  ) {
+    return headline
+  }
+  return s.fair_value
+}
+
+// ---------------------------------------------------------------------------
 // Row helpers — best/worst highlighting
 // ---------------------------------------------------------------------------
 
@@ -341,9 +363,17 @@ function buildRowSpecs(stocks: StockSummary[]): RowSpec[] {
       noRank: true,
     },
     {
+      // ROOT CAUSE #1 (2026-06-10) — read the canonical
+      // `headline_fair_value` (composite-IV preferred, DCF fallback),
+      // NOT the raw `fair_value` slot. Without this, HDFCBANK was
+      // showing ₹1,141.82 (the DCF) while AnalysisHero showed the
+      // composite ₹1,147.77 — same defect class as the original
+      // `valuation.fair_value` leak the analysis-page surfaces had.
       label: "Fair Value",
-      values: map((s) => s.fair_value),
-      rendered: map((s) => formatCurrency(s.fair_value, s.currency, s.ticker)),
+      values: map((s) => resolveHeadlineFv(s)),
+      rendered: map((s) =>
+        formatCurrency(resolveHeadlineFv(s), s.currency, s.ticker),
+      ),
       noRank: true,
     },
     {
