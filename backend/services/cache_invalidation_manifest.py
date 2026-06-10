@@ -2470,6 +2470,52 @@ MANIFEST: list[dict] = [
             "adjusted_fcf for tickers where intensity is 'heavy'."
         ),
     },
+    {
+        # Phase C (2026-06-10) — composite IV weight rebalance.
+        #
+        # The composite_intrinsic_value field now folds in four Phase-A
+        # standalone engines (Three-stage DCF, DDM, EPV, Probability-
+        # weighted) in addition to the original DCF + Multiples +
+        # Wall St analyst. Weight distribution (when all 7 present):
+        #
+        #   DCF                  0.35  (was 0.50)
+        #   Multiples            0.20  (was 0.30)
+        #   Wall St analyst      0.15  (was 0.20)
+        #   Three-stage DCF      0.15  (NEW — corrects DCF cliff-bias)
+        #   DDM                  0.05  (NEW — high-payout sanity)
+        #   EPV                  0.05  (NEW — no-growth anchor)
+        #   Probability-weighted 0.05  (NEW — scenario averaging)
+        #
+        # Liquidation and Replacement values are NOT folded in — they
+        # surface as separate floor / Q signals on the analysis payload.
+        #
+        # IMPORTANT: the legacy `valuation.fair_value` field (DCF-only)
+        # stays byte-identical. Only the COMPOSITE shifts. The verdict
+        # gate continues to read fair_value (DCF) in this PR — Phase
+        # C.2 (follow-up) will switch it to prefer composite when not None.
+        #
+        # Canary impact: every ticker with at least one new Phase-C
+        # estimator available will see composite_intrinsic_value shift.
+        # See PR description for the canary-diff manifest.
+        "version_id": "v_phase_c_composite_weight_change_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "composite_intrinsic_value",
+                "composite_components",
+            ],
+        },
+        "rationale": (
+            "Phase C — composite IV weights updated to incorporate "
+            "Phase B estimators (DCF 0.35 + Multiples 0.20 + Wall St "
+            "0.15 + Three-stage 0.15 + DDM 0.05 + EPV 0.05 + Prob-"
+            "weighted 0.05). The DCF-only `fair_value` field stays "
+            "byte-identical — only the composite shifts. The verdict "
+            "gate continues to read fair_value in this PR; a follow-up "
+            "(Phase C.2) will flip it to prefer composite_intrinsic_value."
+        ),
+    },
 ]
 
 
