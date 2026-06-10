@@ -44,7 +44,11 @@ describe("InflationRegimePanel", () => {
     expect(screen.getByTestId("inflation-regime-panel")).toBeInTheDocument()
     expect(screen.getByText(/Normal inflation/i)).toBeInTheDocument()
     expect(screen.getByText(/Nominal-terms FV/i)).toBeInTheDocument()
-    expect(screen.getByText(/Real-terms FV/i)).toBeInTheDocument()
+    // "Real-terms FV" appears as the ValuationCard label AND inside the
+    // DistortionStrip body copy ("Real-terms FV is +N% relative to ..."),
+    // so the panel can legitimately render the phrase more than once.
+    // Assert at least one occurrence rather than uniqueness.
+    expect(screen.getAllByText(/Real-terms FV/i).length).toBeGreaterThan(0)
   })
 
   it("renders an extreme-regime warning and a wide distortion gap", () => {
@@ -63,11 +67,19 @@ describe("InflationRegimePanel", () => {
       />,
     )
     expect(screen.getByText(/Extreme inflation/i)).toBeInTheDocument()
-    expect(screen.getByText(/\+28\.00%/)).toBeInTheDocument()
+    // The signed distortion percent appears twice in the DistortionStrip
+    // (once as the prominent right-aligned figure, once inline in the
+    // explanatory sentence). Both occurrences are intentional — assert
+    // presence rather than uniqueness.
+    expect(screen.getAllByText(/\+28\.00%/).length).toBeGreaterThan(0)
     // ModelNote strip frames the real-terms recompute as a model
     // note, not as advice. SEBI vocabulary check: the string contains
-    // "anchor", not advice verbs.
-    expect(screen.getByText(/conservative anchor/i)).toBeInTheDocument()
+    // "anchor", not advice verbs. In the extreme regime the phrase
+    // appears both in the regime blurb and the model-note label, so
+    // assert presence rather than uniqueness.
+    expect(
+      screen.getAllByText(/conservative anchor/i).length,
+    ).toBeGreaterThan(0)
   })
 
   it("renders the not-computable fallback when real_terms_fv is null", () => {

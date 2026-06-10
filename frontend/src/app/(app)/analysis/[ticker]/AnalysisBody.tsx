@@ -1444,15 +1444,19 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               currency={company.currency}
             />
           ) : null}
-          <InsightCards
-            quality={quality}
-            insights={insights}
-            valuation={valuation}
-            currency={company.currency}
-            sector={company.sector}
-            ticker={company.ticker}
-            analystConsensus={data.analyst_consensus ?? null}
-          />
+          {/* dedup(2026-06-10): per-tab InsightCards mount removed. The
+              canonical mount is the page-level <InsightCards> directly
+              above <AnalysisFAQ /> (search for "Relocated here from the
+              standalone Summary-tab block"). That mount is intentionally
+              tab-agnostic — leaving a second copy at the tail of this
+              tab caused the row to render twice whenever Valuation /
+              Quality was active. */}
+          {/* QualityRatios is intentionally mounted on BOTH the Valuation
+              and Quality tabs — see the `ratiosHistoryQuery` enable gate
+              upstream ("once a tab that renders <QualityRatios /> opens
+              (Valuation / Quality)"). Only one tab is rendered at a
+              time, so the user never sees two simultaneously; this is
+              data-locality, not a runtime duplicate. */}
           <QualityRatios
             quality={quality}
             insights={insights}
@@ -1466,15 +1470,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "Quality",
       content: (
         <div className="space-y-4">
-          <InsightCards
-            quality={quality}
-            insights={insights}
-            valuation={valuation}
-            currency={company.currency}
-            sector={company.sector}
-            ticker={company.ticker}
-            analystConsensus={data.analyst_consensus ?? null}
-          />
+          {/* dedup(2026-06-10): per-tab InsightCards mount removed —
+              the canonical mount is the page-level <InsightCards>
+              above <AnalysisFAQ />. See matching note on the
+              Valuation tab tail. */}
           {/* Phase-3 (2026-05-25) — Inline comparison sliders. Every
               key metric shows where it sits vs peer median (and own
               5y avg where ratiosHistory is loaded). Reads from
