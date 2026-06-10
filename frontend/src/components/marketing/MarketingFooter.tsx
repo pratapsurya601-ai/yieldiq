@@ -43,6 +43,7 @@ export default function MarketingFooter() {
               <li><Link href="/calibration" className="hover:text-white transition">Calibration (per-sector accuracy)</Link></li>
               <li><Link href="/how-it-works" className="hover:text-white transition">How YieldIQ works</Link></li>
               <li><Link href="/help" className="hover:text-white transition">Help &amp; documentation</Link></li>
+              <li><Link href="/disputes" className="hover:text-white transition">Flag a mistake</Link></li>
               <li><Link href="/blog/stcg-ltcg-tax-fy-2025-26" className="hover:text-white transition">Capital Gains Tax</Link></li>
             </ul>
           </div>
