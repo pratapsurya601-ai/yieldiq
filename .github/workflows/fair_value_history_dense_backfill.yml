@@ -1,0 +1,204 @@
+name: Fair Value History — Dense Daily Backfill
+
+# Dense day-level interpolation backfill of fair_value_history using
+# the NEW scripts/backfill_fair_value_history.py (introduced in PR
+# #881 — ROOT CAUSE #12). This is DISTINCT from
+# fair_value_history_monthly.yml which seeds monthly anchors via
+# backend/scripts/backfill_fair_value_history_monthly.py.
+#
+# Why this exists
+# ───────────────
+# The HDFCBANK 12-month MoS calendar showed 331 no-data days of 365.
+# The monthly seeder writes one row per (ticker, month); the live
+# write-hook fills today only. Gaps remain forever. This script
+# closes them by linearly interpolating between adjacent recompute
+# anchors, marking interpolated rows with confidence=-1 sentinel so
+# downstream consumers can filter them out and the live writer can
+# never overwrite production-faithful rows.
+#
+# Universe (180-ticker canary by default):
+#   canary_180  → scripts/canary_universe_180.json
+#   canary_50   → scripts/canary_stocks_50.json (legacy)
+#   custom      → ticker_csv input parsed as comma-separated bare tickers
+#
+# Defaults to dry-run so an accidental dispatch only reports the
+# ticker count + sample. Flip dry_run to false to actually write.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven / Neon Postgres URL
+# If missing, skip cleanly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Days of history to seed (default 365)"
+        required: true
+        type: number
+        default: 365
+      universe:
+        description: "Ticker universe"
+        required: false
+        type: choice
+        options:
+          - canary_180
+          - canary_50
+          - custom
+        default: canary_180
+      ticker_csv:
+        description: "Comma-separated bare tickers (used only when universe=custom)"
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Print ticker count + sample and exit without writing"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: fair-value-history-dense-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # 180 tickers × 365 days × interpolation upsert is bounded by per-
+    # ticker session round-trips. Pad generously — 90 min ceiling.
+    timeout-minutes: 90
+
+    steps:
+      - name: Check for DATABASE_URL
+        id: env_check
+        env:
+          DB: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DB" ]; then
+            echo "::warning::DATABASE_URL missing — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        if: steps.env_check.outputs.skip == 'false'
+        run: |
+          python -m pip install --upgrade pip
+          # backfill_fair_value_history.py imports data_pipeline.db
+          # which transitively pulls in SQLAlchemy + psycopg2. Install
+          # both root + backend requirements so the import chain is
+          # complete.
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          if [ -f backend/requirements.txt ]; then
+            pip install -r backend/requirements.txt
+          fi
+          # Belt-and-suspenders: explicit psycopg2-binary in case
+          # neither requirements file pinned it.
+          pip install psycopg2-binary
+
+      - name: Build ticker list
+        if: steps.env_check.outputs.skip == 'false'
+        env:
+          UNIVERSE: ${{ inputs.universe }}
+          TICKER_CSV: ${{ inputs.ticker_csv }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          universe = os.environ.get("UNIVERSE", "canary_180")
+          ticker_csv = os.environ.get("TICKER_CSV", "").strip()
+
+          if universe == "canary_180":
+              path = Path("scripts/canary_universe_180.json")
+          elif universe == "canary_50":
+              path = Path("scripts/canary_stocks_50.json")
+          elif universe == "custom":
+              path = None
+          else:
+              raise SystemExit(f"unknown universe: {universe}")
+
+          tickers: list[str] = []
+          if path is not None:
+              if not path.exists():
+                  raise SystemExit(f"universe file missing: {path}")
+              data = json.loads(path.read_text(encoding="utf-8"))
+              if isinstance(data, list):
+                  for r in data:
+                      if isinstance(r, str):
+                          tickers.append(r.strip())
+                      elif isinstance(r, dict):
+                          t = r.get("ticker") or r.get("symbol") or ""
+                          if isinstance(t, str) and t.strip():
+                              tickers.append(t.strip())
+              elif isinstance(data, dict):
+                  for t in (data.get("tickers") or data.get("universe") or []):
+                      if isinstance(t, str) and t.strip():
+                          tickers.append(t.strip())
+          else:
+              if not ticker_csv:
+                  raise SystemExit("universe=custom but ticker_csv is empty")
+              tickers = [t.strip() for t in ticker_csv.split(",") if t.strip()]
+
+          bare: list[str] = []
+          for t in tickers:
+              tt = t.upper()
+              if tt.endswith(".NS") or tt.endswith(".BO"):
+                  tt = tt.rsplit(".", 1)[0]
+              bare.append(tt)
+
+          if not bare:
+              raise SystemExit("ticker list is empty")
+
+          print(f"universe={universe} count={len(bare)}")
+          print(f"sample (first 10): {bare[:10]}")
+          Path("tickers.csv").write_text(",".join(bare), encoding="utf-8")
+          PY
+
+      - name: Dry-run exit
+        if: steps.env_check.outputs.skip == 'false' && inputs.dry_run == true
+        run: |
+          echo "::notice::dry_run=true — exiting without writing to DB."
+          echo "to actually backfill, re-dispatch with dry_run=false."
+          exit 0
+
+      - name: Run dense FV history backfill
+        if: steps.env_check.outputs.skip == 'false' && inputs.dry_run == false
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DAYS: ${{ inputs.days }}
+          UNIVERSE: ${{ inputs.universe }}
+        run: |
+          # The script's CLI accepts --days and either no universe flag
+          # (defaults to canary_universe_180.json) or --universe <path>.
+          # For canary_50, point --universe at the legacy file. For
+          # custom, iterate per --ticker since the script's --ticker
+          # flag is single-shot.
+          if [ "$UNIVERSE" = "canary_50" ]; then
+            python scripts/backfill_fair_value_history.py \
+              --days "$DAYS" \
+              --universe scripts/canary_stocks_50.json
+          elif [ "$UNIVERSE" = "custom" ]; then
+            # tickers.csv was written by the build step above.
+            IFS=',' read -ra LIST < tickers.csv
+            for tk in "${LIST[@]}"; do
+              python scripts/backfill_fair_value_history.py \
+                --ticker "$tk" --days "$DAYS"
+            done
+          else
+            python scripts/backfill_fair_value_history.py --days "$DAYS"
+          fi
