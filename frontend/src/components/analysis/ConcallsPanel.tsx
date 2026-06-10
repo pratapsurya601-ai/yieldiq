@@ -50,8 +50,26 @@ function formatDate(iso: string): string {
   }
 }
 
+// ROOT CAUSE #10 (2026-06-11): backend sentinels that mean the
+// populate path tried and failed (or was withheld). They are NOT real
+// summary content — render them as the failure copy line instead of
+// showing them as a single bullet.
+const _SUMMARY_UNAVAILABLE = "(summary unavailable)"
+const _SUMMARY_FAILED = "(summary generation failed — see transcript)"
+const _SUMMARY_WITHHELD = "(summary withheld pending review)"
+
+function isPlaceholderSummary(text: string | null | undefined): boolean {
+  const s = (text || "").trim()
+  return (
+    s === _SUMMARY_UNAVAILABLE ||
+    s === _SUMMARY_FAILED ||
+    s === _SUMMARY_WITHHELD
+  )
+}
+
 function summaryBullets(text: string): string[] {
   if (!text) return []
+  if (isPlaceholderSummary(text)) return []
   return text
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
@@ -146,6 +164,18 @@ export default function ConcallsPanel({ ticker }: Props) {
                         </li>
                       ))}
                     </ul>
+                  ) : c.ai_summary === _SUMMARY_FAILED ? (
+                    <p
+                      className="text-xs italic text-caption"
+                      data-testid="concall-summary-failed"
+                    >
+                      Summary generation failed — see the source transcript
+                      for the full call.
+                    </p>
+                  ) : c.ai_summary === _SUMMARY_WITHHELD ? (
+                    <p className="text-xs italic text-caption">
+                      Summary withheld pending review.
+                    </p>
                   ) : (
                     <p className="text-xs italic text-caption">
                       Summary not generated yet. Open the source transcript for the full call.

@@ -4199,6 +4199,25 @@ class AnalysisService(NarrativeMixin):
             )
             if _is_chartable:
                 import threading as _fv_threading
+                # ROOT CAUSE #13 (2026-06-11): persist score + grade so
+                # peers_service can populate the peer SCORE column from
+                # the DB fallback when the in-process cache is cold.
+                # yiq_score may be missing keys defensively; the write
+                # hook clamps to 0..100 and accepts None.
+                _yiq_score_val: int | None = None
+                try:
+                    _raw_score = yiq_score.get("score", None)
+                    if _raw_score is not None:
+                        _yiq_score_val = int(_raw_score)
+                except (TypeError, ValueError, AttributeError):
+                    _yiq_score_val = None
+                _yiq_grade_val: str | None = None
+                try:
+                    _raw_grade = yiq_score.get("grade", None)
+                    if _raw_grade is not None:
+                        _yiq_grade_val = str(_raw_grade)[:4]
+                except (TypeError, AttributeError):
+                    _yiq_grade_val = None
                 _fv_args = dict(
                     ticker=ticker,
                     fv=float(iv),
@@ -4207,6 +4226,8 @@ class AnalysisService(NarrativeMixin):
                     verdict=_verdict_str,
                     wacc=float(wacc),
                     confidence=int(confidence.get("score", 50)),
+                    yieldiq_score=_yiq_score_val,
+                    grade=_yiq_grade_val,
                 )
 
                 def _bg_store_fv():

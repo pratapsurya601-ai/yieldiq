@@ -121,6 +121,8 @@ def store_today_fair_value(
     wacc: float,
     confidence: int,
     db: Session,
+    yieldiq_score: int | None = None,
+    grade: str | None = None,
 ) -> None:
     """
     Upsert today's fair value estimate for ``ticker``.
@@ -142,6 +144,15 @@ def store_today_fair_value(
     the analyze() caller never sees a difference. Quarantine columns
     on existing rows are NEVER overwritten — the UPDATE branch only
     touches engine-output columns.
+
+    ROOT CAUSE #13 (2026-06-11): ``yieldiq_score`` + ``grade`` are
+    now persisted alongside fv/mos so peers_service._cached_score has
+    a DB fallback for the peer SCORE column. Both kwargs default to
+    None for backward compatibility with the workflow-only call sites
+    (snapshot_fv_history / backfill_fair_value_history_monthly) that
+    don't have a score to persist — those leave the columns NULL and
+    the frontend renders the peer score as `—` until the row is
+    re-touched by the live write-hook.
     """
     today = date.today()
     try:
@@ -179,6 +190,17 @@ def store_today_fair_value(
             .filter_by(ticker=ticker, date=today)
             .first()
         )
+        # ROOT CAUSE #13 (2026-06-11): clamp score to the constraint
+        # range so a stray engine value can never tip the row into a
+        # CHECK violation that rolls back the whole write.
+        score_clamped: int | None = None
+        if yieldiq_score is not None:
+            try:
+                score_clamped = max(0, min(100, int(yieldiq_score)))
+            except (TypeError, ValueError):
+                score_clamped = None
+        grade_clean = grade if (grade and isinstance(grade, str) and len(grade) <= 4) else None
+
         if existing:
             existing.fair_value = round(smoothed_fv, 2)
             existing.price = round(price, 2)
@@ -186,6 +208,13 @@ def store_today_fair_value(
             existing.verdict = verdict
             existing.wacc = round(wacc, 4)
             existing.confidence = confidence
+            # Only overwrite score/grade when the caller provided one —
+            # an unscored backfill row should not blank a previously
+            # populated value.
+            if score_clamped is not None:
+                existing.yieldiq_score = score_clamped
+            if grade_clean is not None:
+                existing.grade = grade_clean
             existing.updated_at = datetime.utcnow()
         else:
             db.add(FairValueHistory(
@@ -197,6 +226,8 @@ def store_today_fair_value(
                 verdict=verdict,
                 wacc=round(wacc, 4),
                 confidence=confidence,
+                yieldiq_score=score_clamped,
+                grade=grade_clean,
             ))
         db.commit()
         log.debug(

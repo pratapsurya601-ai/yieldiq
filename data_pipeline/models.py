@@ -275,6 +275,14 @@ class FairValueHistory(Base):
     verdict = Column(String(20))
     wacc = Column(Float)
     confidence = Column(Integer)
+    # ROOT CAUSE #13 (2026-06-11, migration
+    # 202606101845_fair_value_history_yieldiq_score.sql) — persist
+    # yieldiq_score + grade so peers_service._cached_score can fall back
+    # to the DB for tickers not in the in-process analysis cache. Both
+    # nullable: legacy rows + write-hook failure paths read NULL and the
+    # frontend renders `—`.
+    yieldiq_score = Column(Integer, nullable=True)
+    grade = Column(String(4), nullable=True)
     updated_at = Column(
         DateTime,
         default=datetime.utcnow,

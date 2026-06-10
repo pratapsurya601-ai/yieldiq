@@ -59,6 +59,13 @@ class ConcallTranscript(Base):
     ai_input_tokens = Column(Integer, nullable=True)
     ai_output_tokens = Column(Integer, nullable=True)
     ai_cost_usd = Column(Numeric(8, 4), nullable=True)
+    # ROOT CAUSE #10 (2026-06-11, migration 202606101846): retry
+    # bookkeeping. ai_summary_attempts counts populate runs; the
+    # retry workflow can flush '(summary unavailable)' rows whose
+    # attempts < threshold so the next list_concalls call re-enqueues
+    # the populate task. last_attempt_at supports staleness audits.
+    ai_summary_attempts = Column(Integer, nullable=False, default=0)
+    ai_summary_last_attempt_at = Column(DateTime(timezone=True), nullable=True)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -68,6 +75,39 @@ class ConcallTranscript(Base):
 # filings metadata; this one carries the curated, summarised library
 # surface that the public /concalls/{ticker} endpoint reads.
 # ─────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# ROOT CAUSE #10 (2026-06-11): dead-letter for concall summaries
+# that fail repeatedly. The retry workflow inserts here when
+# ai_summary_attempts crosses the threshold so the operator gets a
+# structured surface to act on instead of a silent
+# '(summary unavailable)' placeholder.
+# Migration: data_pipeline/migrations/202606101846_concall_summary_retry_tracking.sql
+# ─────────────────────────────────────────────────────────────────
+class ConcallAiSummaryFailed(Base):
+    """One row per (concall_id, reason) permanent-failure."""
+    __tablename__ = "concall_ai_summaries_failed"
+    __table_args__ = (
+        UniqueConstraint("concall_id", "reason",
+                         name="ux_concall_failed_id_reason"),
+        Index("ix_concall_failed_ticker", "ticker", "last_failed_at"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    concall_id = Column(Integer, nullable=False)
+    ticker = Column(String(20), nullable=False)
+    period = Column(String(20), nullable=True)
+    filing_date = Column(Date, nullable=True)
+    reason = Column(String(64), nullable=False)
+    detail = Column(Text, nullable=True)
+    attempts = Column(Integer, nullable=False, default=1)
+    first_failed_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
+    )
+    last_failed_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
+    )
+
+
 class Concall(Base):
     """One row per ticker-quarter concall with cached AI summary."""
     __tablename__ = "concalls"

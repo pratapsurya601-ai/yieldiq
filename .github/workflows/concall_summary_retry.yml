@@ -1,0 +1,133 @@
+name: Concall Summary Retry (operator)
+
+# ─────────────────────────────────────────────────────────────────
+# ROOT CAUSE #10 (2026-06-11) — Retry concall AI summaries that
+# failed silently on a previous backfill run.
+#
+# Today's symptom: HDFCBANK Q1-FY26 (19 Jul 2025) shows the transcript
+# link but `(summary unavailable)`. The Phase G/H/I backfill walked
+# the ticker but populate_concall_summary hit one of the failure
+# branches (PDF fetch dies, extracted text too short, Groq returned
+# empty) and persisted the placeholder. Subsequent list_concalls
+# requests short-circuit on the non-null ai_summary value.
+#
+# This workflow does the operator-controlled retry:
+#   1. flush_placeholders job — calls
+#      concall_service.flush_failed_summaries_for_tickers for the
+#      supplied tickers, NULL-ing ai_summary on rows whose attempt
+#      count is below the dead-letter threshold (default 3).
+#   2. run_backfill job — invokes the existing backfill script with
+#      a small --max-tickers + cost cap so the next list_concalls
+#      call re-populates each row.
+#
+# Pair with scripts/audit_concall_summary_coverage.py — its output
+# tells you exactly which tickers to paste into the `tickers` input.
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Comma-separated bare tickers (e.g. HDFCBANK,ICICIBANK,SBIN)"
+        type: string
+        required: true
+      max_attempts_threshold:
+        description: "Only flush rows whose attempt count is BELOW this value (default 3 — matches the dead-letter threshold)"
+        type: number
+        required: true
+        default: 3
+      cost_cap_usd:
+        description: "Hard-stop USD spend for the populate retry (small by default — this is a targeted retry)"
+        type: number
+        required: true
+        default: 5
+      dry_run:
+        description: "Dry-run (flush + populate phases both no-op)"
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  retry:
+    name: retry (${{ inputs.tickers }}, dry=${{ inputs.dry_run }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            backend/requirements.txt
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+
+      # Phase 1: NULL out placeholders so the next populate runs.
+      # The flush_failed_summaries_for_tickers helper logs per-ticker
+      # outcomes — we tee that to the job log so the operator gets a
+      # paper trail.
+      - name: "Phase: flush placeholders"
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          python - <<'PYEOF'
+          import os
+          tickers = [t.strip() for t in os.environ["TICKERS"].split(",") if t.strip()]
+          threshold = int(os.environ["MAX_ATTEMPTS"])
+          from backend.services.concall_service import (
+              flush_failed_summaries_for_tickers,
+          )
+          result = flush_failed_summaries_for_tickers(tickers, max_attempts=threshold)
+          print("flush summary:", result)
+          PYEOF
+        env:
+          TICKERS: ${{ inputs.tickers }}
+          MAX_ATTEMPTS: ${{ inputs.max_attempts_threshold }}
+
+      # Phase 2: re-run the existing summary backfill with a small
+      # --max-tickers + cost cap so only the just-flushed rows
+      # actually re-attempt. The backfill script naturally picks up
+      # rows where ai_summary IS NULL, which is exactly what Phase 1
+      # produced.
+      - name: "Phase: re-run populate"
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          # The summaries script counts distinct tickers, not rows,
+          # so we cap at the number of tickers in the input.
+          MAX_T=$(echo "${{ inputs.tickers }}" | tr ',' '\n' | grep -c .)
+          python scripts/backfill_concall_summaries.py \
+            --max-tickers "$MAX_T" \
+            --cost-cap-usd "${{ inputs.cost_cap_usd }}"
+
+      - name: "Phase: dry-run summary"
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "DRY RUN — would flush placeholders for:"
+          echo "  ${{ inputs.tickers }}"
+          echo "  max_attempts_threshold=${{ inputs.max_attempts_threshold }}"
+          echo "  cost_cap_usd=${{ inputs.cost_cap_usd }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "tickers: ${{ inputs.tickers }}"
+          echo "max_attempts_threshold: ${{ inputs.max_attempts_threshold }}"
+          echo "cost_cap_usd: ${{ inputs.cost_cap_usd }}"
+          echo "dry_run: ${{ inputs.dry_run }}"
