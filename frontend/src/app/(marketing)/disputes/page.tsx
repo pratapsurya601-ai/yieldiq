@@ -72,7 +72,7 @@ const CATEGORY_CARDS: readonly CategoryCard[] = [
     title: "Model challenge",
     description:
       "The inputs look right but the model output diverges materially from consensus or from your own analysis. Tell us the assumption you would change and why.",
-    example: 'e.g. "ITC terminal growth should be 3%, not 5% - here is why"',
+    example: 'e.g. "ITC terminal growth set at 5% looks high vs peer FMCG names - 3% fits better, here is why"',
   },
   {
     tag: "Copy",
