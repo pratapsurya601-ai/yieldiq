@@ -80,6 +80,7 @@ import SaveNotePanel from "@/components/analysis/SaveNotePanel"
 // side rail at ≥1024 and into <MobileScoreStrip> below 1024. ScoreCard.tsx
 // and StickyScorecard.tsx are deleted in this PR.
 import HonestHero from "@/components/analysis/HonestHero"
+import MultiCurrencyFVDisplay from "@/components/analysis/MultiCurrencyFVDisplay"
 import CrossConfirmationChip from "@/components/analysis/CrossConfirmationChip"
 import TaxEfficiencyCalculator from "@/components/analysis/TaxEfficiencyCalculator"
 import ValuationMethodsPanel from "@/components/analysis/ValuationMethodsPanel"
@@ -1961,6 +1962,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             honestCardTeaser={data.honest_card?.best_estimate ?? null}
           />
         </Reveal>
+
+        {/* Multi-currency FV display (2026-06-10) — for ADR-listed names
+            (INFY, WIPRO, HCLTECH, TCS, etc.) the foreign-investor
+            audience reads FV in USD while Indian retail reads INR.
+            Self-hides for non-ADR tickers unless the caller flags
+            usd-revenue-heavy. Mounted directly beneath HonestHero so the
+            cross-currency context anchors near the headline number. */}
+        <MultiCurrencyFVDisplay
+          ticker={data.ticker}
+          fairValueInr={heroSignals.fairValue}
+        />
 
         {/* Cross-confirmation chip (2026-06-10) — competitor-audit gap #1.
             AlphaSpread's signature "Both methods agree within X%" trust
