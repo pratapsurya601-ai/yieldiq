@@ -14,11 +14,15 @@ import type { FinancialYear, FinancialsResponse } from "@/lib/api"
 
 // Mock getFinancials before importing the component.
 const getFinancialsMock = vi.fn<
-  (ticker: string, period: string, years: number) => Promise<FinancialsResponse>
+  (ticker: string, period?: "annual" | "quarterly", years?: number) => Promise<FinancialsResponse>
 >()
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api")
-  return { ...actual, getFinancials: (...args: Parameters<typeof actual.getFinancials>) => getFinancialsMock(...args) }
+  return {
+    ...actual,
+    getFinancials: (...args: Parameters<typeof actual.getFinancials>) =>
+      getFinancialsMock(...args),
+  }
 })
 
 import EarningsWaterfallChart, {
