@@ -2824,6 +2824,38 @@ MANIFEST: list[dict] = [
             "through this engine."
         ),
     },
+    {
+        # 2026-06-10 — T3.14 Phase A: standalone media subscriber LTV
+        # valuation service shipped at backend/services/media_subscriber_
+        # ltv_service.py. NOT wired into composite_iv_service / analysis
+        # pipeline yet — Phase A is the math + tests only. Phase B
+        # composite integration ships behind a separate PR. This entry
+        # exists to satisfy the cache-version-bump gate (backend/
+        # services/ touched) and to mark the cohort that will be
+        # affected when Phase B lands. Tickers: ZEEL, SUNTV, PVRINOX,
+        # INOXLEISURE, TIPSINDLTD, SAREGAMA, NETWORK18, TV18BRDCST,
+        # NAZARA. No payload field shape changes today, hence
+        # ``fields: []`` (empty — matches no read scope, behaves as a
+        # no-op invalidation by design).
+        "version_id": "v_t3_14_media_subscriber_ltv_phase_a_2026_06_10",
+        "applied_at": datetime(2026, 6, 10, 12, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "ZEEL", "SUNTV", "PVRINOX", "INOXLEISURE",
+                "TIPSINDLTD", "SAREGAMA", "NETWORK18", "TV18BRDCST",
+                "NAZARA",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.14 Phase A — media subscriber LTV framework. Standalone "
+            "service (math + tests) for Indian media/entertainment cohort "
+            "(broadcaster, ott_streaming, cinema_exhibition, music_rights, "
+            "gaming). Not yet wired into composite_iv_service; payload "
+            "shape unchanged. Entry documents the future affected cohort "
+            "for Phase B composite integration."
+        ),
+    },
 ]
 
 
