@@ -236,7 +236,7 @@ function SmartScreenerInner() {
   }, [criteria, fieldByKey])
 
   // Live count — runs on every criteria/sector edit, debounced via
-  // react-query's `staleTime: 0` + a key change. Cheap endpoint
+  // react-query's `staleTime: 0` + a key change. Low-cost endpoint
   // (count-only, no sort, no per-row projection).
   const countKey = useMemo(
     () => ["smart-screener-count", sector, JSON.stringify(apiCriteria)] as const,
@@ -420,11 +420,11 @@ function SmartScreenerInner() {
           screener doesn&apos;t expose.
         </p>
         {/* SEBI-safe inline disclaimer — same posture as /screener,
-            since "47 names match" can read like a recommendation if
+            since "47 names match" can read like a research call if
             we don't anchor that this is a filter output. */}
         <p className="text-[11px] text-caption mt-2 leading-relaxed">
           Smart-screen output is a filter over publicly available data
-          &mdash; not a recommendation. YieldIQ is not registered with SEBI
+          &mdash; not investment advice. YieldIQ is not registered with SEBI
           as an investment adviser. Form your own view.
         </p>
       </header>

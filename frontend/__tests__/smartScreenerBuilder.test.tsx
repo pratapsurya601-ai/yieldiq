@@ -165,9 +165,9 @@ describe("Smart Screener builder", () => {
       </Wrapper>,
     )
     await screen.findByTestId("smart-builder")
-    // Sector dropdown should reflect the URL.
+    // Sector dropdown must reflect the URL.
     expect((screen.getByTestId("smart-sector") as HTMLSelectElement).value).toBe("FMCG")
-    // One decoded row should appear with the value pre-populated.
+    // One decoded row must appear with the value pre-populated.
     const valueInputs = screen.getAllByLabelText("Criterion value") as HTMLInputElement[]
     expect(valueInputs[0].value).toBe("20")
   })
