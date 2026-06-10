@@ -4287,6 +4287,50 @@ MANIFEST: list[dict] = [
             "additive read path."
         ),
     },
+    {
+        # ROOT CAUSE #4 + #5 (2026-06-11) — display-layer fixes for
+        # the Quality tab. Shareholding chart x-axis was generating
+        # mis-tagged FY labels (Apr-Sep quarters got the start-year
+        # rather than the FY end-year, e.g. "Q1 FY25" for Jun 2025
+        # instead of "Q1 FY26"), which produced out-of-order ticks
+        # and visual duplicates on the chart. The peer-percentile
+        # panel rebuilt as an explicit row spec so label and metric
+        # key travel together — eliminates the label/value drift
+        # that surfaced as a row with no metric name. Both fixes are
+        # purely presentational; the underlying shareholding rows
+        # and peer_context blocks are byte-identical at rest.
+        "version_id": "v_shareholding_chart_canonicalization_2026_06_11",
+        "title_public": (
+            "Shareholding chart — canonical quarter labels, "
+            "skip null FII/DII rows, fix missing peer percentile label"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Two Quality-tab display bugs fixed in one ship. "
+            "(1) Shareholding chart x-axis was tagging Apr-Sep "
+            "quarters with the prior fiscal year (e.g. Jun 2025 read "
+            "as 'Q1 FY25' instead of 'Q1 FY26'), making the canonical "
+            "date-sorted series render with apparent duplicates and "
+            "out-of-order ticks. Backend _quarter_label now honors "
+            "the FY-end-year convention; endpoint dedupes by label "
+            "and sorts ASC by quarter_end. Frontend skips series "
+            "whose values are all-null (FII/DII history gaps no "
+            "longer paint as flat-zero bars; an overlay caption "
+            "states what's incomplete). "
+            "(2) Peer percentile panel refactored to an explicit "
+            "row spec {label, metricKey, format, direction} so the "
+            "label/key pairing can't drift under copy edits. "
+            "Regression tests pin all four canonical rows render "
+            "with label + value + sector median. "
+            "No engine math, no cached field invalidated — both "
+            "fixes are presentational over data that already lives "
+            "in shareholding_pattern and the peer_context block."
+        ),
+    },
 ]
 
 
