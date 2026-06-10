@@ -60,12 +60,14 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useReducedMotion } from "@/components/anim/useReducedMotion"
 import {
   getMetricExplainer,
   type MetricExplainer,
 } from "@/lib/metric-explainers"
+import { resolveTopic } from "@/lib/educational-content"
 
 export interface MetricTooltipProps {
   /** Visible label, e.g. "ROE". */
@@ -306,10 +308,35 @@ export default function MetricTooltip({
           copy={copy}
           alignRight={alignRight}
           reduced={reduced}
+          learnMoreSlug={learnMoreSlug(metric, label)}
         />
       )}
     </span>
   )
+}
+
+/**
+ * Resolve the /learn/<slug> link for a tooltip, when a long-form topic
+ * exists in lib/educational-content.ts for this metric. Returns null
+ * when nothing matches — the "Learn more" link then renders nothing.
+ *
+ * Search order:
+ *   1. The `metric` key passed to MetricTooltip (which matches
+ *      metric-explainers.ts).
+ *   2. The visible label, lowercased.
+ *
+ * Both routes go through resolveTopic which understands aliases like
+ * "pe-ratio" → "pe".
+ */
+function learnMoreSlug(metric?: string, label?: string): string | null {
+  const candidates = [metric, label?.toLowerCase().replace(/\s+/g, "-")].filter(
+    (v): v is string => Boolean(v),
+  )
+  for (const c of candidates) {
+    const t = resolveTopic(c)
+    if (t) return t.slug
+  }
+  return null
 }
 
 interface TooltipPanelProps {
@@ -317,9 +344,16 @@ interface TooltipPanelProps {
   copy: ResolvedTooltipCopy
   alignRight: boolean
   reduced: boolean
+  learnMoreSlug: string | null
 }
 
-function TooltipPanel({ id, copy, alignRight, reduced }: TooltipPanelProps) {
+function TooltipPanel({
+  id,
+  copy,
+  alignRight,
+  reduced,
+  learnMoreSlug,
+}: TooltipPanelProps) {
   return (
     <div
       id={id}
@@ -365,6 +399,18 @@ function TooltipPanel({ id, copy, alignRight, reduced }: TooltipPanelProps) {
           <span className="font-semibold">Note: </span>
           {copy.caveat}
         </p>
+      )}
+      {learnMoreSlug && (
+        <div className="mt-2 pt-2 border-t border-border">
+          <Link
+            href={`/learn/${learnMoreSlug}`}
+            data-testid="metric-tooltip-learn-more"
+            className="inline-flex items-center text-[11px] font-semibold text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Learn more →
+          </Link>
+        </div>
       )}
     </div>
   )
