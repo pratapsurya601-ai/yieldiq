@@ -1893,6 +1893,45 @@ MANIFEST: list[dict] = [
             "into composite (separate PR)."
         ),
     },
+    {
+        # T2.5 Phase A (2026-06-10): three-stage growth DCF standalone
+        # service. Adds backend/services/three_stage_dcf_service.py — a
+        # pure-function module that computes a Damodaran-style three-
+        # stage DCF (explicit high growth → linear fade → terminal
+        # Gordon). NOT wired into composite_iv_service in Phase A; the
+        # existing two-stage DCF stays byte-identical. Phase B (separate
+        # PR) introduces an opt-in three_stage_fv field that
+        # composite_iv_service can weight against the existing
+        # estimator.
+        #
+        # Motivation: the two-stage cliff (high growth → instant jump
+        # to terminal) systematically over-rewards near-term momentum.
+        # The 2026-06 AlphaSpread cross-check showed HDFCBANK YIQ
+        # ₹1,129 vs AlphaSpread ₹803 — ~40% high. A fade window
+        # between the two stages directionally lowers FV into the
+        # AlphaSpread bracket.
+        #
+        # Scope: empty fields list. Phase A is the math + tests only;
+        # no cached field shape changes, no recompute forced. Manifest
+        # entry exists to satisfy the backend/services-touched gate
+        # and record when the standalone service shipped so Phase B
+        # has a paper trail.
+        "version_id": "v_t2_5_three_stage_dcf_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T2.5 Phase A — three-stage growth DCF standalone service "
+            "added (explicit high-growth + linear fade + terminal). "
+            "Addresses systematic high-side bias from cliff-style two-"
+            "stage DCF (HDFCBANK YIQ Rs 1,129 vs AlphaSpread Rs 803, "
+            "40% gap). Phase B wires into composite_iv_service as an "
+            "additional estimator (separate PR). Two-stage DCF stays "
+            "byte-identical; this is purely additive."
+        ),
+    },
 ]
 
 
