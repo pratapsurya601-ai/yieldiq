@@ -198,6 +198,10 @@ const EarningsWaterfall = dynamic(() => import("@/components/analysis/EarningsWa
   ssr: false,
   loading: chartSkeleton,
 })
+const EarningsWaterfallChart = dynamic(
+  () => import("@/components/analysis/EarningsWaterfallChart"),
+  { ssr: false, loading: chartSkeleton },
+)
 const FinancialsKpiGrid = dynamic(() => import("@/components/analysis/FinancialsKpiGrid"), {
   ssr: false,
   loading: chartSkeleton,
@@ -1600,10 +1604,26 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </section>
           </RevealOnScroll>
 
-          {/* Section 4 — detailed statements. */}
+          {/* Section 4 — Q-by-Q earnings cadence (Revenue + EBITDA +
+              PAT over the last 8 quarters, with YoY growth overlay
+              and beat/miss callouts where consensus is available). */}
+          <RevealOnScroll>
+            <section aria-labelledby="fin-section-cadence">
+              <NumberedSectionHeader
+                number={4}
+                title="QUARTERLY EARNINGS CADENCE"
+                caption="Last eight quarters of revenue, EBITDA and PAT, with year-on-year growth overlaid."
+              />
+              <ChartDrawIn>
+                <EarningsWaterfallChart ticker={ticker} currency={company.currency} />
+              </ChartDrawIn>
+            </section>
+          </RevealOnScroll>
+
+          {/* Section 5 — detailed statements. */}
           <section aria-labelledby="fin-section-statements">
             <NumberedSectionHeader
-              number={4}
+              number={5}
               title="DETAILED STATEMENTS"
               caption="Income statement, balance sheet and cash flow as reported."
             />
