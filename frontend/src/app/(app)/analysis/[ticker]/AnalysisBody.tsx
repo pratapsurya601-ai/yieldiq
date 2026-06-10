@@ -19,6 +19,7 @@ import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import HoldingsTrendMiniChart from "@/components/analysis/HoldingsTrendMiniChart"
+import MutualFundHoldersPanel from "@/components/analysis/MutualFundHoldersPanel"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
 import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
 import BankKpiPanel from "@/components/banks/BankKpiPanel"
@@ -1511,6 +1512,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               public_pct: quality?.public_pct ?? null,
             }}
           />
+          {/* MF Phase 1.5: mutual-fund holders panel. Sits directly
+              below the holdings pattern (promoter pledge) so the
+              full "who holds this stock" picture reads top-down:
+              promoter pledge -> mutual funds -> insider trading.
+              Endpoint is stable across the "table populated" and
+              "Phase 2 not landed" paths -- panel self-hides via
+              empty state, no isPureBank-style guard needed. */}
+          <MutualFundHoldersPanel ticker={ticker} />
           {/* Phase I-frontend (Block II): per-bank operational + asset-
               quality KPIs. Only renders for tickers in
               PURE_BANK_TICKERS_FOR_DE; non-banks skip the fetch entirely
