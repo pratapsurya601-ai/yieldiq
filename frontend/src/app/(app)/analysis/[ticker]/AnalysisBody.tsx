@@ -228,6 +228,13 @@ const FairValueHistory = dynamic(() => import("@/components/analysis/FairValueHi
   ssr: false,
   loading: chartSkeleton,
 })
+// feat/analysis-total-return-vs-price-return (2026-06-10) — price-vs-TR
+// chart with dividend reinvestment. Lives on the History tab between
+// the price chart and the FV history surfaces.
+const TotalReturnDisplay = dynamic(
+  () => import("@/components/analysis/TotalReturnDisplay"),
+  { ssr: false, loading: chartSkeleton },
+)
 // T5.2 (2026-06-10) — AlphaSpread-grade trajectory chart. Sits ABOVE the
 // existing FairValueHistory on the History tab. Reuses the same
 // React-Query cache key (["fv-history", ticker, 5]) so both observers
@@ -1813,6 +1820,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ticker={ticker}
             companyName={formatCompanyName(company.company_name)}
             currency={company.currency}
+          />
+          {/* feat/analysis-total-return-vs-price-return (2026-06-10):
+              "₹1L invested 5y ago in TCS price-only returned ₹X; with
+              dividend reinvestment, ₹Y." Material delta for high-payout
+              names (FMCG, IT). */}
+          <TotalReturnDisplay
+            ticker={ticker}
+            currency={company.currency}
+            companyName={formatCompanyName(company.company_name)}
           />
           {/* T5.6: per-ticker versioned snapshots — searchable model
               change log with date + field filters and per-entry FV

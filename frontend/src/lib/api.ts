@@ -1337,6 +1337,51 @@ export const getDividendHistory = (
     21600,                               // 6h — matches backend edge cache
   )
 
+// ─────────────────────────────────────────────────────────────────
+// Total return vs price return (dividend reinvestment).
+//
+// Powers the TotalReturnDisplay component on the History tab.
+// Backed by /api/v1/public/total-return which reuses the same
+// corporate_actions + daily_prices sources as the dividend and
+// price-history endpoints, so the three surfaces never drift.
+// ─────────────────────────────────────────────────────────────────
+export interface TotalReturnCurvePoint {
+  date: string                            // ISO YYYY-MM-DD
+  price_return: number                    // cumulative %
+  total_return: number                    // cumulative %
+}
+
+export interface TotalReturnResponse {
+  ticker: string
+  years: number
+  start_date: string | null
+  end_date: string | null
+  start_price: number | null
+  end_price: number | null
+  price_return: number | null             // %
+  total_return: number | null             // %
+  dividends_paid_total: number            // ₹ per share inside window
+  dividend_count: number
+  reinvested_value: number | null         // ₹/share including reinvested divs
+  initial_investment: number              // notional
+  price_only_value: number | null         // ₹ final under price-only
+  total_return_value: number | null       // ₹ final under TR (reinvested)
+  dividend_boost_pct: number | null       // total_return - price_return (pp)
+  curve: TotalReturnCurvePoint[]
+  data_source: "db" | "yfinance" | "mixed" | "price_only" | "unavailable"
+  notes: string[]
+}
+
+export const getTotalReturn = (
+  ticker: string,
+  years: number = 5,
+  initialInvestment: number = 100_000,
+): Promise<TotalReturnResponse | null> =>
+  publicGet<TotalReturnResponse>(
+    `/api/v1/public/total-return/${ticker}?years=${years}&initial_investment=${initialInvestment}`,
+    21600,                               // 6h — matches backend edge cache
+  )
+
 // ── NSE bulk/block deals + FII/DII flows (feat/flows) ────────
 // All three feed off self-archived NSE snapshots ingested daily by
 // .github/workflows/nse_flows_daily.yml. NSE has no historical

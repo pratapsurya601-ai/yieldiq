@@ -324,6 +324,33 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Total Return vs Price Return (2026-06-10) — additive public
+        # endpoint /api/v1/public/total-return/{ticker} returning
+        # cumulative price return, total return (dividend reinvestment
+        # at close-on-ex-date), and a downsampled overlay curve. The
+        # endpoint is READ-ONLY: it composes the existing
+        # corporate_actions (via DividendService._fetch_from_db) and
+        # daily_prices / parquet archive (via price_history_service)
+        # sources. No engine math runs, no analysis_cache field shifts.
+        # scope.fields=[] documents the additive-only nature;
+        # scope.tickers="*" marks the surface as universal (every
+        # analysis page's History tab now mounts TotalReturnDisplay).
+        "version_id": "v_total_return_display_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Total Return vs Price Return — additive read-only endpoint "
+            "and frontend overlay chart. Reinvests dividend events at "
+            "the close-on-ex-date so the resulting curve compounds. "
+            "Material for high-payout names (FMCG, IT) where 5y total "
+            "return can be 30%+ above price return. No engine math, no "
+            "cached field invalidated."
+        ),
+    },
+    {
         # Sector Heatmap Mini (2026-06-10) — additive public endpoint
         # /api/v1/public/sector-heatmap/{ticker} returning the subject
         # ticker's sector cohort as a flat list of tiles (size by
