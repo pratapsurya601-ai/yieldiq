@@ -69,6 +69,9 @@ export default function ValuationMethodsPanel({
   const applicableMethods = methods.filter((m) => m.applicable)
   const skippedMethods = methods.filter((m) => !m.applicable)
 
+  // Empty-state: ZERO applicable methods means the panel sits on a
+  // warming-cache / fresh-listing payload. Skipped rows alone are not
+  // enough to render the surface meaningfully.
   if (applicableMethods.length === 0) {
     return (
       <SummaryCard
@@ -107,10 +110,11 @@ export default function ValuationMethodsPanel({
           How we value {displayTicker}
         </h2>
         <p className="text-xs text-caption leading-snug">
-          YieldIQ surfaces multiple independent estimates. Look for
-          clustering OR divergence as a confidence signal — when several
-          methods agree the centre of gravity is firmer; when they
-          disagree the spread tells you the model uncertainty.
+          YieldIQ surfaces every independent estimator the engine
+          considered. Methods that produced a value are shown first;
+          methods that did not apply for this ticker are listed below
+          with the reason so you can see the full coverage instead of
+          a silent gap.
         </p>
       </div>
 
@@ -131,18 +135,20 @@ export default function ValuationMethodsPanel({
       </div>
 
       {skippedMethods.length > 0 && (
-        <details
-          className="rounded-lg border border-border bg-surface px-3 py-2"
+        <div
+          className="rounded-lg border border-border bg-surface p-3 flex flex-col gap-2"
           data-testid="valuation-methods-skipped"
         >
-          <summary className="cursor-pointer text-[12px] text-caption select-none">
-            {skippedMethods.length} method
-            {skippedMethods.length === 1 ? "" : "s"} not applicable for
-            this ticker
-          </summary>
-          <ul className="mt-2 space-y-1.5 text-[12px] text-body">
+          <p className="text-[11px] uppercase tracking-[0.15em] text-caption">
+            Not applicable for {displayTicker}
+          </p>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px] text-body">
             {skippedMethods.map((m) => (
-              <li key={m.key} className="leading-snug">
+              <li
+                key={m.key}
+                data-testid={`valuation-method-${m.key}-skipped`}
+                className="leading-snug rounded-md border border-border bg-bg px-2.5 py-2"
+              >
                 <span className="font-semibold text-ink">{m.label}</span>
                 <span className="text-caption">
                   {" "}
@@ -151,7 +157,7 @@ export default function ValuationMethodsPanel({
               </li>
             ))}
           </ul>
-        </details>
+        </div>
       )}
     </SummaryCard>
   )
@@ -170,8 +176,17 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
   const ddmValue = numericOrNull(data.ddm_fv)
   const epvValue = numericOrNull(data.epv_per_share)
   const liquidationValue = numericOrNull(data.liquidation_per_share)
+  const replacementValue = numericOrNull(data.replacement_per_share)
   const probValue = numericOrNull(data.probability_weighted_fv)
+  const sectorSpecificValue = numericOrNull(data.sector_specific_fv)
 
+  // v_fix_phase_b_estimator_coverage_2026_06_10:
+  // backend now writes ``*_reason`` strings whenever an estimator is
+  // null. Prefer those — they carry the dynamic, ticker-aware
+  // explanation (e.g. "Not applicable for banks — the franchise is
+  // the deposit base, not the rebuildable asset base"). Fall back to
+  // the static copy below when the backend hasn't surfaced one
+  // (legacy cached payloads).
   return [
     {
       key: "composite",
@@ -179,9 +194,11 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       value: compositeValue,
       method: data.composite_components?.method ?? null,
       description:
-        "Weighted average of DCF, Peer Multiples, and Wall Street consensus — the headline figure on the hero.",
+        "Weighted average of DCF, Peer Multiples, Wall Street consensus, plus the standalone Phase-B estimators — the headline figure on the hero.",
       badge: "primary",
       applicable: compositeValue !== null,
+      reasonIfNotApplicable:
+        "Composite is unavailable until at least one underlying estimator computes.",
     },
     {
       key: "dcf",
@@ -189,9 +206,11 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       value: dcfValue,
       method: data.valuation?.valuation_engine_used ?? null,
       description:
-        "Two-stage discounted cash flow — projects FCF for 5 years then a terminal value at the long-run growth rate.",
+        "Two-stage discounted cash flow — projects FCF for 5 years then a terminal value at the long-run growth rate. For banks the engine substitutes a P/B residual-income closed form.",
       badge: "supporting",
       applicable: dcfValue !== null && dcfValue > 0,
+      reasonIfNotApplicable:
+        "Headline DCF could not converge on a defensible per-share value.",
     },
     {
       key: "multiples",
@@ -202,6 +221,8 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
         "Re-prices the stock at the sector-median PE / PB / EV-EBITDA — what would the price be at peer-typical multiples.",
       badge: "supporting",
       applicable: multiplesValue !== null && multiplesValue > 0,
+      reasonIfNotApplicable:
+        "Peer cohort lacks the breadth or quality to anchor a defensible peer-median multiple.",
     },
     {
       key: "wall_street",
@@ -212,6 +233,20 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
         "Mean of published analyst 12-month price targets (Finnhub feed). Third-party reference, not a YieldIQ model output.",
       badge: "consensus",
       applicable: wallStreetValue !== null && wallStreetValue > 0,
+      reasonIfNotApplicable:
+        "Coverage feed does not carry any published analyst targets for this ticker.",
+    },
+    {
+      key: "sector_specific",
+      label: prettifySectorLabel(data.sector_specific_label) ?? "Sector-specific FV",
+      value: sectorSpecificValue,
+      method: data.sector_specific_label ?? null,
+      description:
+        "Per-cohort primary engine — bank residual income, NBFC ROA tree, insurance EV+VNB, telecom ARPU DCF, holdco SOTP, oil & gas SOTP, auto OEM cycle, cement utilization, steel cost curve, RE NAV, etc. Sized to the cohort's value driver rather than a generic DCF.",
+      badge: "primary",
+      applicable: sectorSpecificValue !== null && sectorSpecificValue > 0,
+      reasonIfNotApplicable:
+        "No dedicated sector engine routes for this ticker — composite uses the headline DCF + Multiples + Wall St scheme.",
     },
     {
       key: "three_stage",
@@ -223,7 +258,8 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       badge: "supporting",
       applicable: threeStageValue !== null && threeStageValue > 0,
       reasonIfNotApplicable:
-        "Three-stage DCF activates for tickers with a credible multi-phase growth profile; the two-stage DCF above is the default.",
+        data.three_stage_reason ??
+        "Three-stage DCF activates for tickers with a credible multi-phase growth profile and a positive base-year FCF.",
     },
     {
       key: "ddm",
@@ -235,6 +271,7 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       badge: "supporting",
       applicable: ddmValue !== null && ddmValue > 0,
       reasonIfNotApplicable:
+        data.ddm_reason ??
         "DDM needs payout >= 30% and a 5+ year dividend streak. Skipped for non-dividend or low-payout businesses.",
     },
     {
@@ -247,7 +284,8 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       badge: "supporting",
       applicable: epvValue !== null && epvValue > 0,
       reasonIfNotApplicable:
-        "EPV needs 5+ years of stable EBIT to normalise the earnings base. Skipped when the operating history is too short or too volatile.",
+        data.epv_reason ??
+        "EPV needs 5+ years of stable EBIT to normalise the earnings base. Skipped when the operating history is too short, too volatile, or routed to a dedicated framework (banks, insurers, REITs).",
     },
     {
       key: "liquidation",
@@ -259,7 +297,21 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       badge: "floor",
       applicable: liquidationValue !== null && liquidationValue > 0,
       reasonIfNotApplicable:
+        data.liquidation_reason ??
         "Liquidation framework not meaningful for asset-light or financial businesses where balance-sheet assets do not represent recoverable value.",
+    },
+    {
+      key: "replacement",
+      label: "Replacement Value",
+      value: replacementValue,
+      method: data.replacement_method ?? null,
+      description:
+        "Tobin-Q-style rebuild cost — what it would cost to recreate this business from scratch at today's input prices. An asset-rebuild ceiling that anchors the upper bound on the asset frame.",
+      badge: "floor",
+      applicable: replacementValue !== null && replacementValue > 0,
+      reasonIfNotApplicable:
+        data.replacement_reason ??
+        "Replacement-cost framework not meaningful for banks / NBFCs / insurers (capital and deposit franchise are the value, not the asset base) or for asset-light cohorts.",
     },
     {
       key: "probability_weighted",
@@ -271,9 +323,42 @@ function buildMethodEntries(data: AnalysisResponse): MethodEntry[] {
       badge: "supporting",
       applicable: probValue !== null && probValue > 0,
       reasonIfNotApplicable:
+        data.probability_weighted_reason ??
         "Probability-weighted FV activates when the three scenarios are individually credible and have a defensible probability mix.",
     },
   ]
+}
+
+/**
+ * Prettify the sector-engine label for display
+ * ("bank_residual_income_deepened" -> "Bank Residual Income").
+ * Returns null when the input is null so the caller can fall back to
+ * the default label.
+ */
+function prettifySectorLabel(label: string | null | undefined): string | null {
+  if (!label) return null
+  const map: Record<string, string> = {
+    bank_residual_income_deepened: "Bank Residual Income",
+    holdco_sotp: "Holdco SOTP",
+    nbfc_roa: "NBFC ROA Tree",
+    insurance_ev_vnb: "Insurance EV + VNB",
+    pharma_pipeline: "Pharma Pipeline rNPV",
+    telecom_arpu: "Telecom ARPU DCF",
+    oil_gas: "Oil & Gas SOTP",
+    auto_oem_cycle: "Auto OEM Cycle",
+    cement_utilization: "Cement Utilization",
+    steel_cost_curve: "Steel Cost Curve",
+    re_developer_nav: "Real Estate NAV",
+    consumer_durables_wc: "Consumer Durables WC",
+    media_subscriber_ltv: "Media Subscriber LTV",
+    logistics_freight: "Logistics Freight",
+  }
+  if (label in map) return map[label]
+  // Generic fallback — turn snake_case into Title Case.
+  return label
+    .split("_")
+    .map((word) => (word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)))
+    .join(" ")
 }
 
 /* ─── single method row ────────────────────────────────────────────── */

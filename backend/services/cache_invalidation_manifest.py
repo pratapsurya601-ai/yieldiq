@@ -3580,6 +3580,77 @@ MANIFEST: list[dict] = [
             "scoring / verdict change."
         ),
     },
+    {
+        # v_fix_phase_b_estimator_coverage_2026_06_10 — completes the
+        # additive surfacing contract Phase B started in PR #837. Before
+        # this fix the inject helpers wrote None on every gate failure
+        # AND on every exception path with a bare ``pass``. HDFCBANK
+        # surfaced only 3 of 9 estimator rows on the prod analysis page
+        # because Liquidation, Replacement, Three-stage, DDM, EPV all
+        # vanished silently for banks.
+        #
+        # The fix:
+        #   1. Each of the 5 standalone estimators (DDM, EPV, three-stage,
+        #      liquidation, probability-weighted) now ALSO writes a
+        #      ``_reason`` string carrying the gate's explanation when
+        #      the FV is None. Frontend reads the reason and renders an
+        #      explicit "Not applicable for ..." row instead of a hidden
+        #      field.
+        #   2. New replacement-value inject — ``replacement_per_share``,
+        #      ``replacement_method``, ``replacement_reason`` — Phase B
+        #      omitted this field entirely. Banks / NBFCs / insurers
+        #      surface as "Not applicable" with the franchise/capital
+        #      explanation.
+        #   3. Bank deepened residual income (T3.1 Phase A) wired into
+        #      ``_resolve_sector_primary_fv`` as the primary engine for
+        #      the banks + NBFC + HFC + life insurance cohort. Emits a
+        #      ``sector_specific_fv`` with label
+        #      "bank_residual_income_deepened" — distinct from the
+        #      headline DCF row which still uses pb_residual_income.
+        #   4. Each ``except`` clause that previously swallowed silently
+        #      now logs a structured ``phase_b.inject_failed`` line and
+        #      writes ``compute_failed`` to the ``_reason`` field so the
+        #      frontend can render the row instead of hiding it.
+        #
+        # Net result: HDFCBANK and the other 51 cohort banks surface all
+        # 9 estimator rows on the Valuation Methods Panel — some with
+        # values (DCF, Multiples, Composite, Bank Residual Income,
+        # Probability-weighted) and the rest with explicit "Not
+        # applicable for banks" / "Insufficient data" copy. Composite
+        # IV magnitude unchanged on the canary because the composite
+        # extractor was already null-tolerant; only the rendered
+        # transparency improves.
+        #
+        # scope.fields lists every new field. scope.tickers="*" because
+        # the inject chain runs on every payload and the field shape
+        # changes universally.
+        "version_id": "v_fix_phase_b_estimator_coverage_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "ddm_reason",
+                "epv_reason",
+                "three_stage_reason",
+                "liquidation_reason",
+                "probability_weighted_reason",
+                "replacement_per_share",
+                "replacement_method",
+                "replacement_reason",
+                "sector_specific_fv",
+                "sector_specific_label",
+            ],
+        },
+        "rationale": (
+            "Phase B estimator coverage fix — every standalone estimator "
+            "now writes either a value OR an explicit reason string so "
+            "the Valuation Methods Panel shows all 9 rows for banks "
+            "(HDFCBANK et al.) instead of 3. Adds replacement-value "
+            "surfacing and wires the deepened bank residual-income "
+            "engine as the primary sector FV for the bank/NBFC/HFC/"
+            "life-insurance cohort."
+        ),
+    },
 ]
 
 
