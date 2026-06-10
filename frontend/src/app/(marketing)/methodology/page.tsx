@@ -109,6 +109,60 @@ function Band({
   )
 }
 
+/**
+ * A single sector-engine card. Each engine documents:
+ *   - title + one-line tagline
+ *   - routes: which sectors / example tickers feed in
+ *   - rationale: why DCF alone is inadequate for this sector
+ *   - inputs: 3-5 key drivers used by the engine
+ */
+function Engine({
+  name,
+  tagline,
+  routes,
+  rationale,
+  inputs,
+}: {
+  name: string
+  tagline: string
+  routes: string
+  rationale: string
+  inputs: readonly string[]
+}) {
+  return (
+    <div className="py-5 border-b border-border last:border-b-0">
+      <h3 className="font-editorial text-lg font-semibold text-ink mb-1">
+        {name}
+      </h3>
+      <p className="text-xs text-caption mb-3">{tagline}</p>
+      <dl className="grid gap-y-2 text-sm leading-relaxed">
+        <div className="flex flex-col sm:flex-row sm:gap-3">
+          <dt className="text-ink font-semibold sm:w-28 shrink-0">Routes</dt>
+          <dd className="text-body">{routes}</dd>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:gap-3">
+          <dt className="text-ink font-semibold sm:w-28 shrink-0">
+            Why DCF alone is inadequate
+          </dt>
+          <dd className="text-body">{rationale}</dd>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:gap-3">
+          <dt className="text-ink font-semibold sm:w-28 shrink-0">
+            Key inputs
+          </dt>
+          <dd className="text-body">
+            <ul className="space-y-1 pl-5 list-disc marker:text-caption">
+              {inputs.map((input) => (
+                <li key={input}>{input}</li>
+              ))}
+            </ul>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
 export default function MethodologyPage() {
   return (
     <main className="bg-bg text-body">
@@ -175,10 +229,195 @@ export default function MethodologyPage() {
         </div>
       </section>
 
+      {/* ── Section 2.5 — Specialized models by sector ─────────── */}
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
+        <SectionHeading
+          eyebrow="02 — Routing"
+          title="When DCF isn't enough — specialized models by sector"
+        />
+        <p className="text-sm text-body leading-relaxed mb-6">
+          A single DCF cannot value every business shape. A bank does
+          not have free cash flow in the normal sense; a REIT is a
+          pass-through; a regulated utility earns a tariff-capped
+          return that compounds in DCF math into something the
+          regulator has never permitted. YieldIQ routes each ticker
+          to a sector-appropriate engine, then anchors the answer
+          against peer multiples and a reverse-DCF cross-check.
+        </p>
+        <div className="rounded-2xl border border-border bg-surface px-4">
+          <Engine
+            name="Multiples-based fair value"
+            tagline="Peer-relative PE / PB / EV-EBITDA — runs on every ticker as a parallel signal to the DCF."
+            routes="All tickers, including those already routed to a specialized engine."
+            rationale="DCF outputs drift when terminal-growth and WACC assumptions move by a hundred basis points. Peer-relative multiples anchor the DCF against the price that comparable businesses actually trade at, surfacing disagreements rather than hiding them."
+            inputs={[
+              "Sector-cohort PE / PB / EV-EBITDA percentiles",
+              "Bucketed peer set (large / mid / small-cap)",
+              "Cohort median + sigmoid-smoothed dispersion",
+              "Subject ticker's own three-year ratio history",
+            ]}
+          />
+          <Engine
+            name="Bank residual-income"
+            tagline="P/BV times adjusted book value with a residual-income overlay."
+            routes="Private and PSU banks (HDFCBANK, ICICIBANK, SBIN), large NBFCs (BAJFINANCE), life insurers (HDFCLIFE)."
+            rationale="Banks do not produce free cash flow in the sense an industrial does. Their economic engine is net interest margin earned on book equity, not operating cash flow net of capex. A DCF on a bank treats deposits as a financing item that funds operations, which inverts the actual business model. Book value plus the spread between return on equity and cost of equity is the textbook frame."
+            inputs={[
+              "Return on equity, current and three-year trailing",
+              "Cost of equity from a bank-specific WACC sheet",
+              "Net interest margin and CASA mix",
+              "Provision coverage ratio and gross NPA trajectory",
+              "Adjusted book value (book equity net of intangibles + visible stress)",
+            ]}
+          />
+          <Engine
+            name="REIT net-asset-value with DPU yield gap"
+            tagline="Underlying property NAV plus distribution-per-unit yield versus the 10-year G-Sec."
+            routes="Listed REITs and InvITs (EMBASSY, MINDSPACE, BROOKFIELD, IRBINVIT)."
+            rationale="A REIT is a regulated pass-through that distributes 90 percent of its cash flow. A pure DCF on the distribution stream misses the property-level appreciation that drives unit value, and a pure NAV ignores the income premium. Both halves matter, weighted to the way the unit actually clears in the market."
+            inputs={[
+              "Underlying property NAV from the sponsor's filings",
+              "Trailing-twelve-month DPU",
+              "10-year G-Sec yield as the risk-free anchor",
+              "Sector-cohort yield spread (REIT DPU yield minus G-Sec)",
+              "Occupancy and lease-roll schedule for the next three years",
+            ]}
+          />
+          <Engine
+            name="Regulated utility — RAB times allowed ROE"
+            tagline="Regulated Asset Base multiplied by the regulator's allowed return on equity."
+            routes="Power transmission and generation utilities (POWERGRID, NTPC, transmission DISCOMs)."
+            rationale="A regulated utility earns a tariff-capped return on a defined asset base. The regulator (CERC, SERCs) sets the allowed return on equity in five-year tariff orders. A DCF that compounds historical FCF growth ignores the cap and produces a number the regulator has never permitted. RAB times allowed-ROE is the frame the company itself reports against."
+            inputs={[
+              "Regulated Asset Base from the latest tariff order",
+              "Allowed return on equity in the current control period",
+              "Capex run-rate that flows into next-period RAB",
+              "Under-recoveries and regulatory assets on the balance sheet",
+              "Tariff-petition outcomes from prior cycles",
+            ]}
+          />
+          <Engine
+            name="Platform / recent-IPO sector relative"
+            tagline="Sector-relative valuation for businesses with under 36 months of public data."
+            routes="Recent IPOs and platform businesses (ZOMATO, NYKAA, PAYTM, POLICYBZR, MANKIND in its first year)."
+            rationale="A DCF needs at least three to five years of revenue, margin, and reinvestment history to calibrate baseline assumptions. A recently-listed platform has neither the history nor a stable cohort to lean on. Forcing a DCF here produces a spuriously precise number from noisy inputs. Sector-relative valuation flags the price as a band rather than a point and waits for the data to mature."
+            inputs={[
+              "Closest comparable cohort (Indian + global platform peers)",
+              "Trailing GMV / contribution-margin trajectory",
+              "Cohort EV / sales and EV / contribution-margin multiples",
+              "Months of public reporting (gates the model out under 6 months)",
+            ]}
+          />
+          <Engine
+            name="Tier-2 cohort"
+            tagline="Cohort-relative valuation for mid-caps where direct DCF inputs are noisy."
+            routes="Hand-curated tier-2 list across cyclicals, capital goods, and specialty chemicals."
+            rationale="Small and mid-cap DCFs are dominated by single-year cash-flow swings — one capex year or one inventory cycle can flip the answer. Cohort-relative valuation smooths these inputs by anchoring against five to ten name-level peers in the same sub-sector. The output is wider but more honest about its own uncertainty."
+            inputs={[
+              "Sub-sector cohort of 5-10 hand-curated peers",
+              "Median PE, PB, EV-EBITDA across the cohort",
+              "Subject's three-year normalized margin (median-of-window)",
+              "Confidence haircut applied when cohort dispersion is wide",
+            ]}
+          />
+          <Engine
+            name="Reverse DCF"
+            tagline="Back-solves the growth rate the current market price already implies."
+            routes="All tickers — surfaces alongside the forward DCF as a transparency signal."
+            rationale="The forward DCF asks 'what is this worth?' The reverse DCF asks 'what does buying at the current price assume?' When the implied growth rate is higher than anything the business has delivered, the reverse DCF says so plainly. It reframes valuation as a check on market-implied expectations rather than a single answer."
+            inputs={[
+              "Current market price",
+              "Last reported FCF (or normalized FCF for cyclicals)",
+              "Discount rate (same sector WACC as the forward DCF)",
+              "Terminal growth assumption (same as the forward DCF)",
+              "Implied growth rate solved over the explicit forecast window",
+            ]}
+          />
+          <Engine
+            name="Story DCF / Day-89 backtest"
+            tagline="Historical revenue and margin path plus what-if scenarios for the YIQ50 backtest set."
+            routes="YIQ50 backtest universe — the harness that produced the public Day-89 results."
+            rationale="A single headline DCF hides which assumption is doing the work. The story DCF lets a user flex revenue growth, margin trajectory, or reinvestment rate one at a time and watch the fair value move. The Day-89 backtest panel shows how each story would have played out historically, so users can challenge the central case with their own narrative."
+            inputs={[
+              "Historical revenue and margin path (10-year window)",
+              "User-flexed growth, margin, and reinvestment scenarios",
+              "Sector-specific terminal growth ceiling",
+              "Backtest accuracy versus realized prices on the YIQ50 set",
+            ]}
+          />
+          <Engine
+            name="Composite intrinsic value"
+            tagline="Weighted blend of DCF, multiples-based fair value, and Wall Street consensus."
+            routes="All tickers — surfaces as a parallel column next to the DCF-only fair value."
+            rationale="A pure DCF can run high relative to peer multiples and analyst consensus on names where terminal-growth assumptions matter most — large private banks and high-quality compounders. The composite blends three independent signals so no single methodology can dominate the headline number. Each input remains visible so users can see where the disagreement sits."
+            inputs={[
+              "Forward DCF fair value with three-scenario distribution",
+              "Multiples-based fair value (sector-cohort anchored)",
+              "Wall Street consensus target where coverage exists",
+              "Sector-specific weighting between the three inputs",
+            ]}
+          />
+          <Engine
+            name="Holdco sum-of-the-parts"
+            tagline="SOTP for pure holding companies whose value is a basket of stakes — currently shipping as a DCF-only stop-gap."
+            routes="Pure holdcos (BAJAJHLDNG and similar). Subsidiaries with operating businesses route to their own sector engine."
+            rationale="A pure holding company's value is the sum of its stakes in listed and unlisted subsidiaries, not a discounted-cash-flow on its own thin parent-entity cash flows. DCF on the parent entity misses the subsidiary value entirely. A proper SOTP marks each stake to its underlying fair value and applies a holdco discount for liquidity, control, and tax frictions."
+            inputs={[
+              "Market value of each listed-subsidiary stake",
+              "DCF fair value of each unlisted-subsidiary stake",
+              "Holdco discount (typically 20-40 percent in the Indian market)",
+              "Parent-entity net debt and treasury holdings",
+            ]}
+          />
+        </div>
+
+        {/* Honest caveats sub-section */}
+        <div className="mt-10 pt-8 border-t border-border">
+          <h3 className="font-editorial text-xl font-semibold text-ink mb-4">
+            Honest caveats
+          </h3>
+          <div className="space-y-4 text-sm text-body leading-relaxed">
+            <p>
+              <span className="text-ink font-semibold">
+                Composite IV closes a real DCF-only gap.
+              </span>{" "}
+              On HDFCBANK, the DCF-only fair value ran materially
+              above the peer-multiples and AlphaSpread numbers. The
+              composite engine blends DCF, multiples, and consensus
+              so that bias collapses into a band the three methods
+              actually agree on. We publish both columns side by side
+              rather than hiding the DCF-only output.
+            </p>
+            <p>
+              <span className="text-ink font-semibold">
+                Holdco SOTP is a stop-gap.
+              </span>{" "}
+              The current holdco route is a DCF-only fallback that
+              under-counts subsidiary value. A real
+              sum-of-the-parts engine is in the roadmap; until it
+              ships, BAJAJHLDNG and similar pure holdcos carry an
+              under-review caveat on the analysis page.
+            </p>
+            <p>
+              <span className="text-ink font-semibold">
+                Three sector engines are still on the roadmap.
+              </span>{" "}
+              Pharma pipeline-adjusted DCF (probability-weighted
+              molecule cash flows), Insurance embedded-value plus
+              value-of-new-business, and Telecom ARPU-driven models
+              are not yet shipped. Until they are, the relevant
+              tickers route through the general DCF with a
+              sector-cohort multiples cross-check, and any large
+              gap between the two surfaces as an under-review band.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* ── Section 3 — The 6-pillar Prism ─────────────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading
-          eyebrow="02 — Scoring"
+          eyebrow="03 — Scoring"
           title="The 6-pillar Prism"
         />
         <p className="text-sm text-body leading-relaxed mb-6">
@@ -219,7 +458,7 @@ export default function MethodologyPage() {
       {/* ── Section 4 — Verdict bands ──────────────────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading
-          eyebrow="03 — Labels"
+          eyebrow="04 — Labels"
           title="Verdict bands"
         />
         <p className="text-sm text-body leading-relaxed mb-6">{/* sebi-allow: buy, sell */}
@@ -261,7 +500,7 @@ export default function MethodologyPage() {
       {/* ── Section 5 — Data sources ───────────────────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading
-          eyebrow="04 — Inputs"
+          eyebrow="05 — Inputs"
           title="Data sources"
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
@@ -306,7 +545,7 @@ export default function MethodologyPage() {
       {/* ── Section 6 — Known limitations ──────────────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading
-          eyebrow="05 — Honesty"
+          eyebrow="06 — Honesty"
           title="Known limitations"
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
@@ -345,7 +584,7 @@ export default function MethodologyPage() {
       {/* ── Section 6.5 — AI summaries disclosure ──────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading
-          eyebrow="06 — AI"
+          eyebrow="07 — AI"
           title="AI summaries — full disclosure"
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
@@ -390,7 +629,7 @@ export default function MethodologyPage() {
       {/* ── Section 7 — SEBI posture + CTA ─────────────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading
-          eyebrow="07 — Regulatory"
+          eyebrow="08 — Regulatory"
           title="SEBI posture"
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
