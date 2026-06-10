@@ -4116,6 +4116,31 @@ MANIFEST: list[dict] = [
             "team-internal log. No engine math, no field invalidation."
         ),
     },
+    {
+        # Sprint B.2 (2026-06-10) — premium-feel polish for the
+        # analysis page. Purely additive UI shell; no engine math,
+        # no field invalidation, no cache flush required.
+        "version_id": "v_sticky_toc_density_polish_2026_06_10",
+        "title_public": (
+            "Sticky table of contents + page density polish — "
+            "tighter spacing, smooth tab transitions"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Adds a right-rail sticky table of contents that lights up "
+            "the section the reader is currently on, plus a mobile "
+            "floating button that opens a slide-in section picker. "
+            "Tightens default whitespace on the Summary tab (large "
+            "vertical gaps between numbered sections collapsed) and "
+            "adds a fade transition between deep-dive tabs so the page "
+            "reads as one continuous surface. No engine math, no field "
+            "invalidation — pure presentation polish."
+        ),
+    },
 ]
 
 

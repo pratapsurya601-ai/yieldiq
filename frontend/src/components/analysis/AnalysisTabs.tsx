@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 export type AnalysisTabKey =
@@ -99,17 +100,59 @@ export default function AnalysisTabs({ tabs, initial, active: controlledActive, 
       {/* Panel — only active tab is mounted. The wrapping <section> also
           carries `id="section-<key>"` so the Premium Feel R1
           StickyAnalysisNav can `scrollIntoView` directly to the active
-          tab content even when the tab swap re-mounts the children. */}
+          tab content even when the tab swap re-mounts the children.
+
+          Sprint B.2 (2026-06-10): wrap the active panel in an
+          AnimatePresence so swapping between Summary / Valuation /
+          Quality / Financials / History / Peers no longer hard-cuts.
+          We fade + lift 6px and let the next panel fade in on top
+          (mode="popLayout") so the page reads as one continuous
+          surface, not 6 different products glued together. Honors
+          prefers-reduced-motion via useReducedMotion. */}
+      <PanelTransition tabKey={activeTab?.key ?? "summary"} content={activeTab?.content} />
+    </div>
+  )
+}
+
+interface PanelTransitionProps {
+  tabKey: string
+  content: ReactNode
+}
+
+function PanelTransition({ tabKey, content }: PanelTransitionProps) {
+  const reduceMotion = useReducedMotion()
+  // When the user prefers reduced motion, fall back to an instant swap —
+  // a snap-cut is friendlier than a fade for the affected audience.
+  if (reduceMotion) {
+    return (
       <section
-        id={`section-${activeTab?.key ?? "summary"}`}
-        aria-labelledby={`tab-${activeTab?.key ?? "summary"}`}
+        id={`section-${tabKey}`}
+        aria-labelledby={`tab-${tabKey}`}
         role="tabpanel"
         className="pt-4"
-        key={activeTab?.key}
-        data-tabpanel-key={activeTab?.key}
+        key={tabKey}
+        data-tabpanel-key={tabKey}
       >
-        {activeTab?.content}
+        {content}
       </section>
-    </div>
+    )
+  }
+  return (
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.section
+        id={`section-${tabKey}`}
+        aria-labelledby={`tab-${tabKey}`}
+        role="tabpanel"
+        className="pt-4"
+        key={tabKey}
+        data-tabpanel-key={tabKey}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.18, ease: [0.4, 0.0, 0.2, 1] }}
+      >
+        {content}
+      </motion.section>
+    </AnimatePresence>
   )
 }

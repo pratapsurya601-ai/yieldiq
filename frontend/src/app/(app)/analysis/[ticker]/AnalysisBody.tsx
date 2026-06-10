@@ -13,6 +13,7 @@ import { fetchPrism } from "@/lib/prism"
 import { TimeMachineProvider } from "@/lib/time-machine-context"
 import AnalysisTabs, { type AnalysisTabDef, type AnalysisTabKey } from "@/components/analysis/AnalysisTabs"
 import StickyAnalysisNav from "@/components/analysis/StickyAnalysisNav"
+import StickyTableOfContents from "@/components/analysis/StickyTableOfContents"
 import Reveal from "@/components/common/Reveal"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
@@ -585,6 +586,26 @@ function DataFreshnessWidget({ data }: { data: AnalysisResponse }) {
       </details>
     </section>
   )
+}
+
+// Sprint B.2 (2026-06-10): pretty labels for the right-rail TOC.
+// Keys mirror `SectionKey` from @/lib/personalization. Anything not in
+// this map gets a generic Title-Case fallback at render time, so adding
+// a new personalization key never breaks the navigator.
+const TOC_SECTION_LABELS: Record<string, string> = {
+  insight_cards: "Insight Cards",
+  red_flags: "Red Flags",
+  scenarios: "Scenarios",
+  bulls_bears: "Bulls vs Bears",
+  honest_card: "Honest Card",
+  peers: "Peer Comparison",
+  compounded_growth: "Compounded Growth",
+  financials_chart: "Financials Chart",
+  reverse_dcf: "Reverse DCF",
+  dividends: "Dividends",
+  news: "News",
+  earnings_calls: "Earnings Calls",
+  community: "Community Sentiment",
 }
 
 interface Props {
@@ -1353,18 +1374,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       key: "summary",
       label: "Summary",
       content: (
-        // PR-D chassis: outer container uses editorial whitespace
-        // (space-y-16 md:space-y-20) so each numbered section reads as
-        // its own beat rather than another row in a stack. Each
-        // CollapsibleSection child is wrapped in the canonical
-        // rounded-2xl card surface below.
+        // Sprint B.2 (2026-06-10) density audit: tightened from
+        // space-y-16 md:space-y-20 -> space-y-8 md:space-y-10. With
+        // 12+ numbered sections, the editorial whitespace blew the
+        // Summary tab past 10000px on HDFCBANK and read as sprawl
+        // even with the StickyTableOfContents anchored to the rail.
+        // The numbered headers + card chrome supply enough visual
+        // separation; doubling that with 80px gaps was redundant.
         //
         // chassis(PR-A) 2026-05-26: InsightCards + RedFlagInsights are
         // intentionally excluded from the Summary tab (they appear on
         // Valuation / Quality respectively). The summarySectionMap
         // returns null for those keys, so the personalization picker's
         // vocabulary stays whole but the duplicate render is gone.
-        <div className="space-y-16 md:space-y-20">
+        <div className="space-y-8 md:space-y-10">
           {/* Forward earnings calendar — renders ABOVE the fold for
               tickers with imminent earnings (lookahead 45 days).
               Self-hides for the ~half of the universe with no
@@ -1412,8 +1435,26 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             const defaultExpanded = idx < 5 || key === "news"
             const explainer =
               config?.showSectionExplainers ? SECTION_EXPLAINERS[key] : null
+            // TOC label — humanise the section key so the right-rail
+            // navigator reads as English ("Bulls Bears" -> "Bulls vs
+            // Bears"), with explicit overrides for the awkward keys.
+            const tocLabel = TOC_SECTION_LABELS[key] ?? key
+              .split("_")
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(" ")
+            // Sprint B.2 (2026-06-10) density audit: card padding
+            // tightened p-6 -> p-5 md:p-6 so mobile reads denser
+            // while desktop keeps the editorial breathing room.
+            // The `data-toc-section` + stable `id` attributes feed
+            // StickyTableOfContents — every Summary-tab block becomes
+            // a TOC entry on first paint without a separate registry.
             return (
-              <div key={key} className="rounded-2xl border border-border bg-bg p-6">
+              <div
+                key={key}
+                id={`toc-summary-${key}`}
+                data-toc-section={tocLabel}
+                className="rounded-2xl border border-border bg-bg p-5 md:p-6 scroll-mt-20"
+              >
                 <CollapsibleSection
                   sectionKey={key}
                   number={number}
@@ -2440,7 +2481,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             controlled `active` prop and scrolls to the target section's
             id (#section-<tab> emitted by AnalysisTabs, #section-ai for
             the ELI15 thesis block). data-hero-anchor on the hero band
-            below tells the nav when to attach the glass background. */}
+            below tells the nav when to attach the glass background.
+
+            Sprint B.2 (2026-06-10): the StickyTableOfContents below
+            adds a right-rail navigator on >= xl (1280px) viewports and
+            a mobile floating "Sections" button below 768px. The
+            existing horizontal pill nav still owns 768-1279px and
+            stays visible on every viewport (it cross-deck-links to the
+            6 tabs; the right-rail TOC focuses on Summary-tab sections). */}
         <div id="section-hero-anchor" data-hero-anchor aria-hidden />
         <StickyAnalysisNav
           sections={[
@@ -2464,8 +2512,30 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             const tabKey = key as AnalysisTabKey
             setActiveTabKey(tabKey)
             setOpenedTabs((prev) => new Set(prev).add(tabKey))
+            // Sprint B.2: the right-rail TOC mirrors whatever Summary-
+            // tab cards are mounted. Tab swap remounts the panel under
+            // an AnimatePresence; force a TOC rescan on the next frame
+            // so the navigator picks up the new section ids without
+            // waiting for the user to scroll.
+            if (typeof window !== "undefined") {
+              requestAnimationFrame(() => {
+                window.dispatchEvent(new CustomEvent("toc-sections-changed"))
+              })
+            }
           }}
         />
+
+        {/* Sprint B.2 (2026-06-10) — Sticky right-rail Table of
+            Contents. Renders >= xl (1280px) on the desktop right edge
+            as a thin vertical list of every major section on the
+            current view; below md (768px) collapses into a floating
+            "Sections" button bottom-right with a slide-in panel. The
+            navigator discovers entries via `data-toc-section`
+            attributes on Summary-tab cards and page-level anchors —
+            no separate registry needed. Suppressed in the 768-1279px
+            range so the existing horizontal pill nav (above) keeps
+            owning that breakpoint. */}
+        <StickyTableOfContents />
 
         {/* ELI15 thesis panel — "Why the model sees it this way".
             Sits directly below the hero band / verdict pill and ABOVE
@@ -2479,7 +2549,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             the new AIPromptPresetsPanel (3-card preset-question grid).
             The sticky pill-nav AI button scrolls here. */}
         <Reveal direction="up" delay={0}>
-          <div id="section-ai" className="space-y-4">
+          <div
+            id="section-ai"
+            data-toc-section="AI Thesis"
+            className="space-y-4 scroll-mt-20"
+          >
             <ELI15ThesisPanel ticker={ticker} />
             <AIPromptPresetsPanel ticker={ticker} />
           </div>
@@ -2495,7 +2569,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             readers who want them. Components are unchanged; only the
             visibility wrapper is new. */}
         <Reveal direction="up" delay={80}>
-        <details className="rounded-2xl border border-border bg-bg dark:bg-surface group">
+        <details
+          id="section-confidence"
+          data-toc-section="Confidence & Methodology"
+          className="rounded-2xl border border-border bg-bg dark:bg-surface group scroll-mt-20"
+        >
           <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
             <span className="flex items-center gap-2">
               <span aria-hidden className="text-caption transition-transform group-open:rotate-90">&#9656;</span>
@@ -2596,22 +2674,42 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             tag (researching/watching/skipping/owned/sold). Collapsed
             by default so it doesn't crowd the deep-dive content; the
             #notes hash on /notes index deep-links scrolls here. */}
-        <div id="notes" className="scroll-mt-20">
+        <div
+          id="notes"
+          data-toc-section="My Notes"
+          className="scroll-mt-20"
+        >
           <Reveal direction="left" delay={200}>
             <SaveNotePanel ticker={ticker} />
           </Reveal>
         </div>
 
         <Reveal direction="up" delay={0}>
-          <AnalysisTabs
-            tabs={tabs}
-            initial="summary"
-            active={activeTabKey}
-            onTabChange={(key) => {
-              setOpenedTabs((prev) => new Set(prev).add(key))
-              setActiveTabKey(key)
-            }}
-          />
+          <div
+            id="section-deep-dive"
+            data-toc-section="Deep Dive Tabs"
+            className="scroll-mt-20"
+          >
+            <AnalysisTabs
+              tabs={tabs}
+              initial="summary"
+              active={activeTabKey}
+              onTabChange={(key) => {
+                setOpenedTabs((prev) => new Set(prev).add(key))
+                setActiveTabKey(key)
+                // Sprint B.2: the StickyTableOfContents discovers
+                // entries from the live DOM. A tab swap remounts the
+                // panel under AnimatePresence, so the right-rail
+                // navigator needs a nudge to re-scan after the new
+                // sub-section ids paint.
+                if (typeof window !== "undefined") {
+                  requestAnimationFrame(() => {
+                    window.dispatchEvent(new CustomEvent("toc-sections-changed"))
+                  })
+                }
+              }}
+            />
+          </div>
         </Reveal>
 
         <Reveal direction="up" delay={80}>
@@ -2683,14 +2781,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             leverage SEO move in the spec — Google promotes FAQPage in
             search results as rich snippets. */}
         <Reveal direction="up" delay={0}>
-          <AnalysisFAQ data={data} />
+          <div id="section-faq" data-toc-section="FAQ" className="scroll-mt-20">
+            <AnalysisFAQ data={data} />
+          </div>
         </Reveal>
 
         {/* Day-108a manifest history — collapsed by default per user
             feedback 2026-05-25 ("dont need this"). Kept accessible
             via <details> so power users can still open the model-change
-            audit log. No prominent numbered section header. */}
-        <details className="mx-4 mt-12 group">
+            audit log. No prominent numbered section header.
+
+            Sprint B.2 (2026-06-10) density audit: trailing mt-12 was
+            doubling the surrounding space-y-4 of the parent column,
+            stranding the trust-tail with ~90px of empty whitespace
+            from the FAQ above. Tightened to mt-4 — we want the bottom
+            of the page to taper, not echo. */}
+        <details className="mx-4 mt-4 group">
           <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors py-2 select-none">
             ▸ Model change log
             <span className="ml-2 text-muted-foreground/60 group-open:hidden">
