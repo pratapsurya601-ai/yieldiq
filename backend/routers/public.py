@@ -5879,3 +5879,52 @@ async def get_sentiment_history(
         "days": days,
         "points": list(by_day.values()),
     }
+
+
+# ── /quote/{ticker} — lightweight live price tap (task #131 live MoS) ──
+#
+# Used by frontend/src/lib/useLivePrice.ts to poll the latest cached
+# price every 60s without re-running the analysis pipeline. Strictly
+# read-only: returns just the live_quotes row joined defensively on
+# either bare or .NS suffix. Cached 30s at the edge so a burst of
+# clients on the same ticker collapses to one DB hit per slot.
+@router.get("/quote/{ticker}")
+async def public_live_quote(ticker: str):
+    """Return the latest live_quotes row for a ticker.
+
+    Response shape: {ticker, price, as_of, source}.
+    price=null when no live quote exists yet — caller falls back to
+    the SSR-rendered cached price.
+    """
+    t_raw = (ticker or "").strip().upper()
+    if not t_raw:
+        return {"ticker": "", "price": None, "as_of": None,
+                "source": "no_input"}
+    out = {"ticker": t_raw, "price": None, "as_of": None, "source": None}
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            row = sess.execute(_t(
+                "SELECT price, as_of, source "
+                "  FROM live_quotes "
+                " WHERE ticker = :t OR ticker = :tns "
+                " ORDER BY as_of DESC NULLS LAST "
+                " LIMIT 1"
+            ), {"t": t_raw, "tns": t_raw + ".NS"}).first()
+            if row is not None:
+                price, as_of, source = row
+                out["price"] = float(price) if price is not None else None
+                out["as_of"] = as_of.isoformat() if as_of else None
+                out["source"] = source or "live_quotes"
+        finally:
+            try:
+                sess.close()
+            except Exception:
+                pass
+    except Exception:
+        # Never fail the chip-render path — return nulls and let the
+        # client keep its cached fallback price.
+        pass
+    return _cached_json(out, s_maxage=30, swr=120)

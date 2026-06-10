@@ -1,0 +1,97 @@
+name: MoS-band alerts evaluator
+
+# Task #131 (2026-06-10) — fires PWA push notifications when a stock's
+# margin-of-safety crosses a user-configured threshold. Every 15
+# minutes during the period that includes IST market hours plus a
+# small buffer. Off-hours runs are cheap (no FV recompute, just a
+# read of the latest cached row + a comparison) but we keep the cron
+# 24x7 because IST cron expressions on GH Actions don't align cleanly
+# with NSE/BSE session windows.
+#
+# Storage: backend/services/mos_band_alerts_service.py uses a JSONL
+# file at $MOS_BAND_ALERTS_PATH. The cron mounts the Railway data
+# volume by reading the file inside the same container layout; for
+# now the GH-runner copy of the file is bootstrapped from the
+# previous artifact + restored on the next run (see "Restore alert
+# subscriptions" step). When we migrate to Neon storage this whole
+# artifact dance goes away.
+
+on:
+  schedule:
+    # Every 15 minutes.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (compute fires without sending pushes)"
+        required: false
+        type: boolean
+        default: false
+      only:
+        description: "Comma-separated tickers to limit the sweep"
+        required: false
+        default: ""
+
+concurrency:
+  group: check-alerts
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "sqlalchemy>=2.0" psycopg2-binary pywebpush cryptography
+
+      - name: Restore alert subscriptions
+        # Best-effort: download the most recent persisted JSONL so the
+        # cron sees the same set of subscriptions written by the API.
+        # If the artifact doesn't exist yet (first run) we no-op.
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          workflow: check-alerts.yml
+          name: mos-band-alerts-jsonl
+          path: ./data/
+          if_no_artifact_found: warn
+
+      - name: Run alerts evaluator
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          MOS_BAND_ALERTS_PATH: ${{ github.workspace }}/data/mos_band_alerts.jsonl
+          LOG_LEVEL: INFO
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          ONLY: ${{ github.event.inputs.only }}
+        run: |
+          ARGS=""
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "$ONLY" ]; then
+            ARGS="$ARGS --only $ONLY"
+          fi
+          python -m backend.jobs.check_alerts_cron $ARGS
+
+      - name: Persist alert subscriptions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mos-band-alerts-jsonl
+          path: ${{ github.workspace }}/data/mos_band_alerts.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
