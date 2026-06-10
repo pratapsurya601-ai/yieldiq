@@ -2733,8 +2733,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             Sprint B.2 (2026-06-10) density audit: trailing mt-12 was
             doubling the surrounding space-y-4 of the parent column,
             stranding the trust-tail with ~90px of empty whitespace
-            from the FAQ above. Tightened to mt-4 — the bottom of the
-            page should taper, not echo. */}
+            from the FAQ above. Tightened to mt-4 — we want the bottom
+            of the page to taper, not echo. */}
         <details className="mx-4 mt-4 group">
           <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors py-2 select-none">
             ▸ Model change log
