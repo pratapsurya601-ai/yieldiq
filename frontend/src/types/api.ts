@@ -558,6 +558,27 @@ export interface AnalysisResponse {
     sector_calibration?: unknown | null
   } | null
   /**
+   * Implied-Assumptions extension (2026-06-10) — AlphaSpread-style
+   * "what does the market expect at the current price?" framing.
+   * Mirrors backend/services/reverse_dcf_service.ImpliedAssumptionsResult.
+   * Field-additive: legacy cached payloads predate the field; the
+   * <ImpliedAssumptionsCard /> component hides itself when absent.
+   */
+  implied_assumptions?: {
+    implied_revenue_cagr_pct: number
+    implied_terminal_growth_pct: number
+    implied_margin_expansion_bps: number | null
+    implied_wacc_pct: number | null
+    consensus_revenue_cagr_pct: number | null
+    growth_gap_pp: number | null
+    /** "modest" | "moderate" | "aggressive" | "extreme" */
+    market_expectation_label: string
+    /** 0-100 plausibility vs trailing 3y CAGR + sector tilt */
+    plausibility_score: number
+    /** One-line rendered headline, observational. */
+    headline: string
+  } | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of

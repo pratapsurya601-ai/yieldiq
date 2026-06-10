@@ -841,6 +841,27 @@ class AnalysisResponse(BaseModel):
     # cached payloads — the frontend hides the panel in that case.
     derived_insights: Optional[dict] = None
 
+    # ── Implied Assumptions extension (2026-06-10) ─────────────
+    # AlphaSpread-style "what does the market expect at the current
+    # price?" framing layered on top of the existing reverse-DCF
+    # service. Carries:
+    #   - implied_revenue_cagr_pct        (consistent with
+    #                                      reverse_dcf.implied_growth)
+    #   - implied_terminal_growth_pct     (echo of solver assumption)
+    #   - implied_margin_expansion_bps    (vs. trailing margin; None
+    #                                      when either anchor missing)
+    #   - implied_wacc_pct                (echo of solver assumption)
+    #   - consensus_revenue_cagr_pct      (analyst consensus, may be None)
+    #   - growth_gap_pp                   (implied - consensus)
+    #   - market_expectation_label        ("modest" | "moderate" |
+    #                                      "aggressive" | "extreme")
+    #   - plausibility_score              (0-100 vs. trailing 3y CAGR)
+    #   - headline                        (rendered card line)
+    # Purely ADDITIVE — never feeds FV / scoring / verdict. None on
+    # legacy cached payloads. See
+    # backend/services/reverse_dcf_service.compute_implied_assumptions.
+    implied_assumptions: Optional[dict] = None
+
 
 # ── The Honest Card response model ────────────────────────────
 class HonestCardOutput(BaseModel):

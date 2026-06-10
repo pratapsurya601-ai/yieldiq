@@ -324,6 +324,36 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Implied-Assumptions extension (2026-06-10) — AlphaSpread-style
+        # "what does the market expect at the current price?" framing
+        # added on top of backend/services/reverse_dcf_service.py via
+        # the new compute_implied_assumptions() function and surfaced
+        # on AnalysisResponse as the new Optional[dict]
+        # `implied_assumptions` field. Purely additive:
+        #   - never feeds FV / scoring / verdict
+        #   - solver pass is byte-identical to the existing
+        #     reverse_dcf_service compute (no new lattice / no new
+        #     fade math) so cached `fair_value` / `mos` / `verdict`
+        #     never shift
+        # The scope.fields entry below documents that only the new
+        # `implied_assumptions` field is touched; downstream gates
+        # (cache_version_check, fair_value_history_gate, canary_diff)
+        # do not need to invalidate any other field as a result of
+        # this PR. scope.tickers="*" because the framing is universal.
+        "version_id": "v_implied_assumptions_extension_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["implied_assumptions"],
+        },
+        "rationale": (
+            "Implied-Assumptions extension — adds richer "
+            "AlphaSpread-style 'market expects X% CAGR vs consensus "
+            "Y%' framing on top of the existing reverse-DCF solver. "
+            "Additive only: no FV / verdict / scoring change."
+        ),
+    },
+    {
         # T3.6 Phase A (2026-06-10) — IT services overlay standalone
         # service added at backend/services/it_services_overlay_service.py.
         # Adjusts DCF FV for IT-specific risks generic DCF doesn't see:

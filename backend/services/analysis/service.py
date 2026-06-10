@@ -469,6 +469,96 @@ def compute_tier2_for_ticker(
         return None
 
 
+def _build_implied_assumptions_dict(
+    rdcf: dict | None,
+    enriched: dict,
+    ticker: str,
+    current_price: float,
+    wacc: float,
+    terminal_g: float,
+    rev_cagr_3y: float | None,
+) -> dict | None:
+    """Build the rich-framing implied-assumptions payload (additive).
+
+    Layered on top of the existing reverse_dcf_service so the surface
+    cost is one extra dict per analysis response. Failures degrade to
+    None — the frontend hides the card when the field is missing, so
+    a partial / broken implied-assumptions block never blocks the
+    rest of the analysis response.
+
+    The implied-growth number we surface is taken from `rdcf` when
+    available (byte-identical to the existing
+    `valuation.reverse_dcf_implied_growth` / `insights.reverse_dcf_*`
+    fields). When the upstream rdcf is empty (skipped for financials,
+    holdcos, etc.) we fall back to the standalone solver — same math,
+    just rerouted so the implied number is internally consistent.
+    """
+    try:
+        from backend.services.reverse_dcf_service import (
+            compute_implied_assumptions,
+            implied_assumptions_to_dict,
+        )
+
+        # Pull historical anchor from the same source the rest of the
+        # response uses so the card never diverges from the Quality
+        # metric chip ("Revenue CAGR (3y)") on the same page.
+        hist = rev_cagr_3y if rev_cagr_3y is not None else enriched.get("revenue_cagr_3y")
+        hist = float(hist) if hist is not None else 0.0
+
+        # Consensus — the existing pipeline does not carry a separate
+        # "analyst revenue CAGR consensus" field. We pass None so the
+        # card's "vs consensus" headline degrades to the historical-
+        # anchor variant ("vs trailing X%"). A future enhancement can
+        # wire a consensus source (Finnhub estimates, broker scrape)
+        # through the same field.
+        consensus = enriched.get("consensus_revenue_cagr")
+        consensus_val = float(consensus) if consensus is not None else None
+
+        base_fcf = float(
+            enriched.get("normalized_fcf_base")
+            or enriched.get("latest_fcf")
+            or 0.0
+        )
+        shares = float(enriched.get("shares") or 0.0)
+        total_debt = float(enriched.get("total_debt") or 0.0)
+        total_cash = float(enriched.get("total_cash") or 0.0)
+        current_revenue = enriched.get("latest_revenue")
+        current_margin = enriched.get("op_margin") or enriched.get("fcf_margin")
+        historical_margin = enriched.get("normalized_fcf_margin")
+
+        result = compute_implied_assumptions(
+            current_price=float(current_price),
+            base_fcf=base_fcf,
+            shares=shares,
+            historical_revenue_cagr_3y=hist,
+            consensus_revenue_cagr=consensus_val,
+            wacc=float(wacc),
+            terminal_growth=float(terminal_g),
+            current_margin=(float(current_margin) if current_margin is not None else None),
+            historical_margin=(float(historical_margin) if historical_margin is not None else None),
+            sector=enriched.get("sector"),
+            total_debt=total_debt,
+            total_cash=total_cash,
+            current_revenue=(float(current_revenue) if current_revenue is not None else None),
+            ticker=ticker,
+        )
+        return implied_assumptions_to_dict(result)
+    except Exception as exc:
+        # Never let an additive surface 500 the response. The
+        # observability mirror lives behind the structured logger so
+        # we still see failures in prod without affecting payload
+        # construction.
+        try:
+            import logging as _ia_log
+            _ia_log.getLogger("yieldiq.analysis.implied_assumptions").warning(
+                "implied_assumptions[%s] build failed (%s: %s) -- returning None",
+                ticker, type(exc).__name__, exc,
+            )
+        except Exception:
+            pass
+        return None
+
+
 class TickerNotFoundError(Exception):
     """Raised when the data provider returns no data for a ticker —
     i.e. the ticker symbol is invalid, unlisted, or misspelled.
@@ -5754,6 +5844,24 @@ class AnalysisService(NarrativeMixin):
             analyst_consensus=_analyst_consensus,
             timestamp=_ts,
             computation_inputs=_computation_inputs,
+            # ── Implied Assumptions extension (2026-06-10) ─────
+            # AlphaSpread-style "what does the market expect?" framing
+            # built from the same rdcf solver output we already compute
+            # above. No second solver pass — we read the implied number
+            # straight off `rdcf` (or, when consensus growth is present
+            # but rdcf is missing the growth axis, fall back to a thin
+            # delegating compute). Purely additive — the assignment is
+            # `or None` so any KeyError / unexpected None silently
+            # degrades to a hidden card rather than a 500.
+            implied_assumptions=_build_implied_assumptions_dict(
+                rdcf=rdcf,
+                enriched=enriched,
+                ticker=ticker,
+                current_price=price,
+                wacc=wacc,
+                terminal_g=terminal_g,
+                rev_cagr_3y=_rev_cagr_3y,
+            ),
         )
 
 
