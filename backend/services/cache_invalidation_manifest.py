@@ -2970,6 +2970,67 @@ MANIFEST: list[dict] = [
             "contributor for the 8 listed auto-OEM tickers."
         ),
     },
+    {
+        # T3.15 Phase A (2026-06-10): logistics & freight valuation
+        # service in backend/services/logistics_freight_service.py.
+        # Sector-specific framework for the 9 listed Indian logistics
+        # tickers across six structurally different business models:
+        #
+        #   - road_express (TCI, BLUEDART, GATI, TCIEXP): fleet +
+        #     hub-and-spoke. Diesel + driver are dominant cost levers;
+        #     16x premium reflects organized + tech-enabled franchise.
+        #   - container_rail (CONCOR): Indian Railways exclusivity
+        #     moat; volumes in TEUs not MT; 15x premium reflects
+        #     durable policy-anchored economics.
+        #   - container_shipping (SCI): commoditized BDI/SCFI cycle;
+        #     7x reflects no pricing power.
+        #   - 3pl_supply_chain (MAHLOG, ALLCARGO): asset-light, tech-
+        #     enabled, customer-sticky; 18x premium reflects software-
+        #     margin layer over outsourced fleet.
+        #   - tanker_shipping (GESHIP): commoditized like containers
+        #     on crude / product tanker rates; 6x.
+        #   - warehousing: covered as a classification (no pure-play
+        #     listing yet); 20x REIT-adjacent anchor.
+        #
+        # GOFASHION explicitly EXCLUDED — it's apparel retail, not
+        # logistics. Routing has an explicit guard against future
+        # mis-classification drift from external feeds.
+        #
+        # Generic DCF mis-values every one of these: road-express
+        # because trailing FCF whipsaws with diesel; container rail
+        # because the moat isn't in cohort P/E medians; shipping
+        # because cycles bury the signal; 3PL because the asset-light
+        # franchise premium doesn't show up in tangible book.
+        #
+        # Phase A is standalone — no router wiring, no read-path entry
+        # in the analysis cache shape. Phase B (separate PR) routes
+        # the 9 tickers below through this engine and surfaces the
+        # cost-pressure chip + operating-leverage ratio on the analysis
+        # page.
+        #
+        # Empty fields list means _field_in_scope() returns False for
+        # any caller's fields_needed iterable, so this entry is
+        # effectively a documentation-only no-op for the read-validity
+        # gate — by design for Phase A.
+        "version_id": "v_t3_15_logistics_freight_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "TCI", "BLUEDART", "MAHLOG", "GATI", "CONCOR",
+                "TCIEXP", "ALLCARGO", "SCI", "GESHIP",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.15 Phase A — logistics freight volume x yield x "
+            "utilization framework. Six segments: road express, "
+            "container rail (CONCOR moat), container shipping, 3PL, "
+            "tanker shipping, warehousing. Cost-pressure label "
+            "(diesel_squeeze / labor_pressure / normal) + operating-"
+            "leverage ratio surfaced. Phase B routes the 9 logistics "
+            "tickers through this engine."
+        ),
+    },
 ]
 
 
