@@ -324,6 +324,45 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Phase B (2026-06-10) — surface the 5 standalone Phase-A
+        # estimators (T2.1 DDM, T2.2 EPV, T2.5 Three-stage DCF, T2.8
+        # Liquidation, T2.4 Probability-weighted) as ADDITIVE fields
+        # on AnalysisResponse. Each is injected at the router
+        # boundary on every cache tier so warm rows surface the new
+        # signals without a CACHE_VERSION bump. Composite weighting
+        # is UNCHANGED — composite_intrinsic_value continues to mix
+        # DCF + Multiples + Wall St only; the weighting change ships
+        # in Phase C after the canary baseline confirms tolerance.
+        # Scope is narrow on the new fields because no existing field
+        # changes — purely additive surface that pre-PR cached
+        # payloads also receive via the injection path.
+        "version_id": "v_phase_b_estimator_surfacing_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "ddm_fv",
+                "ddm_method",
+                "epv_per_share",
+                "epv_growth_value_gap",
+                "three_stage_fv",
+                "three_stage_method",
+                "liquidation_per_share",
+                "liquidation_floor_safety_margin",
+                "probability_weighted_fv",
+                "probability_weighted_method",
+            ],
+        },
+        "rationale": (
+            "Phase B — surface the 5 standalone estimators (T2.1 DDM, "
+            "T2.2 EPV, T2.5 Three-stage DCF, T2.8 Liquidation, T2.4 "
+            "Probability-weighted) as additive new fields. "
+            "composite_intrinsic_value remains DCF+Multiples+Wall St "
+            "only — weighting change ships in Phase C after canary "
+            "baseline confirms tolerance."
+        ),
+    },
+    {
         # T5.7 — monthly accuracy report cron added. Runs 1st of each
         # month and computes 30-day-forward direction accuracy +
         # magnitude error per ticker for everything published in the

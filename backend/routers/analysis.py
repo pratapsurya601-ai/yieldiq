@@ -353,6 +353,573 @@ def _inject_composite_iv_model(result: "AnalysisResponse") -> "AnalysisResponse"
     return result
 
 
+# ─────────────────────────────────────────────────────────────────
+# Phase B — additive standalone-estimator surfacing (2026-06-10)
+# ─────────────────────────────────────────────────────────────────
+# Each of the five estimators below is a thin projection of its
+# standalone Phase-A service into the AnalysisResponse payload. They
+# follow the SAME contract as _inject_composite_iv_* above:
+#
+#   1. Lazy import — keeps cold start fast and avoids circular
+#      dependency surprises if the service module shifts.
+#   2. Pure derivation from the in-payload inputs — no DB, no cache,
+#      no I/O.
+#   3. Defensive — wrapped in try/except so a single ticker that
+#      trips the estimator never breaks the wider response. Failure
+#      leaves the field None and the frontend hides the chip.
+#   4. MUST run AFTER the composite chain (sector_medians ->
+#      multiples_fv -> composite_iv) so the per-payload extraction
+#      sees the freshly-injected multiples / composite values.
+#
+# Phase B does NOT change composite_iv_service.py weights — the
+# composite_intrinsic_value field remains DCF + Multiples + Wall St
+# only. The weighting change (Phase C) ships in a separate PR once
+# the canary baseline confirms tolerance on the additive surface.
+# ─────────────────────────────────────────────────────────────────
+
+def _safe_payload_section(payload: dict, key: str) -> dict:
+    """Return ``payload[key]`` as a dict, with a defensive {} fallback.
+
+    Used by the Phase-B inject helpers to keep their input-extraction
+    code branchless. Payloads coming off the cache occasionally carry
+    legacy null sections (pre-PR-X payloads); a None section would
+    otherwise raise AttributeError on the first .get() call.
+    """
+    section = payload.get(key)
+    if not isinstance(section, dict):
+        return {}
+    return section
+
+
+def _inject_ddm_dict(payload: dict) -> dict:
+    """Populate ``ddm_fv`` + ``ddm_method`` on a dict payload.
+
+    T2.1 (2026-06-10) — wires the standalone DDM service. MUST run
+    AFTER `_inject_composite_iv_dict` (no read dependency, but matches
+    the canonical chain order so the frontend can rely on the field
+    being present when composite is). Defensive — never raises;
+    leaves both fields None on failure.
+
+    Applicability is decided up-front by
+    ``dividend_discount_model_service.is_ddm_applicable``: payout >=
+    30%, dividend streak >= 5y, sector not in the excluded set
+    (recent IPO, biotech, deep cyclical, holdco). When inapplicable
+    the field stays None and the frontend hides the DDM chip.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.dividend_discount_model_service import (
+            DDMInputs,
+            is_ddm_applicable,
+            select_and_compute,
+        )
+        quality = _safe_payload_section(payload, "quality")
+        valuation = _safe_payload_section(payload, "valuation")
+        insights = _safe_payload_section(payload, "insights")
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        # ── Applicability gate ──
+        # The canonical AnalysisResponse carries `payout_ratio_pct` on
+        # DividendData as a percent (45.0, not 0.45). Try a decimal
+        # `payout_ratio` slot first for any caller that mirrors it,
+        # then derive from the pct field on the dividend block.
+        dividend_block = insights.get("dividend") if isinstance(insights.get("dividend"), dict) else {}
+        payout = quality.get("payout_ratio")
+        if payout is None:
+            payout_pct = dividend_block.get("payout_ratio_pct")
+            if payout_pct is not None:
+                try:
+                    payout = float(payout_pct) / 100.0
+                except (TypeError, ValueError):
+                    payout = None
+        # Streak — prefer the dividend.consecutive_years slot, fall
+        # back to a quality slot for callers that mirror it there.
+        streak = dividend_block.get("consecutive_years")
+        if streak is None:
+            streak = quality.get("dividend_streak_years")
+        applicable, _reason = is_ddm_applicable(
+            ticker=ticker,
+            sector=sector,
+            payout_ratio=payout,
+            dividend_streak_years=streak,
+        )
+        if not applicable:
+            payload["ddm_fv"] = None
+            payload["ddm_method"] = None
+            return payload
+        # ── Build DDM inputs ──
+        # `current_dividend` is annual ₹/share — prefer the explicit
+        # rate field, fall back to the last paid value, then to nothing.
+        current_dividend = (
+            dividend_block.get("dividend_rate_per_share")
+            or dividend_block.get("last_dividend_value")
+            or 0.0
+        )
+        # `cost_of_equity` — use the engine's discount_rate (WACC is the
+        # closest proxy; pure cost-of-equity isn't surfaced).
+        cost_of_equity = valuation.get("discount_rate") or valuation.get("wacc") or 0.115
+        # `stable_growth` — terminal growth from the DCF.
+        stable_growth = valuation.get("terminal_growth") or 0.04
+        ddm_inputs = DDMInputs(
+            current_dividend=float(current_dividend or 0.0),
+            cost_of_equity=float(cost_of_equity or 0.0),
+            stable_growth=float(stable_growth or 0.0),
+            expected_payout_ratio=float(payout) if payout is not None else None,
+        )
+        result = select_and_compute(
+            ticker=ticker,
+            sector=sector,
+            inputs=ddm_inputs,
+        )
+        payload["ddm_fv"] = result.fair_value
+        payload["ddm_method"] = result.method
+    except Exception:
+        # Defensive — never break the response on a single estimator.
+        pass
+    return payload
+
+
+def _inject_ddm_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_ddm_dict`.
+
+    Used on the cold-compute return path. Mirrors the warm-path
+    contract: same extraction, same fallback chain, defensive.
+    """
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "insights": result.insights.model_dump() if result.insights else {},
+            "company": result.company.model_dump() if result.company else {},
+        }
+        _inject_ddm_dict(_payload)
+        result.ddm_fv = _payload.get("ddm_fv")
+        result.ddm_method = _payload.get("ddm_method")
+    except Exception:
+        pass
+    return result
+
+
+def _inject_epv_dict(payload: dict) -> dict:
+    """Populate ``epv_per_share`` + ``epv_growth_value_gap``.
+
+    T2.2 (2026-06-10) — wires the standalone EPV (Greenwald) service.
+    MUST run AFTER `_inject_composite_iv_dict`. Defensive.
+
+    EPV needs full balance-sheet history arrays (revenue / EBIT / D&A
+    / capex / working capital) which are NOT carried on the standard
+    AnalysisResponse payload — they live in the financials table the
+    analysis service queries during compute. When the history arrays
+    aren't available on the payload (the warm cache path), this
+    inject is a no-op (epv_per_share stays None and the frontend
+    hides the chip). The cold compute path could be augmented to
+    populate these from the financials lookup in a follow-up; Phase
+    B's contract is "additive surfacing", not "wire new data source".
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.epv_service import (
+            EPVInputs,
+            compute_epv,
+            is_epv_applicable,
+        )
+        quality = _safe_payload_section(payload, "quality")
+        valuation = _safe_payload_section(payload, "valuation")
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        # ── Pull history arrays ──
+        # `computation_inputs` is the snapshot persisted alongside the
+        # FV at compute time (see AnalysisResponse.computation_inputs).
+        # We look for the EPV-shaped sub-block; absent means the cache
+        # path didn't carry it.
+        ci = payload.get("computation_inputs") if isinstance(payload.get("computation_inputs"), dict) else {}
+        epv_block = ci.get("epv") if isinstance(ci.get("epv"), dict) else {}
+        revenue_history = epv_block.get("revenue_history") or []
+        ebit_history = epv_block.get("ebit_history") or []
+        da_history = epv_block.get("da_history") or []
+        capex_history = epv_block.get("capex_history") or []
+        working_capital_history = epv_block.get("working_capital_history") or []
+        # ── Applicability gate ──
+        # Without history we can't compute — surface None cleanly.
+        history_years = len(revenue_history) if isinstance(revenue_history, list) else 0
+        has_neg_earnings = any(
+            isinstance(e, (int, float)) and float(e) < 0 for e in (ebit_history or [])
+        )
+        applicable, _reason = is_epv_applicable(
+            ticker=ticker,
+            sector=sector,
+            revenue_history_years=history_years,
+            has_negative_earnings=has_neg_earnings,
+        )
+        if not applicable:
+            payload["epv_per_share"] = None
+            payload["epv_growth_value_gap"] = None
+            return payload
+        current_revenue = epv_block.get("current_revenue") or 0.0
+        cost_of_capital = valuation.get("discount_rate") or valuation.get("wacc") or 0.115
+        tax_rate = epv_block.get("tax_rate") or 0.25
+        shares_outstanding = (
+            epv_block.get("shares_outstanding")
+            or quality.get("shares_outstanding")
+            or 0.0
+        )
+        epv_inputs = EPVInputs(
+            revenue_history=list(revenue_history),
+            ebit_history=list(ebit_history),
+            da_history=list(da_history),
+            capex_history=list(capex_history),
+            working_capital_history=list(working_capital_history),
+            current_revenue=float(current_revenue or 0.0),
+            cost_of_capital=float(cost_of_capital or 0.0),
+            tax_rate=float(tax_rate or 0.0),
+            shares_outstanding=float(shares_outstanding or 0.0),
+        )
+        # Pass the engine's DCF fair_value so the service computes the
+        # growth_value_gap (DCF - EPV) in one shot.
+        dcf_fv = valuation.get("fair_value")
+        result = compute_epv(epv_inputs, dcf_fv=dcf_fv)
+        payload["epv_per_share"] = result.epv_per_share
+        payload["epv_growth_value_gap"] = result.growth_value_gap
+    except Exception:
+        pass
+    return payload
+
+
+def _inject_epv_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_epv_dict`."""
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "company": result.company.model_dump() if result.company else {},
+            "computation_inputs": result.computation_inputs,
+        }
+        _inject_epv_dict(_payload)
+        result.epv_per_share = _payload.get("epv_per_share")
+        result.epv_growth_value_gap = _payload.get("epv_growth_value_gap")
+    except Exception:
+        pass
+    return result
+
+
+def _inject_three_stage_dict(payload: dict) -> dict:
+    """Populate ``three_stage_fv`` + ``three_stage_method``.
+
+    T2.5 (2026-06-10) — wires the standalone three-stage DCF service.
+    MUST run AFTER `_inject_composite_iv_dict`. Defensive.
+
+    Uses `select_three_stage_default_horizons(sector)` to derive the
+    (N1, N2) horizon defaults per cohort. The engine's existing
+    high-growth-rate / terminal-growth / WACC are reused; net_debt
+    comes from quality if available.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.three_stage_dcf_service import (
+            ThreeStageInputs,
+            compute_three_stage_dcf,
+            is_three_stage_applicable,
+            select_three_stage_default_horizons,
+        )
+        quality = _safe_payload_section(payload, "quality")
+        valuation = _safe_payload_section(payload, "valuation")
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        # ── Pull base FCF ──
+        # Prefer the explicit normalized_fcf_cr (the reverse-DCF anchor —
+        # already cyclical-aware), fall back to a fcf_history-derived
+        # base from computation_inputs, fall back to None (which trips
+        # the applicability gate).
+        base_year_fcf = quality.get("normalized_fcf_cr")
+        if base_year_fcf is None:
+            ci = payload.get("computation_inputs") if isinstance(payload.get("computation_inputs"), dict) else {}
+            ts_block = ci.get("three_stage") if isinstance(ci.get("three_stage"), dict) else {}
+            base_year_fcf = ts_block.get("base_year_fcf")
+        # ── Applicability gate ──
+        # Need positive base FCF + at least 3y history; skip holdcos,
+        # REITs, InvITs, ETFs (all dedicated frameworks).
+        # FCF history years: best effort — we don't have a count on the
+        # payload, so use 5 (a working default) when we DO have a base.
+        # `is_three_stage_applicable` does an independent sector skip.
+        applicable, _reason = is_three_stage_applicable(
+            ticker=ticker,
+            sector=sector,
+            base_year_fcf=base_year_fcf,
+            fcf_history_years=5,  # working default; real count lives in service.py
+        )
+        if not applicable:
+            payload["three_stage_fv"] = None
+            payload["three_stage_method"] = None
+            return payload
+        # ── Build inputs ──
+        n1, n2 = select_three_stage_default_horizons(sector, is_recent_ipo=False)
+        high_growth_rate = (
+            valuation.get("fcf_growth_rate")
+            or valuation.get("fcf_growth")
+            or 0.10
+        )
+        terminal_growth = valuation.get("terminal_growth") or 0.04
+        discount_rate = valuation.get("wacc") or valuation.get("discount_rate") or 0.115
+        shares_outstanding = quality.get("shares_outstanding") or 0.0
+        net_debt = quality.get("net_debt") or 0.0
+        # Engine's existing two-stage FV — passed for gap reporting on the
+        # internal result (we don't surface the gap as a field yet but the
+        # service uses it to populate gap_to_two_stage_dcf for diagnostics).
+        two_stage_fv = valuation.get("fair_value")
+        ts_inputs = ThreeStageInputs(
+            base_year_fcf=float(base_year_fcf or 0.0),
+            high_growth_rate=float(high_growth_rate or 0.0),
+            high_growth_years=int(n1),
+            fade_years=int(n2),
+            terminal_growth=float(terminal_growth or 0.0),
+            discount_rate=float(discount_rate or 0.0),
+            shares_outstanding=float(shares_outstanding or 0.0),
+            net_debt=float(net_debt or 0.0),
+        )
+        result = compute_three_stage_dcf(
+            ts_inputs,
+            two_stage_dcf_for_comparison=two_stage_fv,
+        )
+        payload["three_stage_fv"] = result.fair_value_per_share
+        payload["three_stage_method"] = result.method
+    except Exception:
+        pass
+    return payload
+
+
+def _inject_three_stage_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_three_stage_dict`."""
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "company": result.company.model_dump() if result.company else {},
+            "computation_inputs": result.computation_inputs,
+        }
+        _inject_three_stage_dict(_payload)
+        result.three_stage_fv = _payload.get("three_stage_fv")
+        result.three_stage_method = _payload.get("three_stage_method")
+    except Exception:
+        pass
+    return result
+
+
+def _inject_liquidation_dict(payload: dict) -> dict:
+    """Populate ``liquidation_per_share`` + ``liquidation_floor_safety_margin``.
+
+    T2.8 (2026-06-10) — wires the standalone Graham-style liquidation
+    service. MUST run AFTER `_inject_composite_iv_dict`. Defensive.
+
+    Skipped for banks / NBFCs / insurers (capital-adequacy framework
+    applies instead) and for asset-light cohorts (IT services, AMCs)
+    where the floor under-states franchise value. Balance-sheet line
+    items come from `computation_inputs.liquidation` when the snapshot
+    captured them; absent means the chip stays hidden.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.liquidation_value_service import (
+            LiquidationInputs,
+            compute_liquidation_value,
+            is_liquidation_meaningful,
+        )
+        quality = _safe_payload_section(payload, "quality")
+        valuation = _safe_payload_section(payload, "valuation")
+        company = _safe_payload_section(payload, "company")
+        ticker = payload.get("ticker") or company.get("ticker") or ""
+        sector = company.get("sector")
+        # ── Applicability gate ──
+        # The is_bank flag carries the bank classification we already
+        # made; for the PP&E ratio we don't have a precomputed value
+        # on the payload — pass None so the helper falls back to the
+        # sector-level decision.
+        meaningful, _reason = is_liquidation_meaningful(
+            ticker=ticker,
+            sector=sector,
+            ppe_ratio=None,
+        )
+        if not meaningful:
+            payload["liquidation_per_share"] = None
+            payload["liquidation_floor_safety_margin"] = None
+            return payload
+        # Bank flag is a hard skip — even if the sector string doesn't
+        # carry "bank", quality.is_bank is the canonical source.
+        if quality.get("is_bank"):
+            payload["liquidation_per_share"] = None
+            payload["liquidation_floor_safety_margin"] = None
+            return payload
+        # ── Pull balance sheet ──
+        ci = payload.get("computation_inputs") if isinstance(payload.get("computation_inputs"), dict) else {}
+        bs = ci.get("liquidation") if isinstance(ci.get("liquidation"), dict) else {}
+        # Without ANY balance-sheet line items, the floor would be 0
+        # minus liabilities — a misleading negative. Surface None instead.
+        if not bs:
+            payload["liquidation_per_share"] = None
+            payload["liquidation_floor_safety_margin"] = None
+            return payload
+        liq_inputs = LiquidationInputs(
+            cash_and_equivalents=float(bs.get("cash_and_equivalents") or 0.0),
+            short_term_investments=float(bs.get("short_term_investments") or 0.0),
+            receivables=float(bs.get("receivables") or 0.0),
+            inventory=float(bs.get("inventory") or 0.0),
+            inventory_raw_materials=bs.get("inventory_raw_materials"),
+            inventory_wip=bs.get("inventory_wip"),
+            inventory_finished=bs.get("inventory_finished"),
+            ppe_gross=float(bs.get("ppe_gross") or 0.0),
+            ppe_net=float(bs.get("ppe_net") or 0.0),
+            intangibles=float(bs.get("intangibles") or 0.0),
+            goodwill=float(bs.get("goodwill") or 0.0),
+            long_term_investments=float(bs.get("long_term_investments") or 0.0),
+            other_assets=float(bs.get("other_assets") or 0.0),
+            short_term_debt=float(bs.get("short_term_debt") or 0.0),
+            long_term_debt=float(bs.get("long_term_debt") or 0.0),
+            accounts_payable=float(bs.get("accounts_payable") or 0.0),
+            other_liabilities=float(bs.get("other_liabilities") or 0.0),
+            shares_outstanding=float(bs.get("shares_outstanding") or quality.get("shares_outstanding") or 0.0),
+            sector=sector,
+        )
+        current_price = valuation.get("current_price")
+        result = compute_liquidation_value(liq_inputs, current_price=current_price)
+        payload["liquidation_per_share"] = result.liquidation_per_share
+        payload["liquidation_floor_safety_margin"] = result.floor_safety_margin
+    except Exception:
+        pass
+    return payload
+
+
+def _inject_liquidation_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_liquidation_dict`."""
+    try:
+        _payload = {
+            "ticker": result.ticker,
+            "quality": result.quality.model_dump() if result.quality else {},
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "company": result.company.model_dump() if result.company else {},
+            "computation_inputs": result.computation_inputs,
+        }
+        _inject_liquidation_dict(_payload)
+        result.liquidation_per_share = _payload.get("liquidation_per_share")
+        result.liquidation_floor_safety_margin = _payload.get(
+            "liquidation_floor_safety_margin"
+        )
+    except Exception:
+        pass
+    return result
+
+
+def _inject_probability_weighted_dict(payload: dict) -> dict:
+    """Populate ``probability_weighted_fv`` + ``probability_weighted_method``.
+
+    T2.4 (2026-06-10) — wires the standalone probability-weighted FV
+    service. MUST run AFTER `_inject_composite_iv_dict`. Defensive.
+
+    Inputs are the existing bull/base/bear scenarios already on the
+    valuation block — no new data source. Weight adjustments are
+    derived from sector (cyclical flatten) and beta (high-beta widen
+    tails). Earnings revisions and macro regime are left None for
+    now — they'd require integrating the analyst-revision and macro
+    services and add complexity for marginal gain.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.probability_weighted_fv_service import (
+            ScenarioInputs,
+            compute_probability_weighted_fv,
+        )
+        valuation = _safe_payload_section(payload, "valuation")
+        quality = _safe_payload_section(payload, "quality")
+        company = _safe_payload_section(payload, "company")
+        bull_fv = valuation.get("bull_case")
+        base_fv = valuation.get("base_case") or valuation.get("fair_value")
+        bear_fv = valuation.get("bear_case")
+        # ── Applicability gate ──
+        # All three scenarios must be positive for a meaningful mix; the
+        # service itself returns method="unavailable" otherwise, but we
+        # also gate here so the field stays clean None rather than the
+        # unavailable tag.
+        try:
+            _b1 = float(bull_fv or 0.0)
+            _b2 = float(base_fv or 0.0)
+            _b3 = float(bear_fv or 0.0)
+        except (TypeError, ValueError):
+            payload["probability_weighted_fv"] = None
+            payload["probability_weighted_method"] = None
+            return payload
+        if _b1 <= 0 or _b2 <= 0 or _b3 <= 0:
+            payload["probability_weighted_fv"] = None
+            payload["probability_weighted_method"] = None
+            return payload
+        scenario_inputs = ScenarioInputs(
+            bull_fv=_b1,
+            base_fv=_b2,
+            bear_fv=_b3,
+            sector=company.get("sector"),
+            beta=quality.get("beta"),
+        )
+        result = compute_probability_weighted_fv(scenario_inputs)
+        payload["probability_weighted_fv"] = result.weighted_fv
+        payload["probability_weighted_method"] = result.method
+    except Exception:
+        pass
+    return payload
+
+
+def _inject_probability_weighted_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_probability_weighted_dict`."""
+    try:
+        _payload = {
+            "valuation": result.valuation.model_dump() if result.valuation else {},
+            "quality": result.quality.model_dump() if result.quality else {},
+            "company": result.company.model_dump() if result.company else {},
+        }
+        _inject_probability_weighted_dict(_payload)
+        result.probability_weighted_fv = _payload.get("probability_weighted_fv")
+        result.probability_weighted_method = _payload.get(
+            "probability_weighted_method"
+        )
+    except Exception:
+        pass
+    return result
+
+
+def _inject_phase_b_estimators_dict(payload: dict) -> dict:
+    """Run all five Phase-B estimator injects against a dict payload.
+
+    Single call-site so the cache paths don't drift — every new
+    estimator added in Phase C+ goes here.
+    """
+    _inject_ddm_dict(payload)
+    _inject_epv_dict(payload)
+    _inject_three_stage_dict(payload)
+    _inject_liquidation_dict(payload)
+    _inject_probability_weighted_dict(payload)
+    return payload
+
+
+def _inject_phase_b_estimators_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Run all five Phase-B estimator injects against a Pydantic model.
+
+    Single call-site for the cold-compute path.
+    """
+    _inject_ddm_model(result)
+    _inject_epv_model(result)
+    _inject_three_stage_model(result)
+    _inject_liquidation_model(result)
+    _inject_probability_weighted_model(result)
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -503,6 +1070,7 @@ async def get_analysis(
             _inject_sector_medians_dict(_out, ticker)
             _inject_multiples_fv_dict(_out)
             _inject_composite_iv_dict(_out)
+            _inject_phase_b_estimators_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
@@ -510,6 +1078,7 @@ async def get_analysis(
         _inject_sector_medians_dict(_out, ticker)
         _inject_multiples_fv_dict(_out)
         _inject_composite_iv_dict(_out)
+        _inject_phase_b_estimators_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -538,6 +1107,7 @@ async def get_analysis(
         _inject_sector_medians_dict(_enc, ticker)
         _inject_multiples_fv_dict(_enc)
         _inject_composite_iv_dict(_enc)
+        _inject_phase_b_estimators_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -580,6 +1150,7 @@ async def get_analysis(
             _inject_sector_medians_dict(_out, ticker)
             _inject_multiples_fv_dict(_out)
             _inject_composite_iv_dict(_out)
+            _inject_phase_b_estimators_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -780,6 +1351,7 @@ async def get_analysis(
         _inject_sector_medians_model(result, ticker)
         _inject_multiples_fv_model(result)
         _inject_composite_iv_model(result)
+        _inject_phase_b_estimators_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},
