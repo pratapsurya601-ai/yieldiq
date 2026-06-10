@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import dataclass, asdict
 from typing import Optional
 
 # Read-only import from Task 1's lattice. We deliberately do NOT
@@ -423,3 +424,358 @@ def compute_reverse_dcf(
         "growth_pegged_high": bool(growth_pegged_high),
         "growth_pegged_low": bool(growth_pegged_low),
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# IMPLIED ASSUMPTIONS — "what does the market expect?" framing
+# ═══════════════════════════════════════════════════════════════
+#
+# AlphaSpread does this well: rather than show a single implied
+# growth number, frame it as a comparison vs. analyst consensus AND
+# vs. the trailing realized history, then label the gap so a reader
+# can answer "is the market betting on something the company has
+# actually delivered, or on something extrapolated past it?".
+#
+# This block layers richer framing on top of `compute_reverse_dcf`.
+# It does NOT replace it — the upstream solver remains the source
+# of truth for the raw implied number. Everything below is
+# DERIVED from already-computed inputs (implied growth, consensus,
+# trailing CAGR, optional margin expansion / wacc) and is therefore:
+#
+#   * cheap to compute (no extra solver passes)
+#   * additive at the API surface (Optional dict on AnalysisResponse)
+#   * legacy-safe (None on pre-PR cached payloads → frontend hides
+#     the card cleanly).
+# ═══════════════════════════════════════════════════════════════
+
+# Plausibility scoring bands. Symmetric around historical growth.
+# Tuned to mirror AlphaSpread's qualitative bins: "in line" (~within
+# ~2pp), "stretched" (~2-5pp), "aggressive" (~5-10pp), "extreme"
+# (>10pp). Exposed as constants so tests + the frontend tooltip can
+# refer back to the same numbers.
+PLAUSIBILITY_BAND_IN_LINE_PP = 2.0
+PLAUSIBILITY_BAND_STRETCHED_PP = 5.0
+PLAUSIBILITY_BAND_AGGRESSIVE_PP = 10.0
+
+# Market-expectation label thresholds (absolute implied growth %).
+# Used when no historical anchor is present so the label degrades
+# gracefully from "we can compare to history" to "we can only
+# describe the absolute level".
+EXPECTATION_MODEST_PCT = 5.0
+EXPECTATION_MODERATE_PCT = 12.0
+EXPECTATION_AGGRESSIVE_PCT = 20.0
+
+
+@dataclass
+class ImpliedAssumptionsResult:
+    """Rich framing wrapper for "what does the market expect?".
+
+    Every numeric field is a percent unless suffixed with _bps or
+    _pp. The headline string is the one-line callout the frontend
+    renders inside the card; `market_expectation_label` is the
+    chip-tone driver. None on any field is a structural signal that
+    the corresponding sub-question was unanswerable (missing
+    consensus, missing history, etc.) — the frontend must handle
+    None per-field rather than hiding the whole card.
+    """
+    implied_revenue_cagr_pct: float
+    implied_terminal_growth_pct: float
+    implied_margin_expansion_bps: Optional[float]
+    implied_wacc_pct: Optional[float]
+
+    consensus_revenue_cagr_pct: Optional[float]
+    growth_gap_pp: Optional[float]
+
+    market_expectation_label: str  # modest | moderate | aggressive | extreme
+    plausibility_score: int        # 0-100
+
+    headline: str
+
+
+def classify_market_expectation(
+    implied_growth_pct: float,
+    historical_growth_pct: Optional[float],
+) -> str:
+    """Bin the implied-growth signal into one of four ordinal labels.
+
+    Comparison logic:
+      * If a historical anchor is provided, use the gap (implied -
+        historical) — captures "the market is asking for materially
+        more than the company has actually delivered".
+      * Otherwise fall back to absolute implied growth so the label
+        still degrades gracefully when history is missing.
+
+    Returns one of: "modest", "moderate", "aggressive", "extreme".
+    """
+    if historical_growth_pct is not None and math.isfinite(historical_growth_pct):
+        gap = float(implied_growth_pct) - float(historical_growth_pct)
+        abs_gap = abs(gap)
+        if abs_gap <= PLAUSIBILITY_BAND_IN_LINE_PP:
+            return "modest"
+        if abs_gap <= PLAUSIBILITY_BAND_STRETCHED_PP:
+            return "moderate"
+        if abs_gap <= PLAUSIBILITY_BAND_AGGRESSIVE_PP:
+            return "aggressive"
+        return "extreme"
+
+    abs_g = abs(float(implied_growth_pct))
+    if abs_g <= EXPECTATION_MODEST_PCT:
+        return "modest"
+    if abs_g <= EXPECTATION_MODERATE_PCT:
+        return "moderate"
+    if abs_g <= EXPECTATION_AGGRESSIVE_PCT:
+        return "aggressive"
+    return "extreme"
+
+
+# Sector-norm soft-correction: certain sectors structurally support
+# above-trailing growth windows (early-stage SaaS, defensive franchise
+# brands re-rating after a margin reset, etc.). The default uplift is
+# a small +5 / -5 score adjustment depending on whether the implied
+# growth direction is consistent with the sector's typical trajectory.
+# Sectors not in the map fall through with no adjustment. Keep this
+# map intentionally tight — broad sector lookups belong in
+# backend/services/analysis/constants.py, not here.
+_SECTOR_PLAUSIBILITY_TILT_PP: dict[str, float] = {
+    # Sector slug → directional tilt applied to the gap BEFORE binning.
+    # Positive value softens the penalty for above-history growth
+    # (i.e. the sector is structurally growthy), negative tilts the
+    # other way (cyclical-trough / commodity sectors penalised harder
+    # when implied growth runs hot).
+    "it_services": -0.5,         # mature sector — extrapolating past history is suspect
+    "fmcg": -0.5,                # ditto
+    "pharma": 0.0,
+    "financials": 0.0,
+    "banks": 0.0,
+    "nbfc": 0.0,
+    "auto_oem": -1.0,            # cyclical
+    "capital_goods": -1.0,       # cyclical
+    "cement": -1.0,              # cyclical
+    "steel": -1.5,               # deep cyclical
+    "oil_gas": -1.5,             # deep cyclical
+    "utilities": 0.0,
+    "reit": 0.0,
+}
+
+
+def compute_plausibility_score(
+    implied_growth_pct: float,
+    historical_growth_pct: Optional[float],
+    sector: Optional[str] = None,
+) -> int:
+    """Score the implied growth's plausibility on a 0-100 scale.
+
+    The task spec gives a five-band table keyed on the gap between
+    implied and historical growth:
+
+      | gap (pp) above history | score |
+      |------------------------|-------|
+      | within ±2              | 90    |
+      | 2-5                    | 70    |
+      | 5-10                   | 50    |
+      | 10-20                  | 30    |
+      | >20                    | 10    |
+
+    The inverse symmetry handles "the market is implying LESS growth
+    than the company has delivered" — that's also low plausibility
+    but for a different reason (signals expected reversion / a thesis
+    break), so we keep the magnitude-based mapping symmetric.
+
+    `sector` (optional) applies a small directional tilt before the
+    binning so cyclical sectors are penalised more heavily for hot
+    implied growth at the trough. Sectors not in the tilt map have
+    no adjustment.
+
+    Missing or non-finite history → defaults to 50 (uninformative
+    midpoint). Callers can decide to suppress the score in that case.
+    """
+    if historical_growth_pct is None or not math.isfinite(historical_growth_pct):
+        return 50
+
+    gap = float(implied_growth_pct) - float(historical_growth_pct)
+
+    if sector:
+        tilt = _SECTOR_PLAUSIBILITY_TILT_PP.get(
+            str(sector).strip().lower().replace("-", "_"),
+            0.0,
+        )
+        # Tilt is applied as: a NEGATIVE tilt for cyclicals INCREASES
+        # the effective gap when implied > historical (i.e. penalises
+        # extrapolating past history harder), but does not flip sign
+        # when implied < historical (so cyclicals don't get a free
+        # pass for low implied growth — that's a separate signal).
+        if gap > 0:
+            gap = gap - tilt  # tilt<0 → gap grows → harsher score
+
+    abs_gap = abs(gap)
+    if abs_gap <= 2.0:
+        return 90
+    if abs_gap <= 5.0:
+        return 70
+    if abs_gap <= 10.0:
+        return 50
+    if abs_gap <= 20.0:
+        return 30
+    return 10
+
+
+def _format_headline(
+    implied_growth_pct: float,
+    consensus_pct: Optional[float],
+    historical_pct: Optional[float],
+    label: str,
+) -> str:
+    """One-line headline string for the frontend card.
+
+    Mirrors AlphaSpread's "Current price implies X% CAGR vs
+    consensus Y% — <label>" formulation. When consensus is missing
+    we fall back to the historical anchor; when both are missing we
+    state only the implied growth.
+    """
+    impl_str = f"{implied_growth_pct:.1f}%"
+    if consensus_pct is not None and math.isfinite(consensus_pct):
+        return (
+            f"Current price implies {impl_str} CAGR vs consensus "
+            f"{consensus_pct:.1f}% -- {label}"
+        )
+    if historical_pct is not None and math.isfinite(historical_pct):
+        return (
+            f"Current price implies {impl_str} CAGR vs trailing "
+            f"{historical_pct:.1f}% -- {label}"
+        )
+    return f"Current price implies {impl_str} CAGR -- {label}"
+
+
+def compute_implied_assumptions(
+    current_price: float,
+    base_fcf: float,
+    shares: float,
+    historical_revenue_cagr_3y: float,
+    consensus_revenue_cagr: Optional[float] = None,
+    wacc: float = 0.115,
+    terminal_growth: float = 0.04,
+    current_margin: Optional[float] = None,
+    historical_margin: Optional[float] = None,
+    sector: Optional[str] = None,
+    total_debt: float = 0.0,
+    total_cash: float = 0.0,
+    current_revenue: Optional[float] = None,
+    ticker: str = "",
+) -> Optional[ImpliedAssumptionsResult]:
+    """Compute the rich-framing implied-assumptions wrapper.
+
+    Reuses the same lattice as `compute_reverse_dcf` so the implied
+    growth number reported here is byte-identical to the existing
+    `implied_growth_pct` field on the reverse-DCF response. The
+    rest of the fields (consensus gap, plausibility, headline) are
+    framing-only — they never feed back into FV or the verdict gate.
+
+    Returns None when the inputs are insufficient (caller should
+    hide the card surface in that case).
+    """
+    # ── Validate inputs ──────────────────────────────────────────
+    if not _is_finite_positive(current_price):
+        return None
+    if not _is_finite_positive(shares):
+        return None
+    if not _is_finite_positive(base_fcf):
+        return None
+    if not (0.05 <= wacc <= 0.25):
+        return None
+    if terminal_growth >= wacc:
+        terminal_growth = max(wacc - 0.02, 0.0)
+
+    # ── Solve for implied growth ────────────────────────────────
+    # Pure delegation to the same _binary_search + _dcf_per_share
+    # used by compute_reverse_dcf so the answer is consistent with
+    # the existing surface. The optional revenue path is exposed via
+    # `current_revenue` purely for the margin-expansion framing; the
+    # growth solver always uses fcf-as-anchor for parity.
+    def f_growth(g: float) -> float:
+        return _dcf_per_share(
+            fcf_base=float(base_fcf),
+            growth_rate=g,
+            wacc=wacc,
+            terminal_g=terminal_growth,
+            years=DEFAULT_YEARS,
+            total_debt=float(total_debt or 0.0),
+            total_cash=float(total_cash or 0.0),
+            shares=float(shares),
+        )
+
+    implied_growth, _converged = _binary_search(
+        f_growth, float(current_price), SEARCH_MIN_GROWTH, SEARCH_MAX_GROWTH
+    )
+    implied_growth = max(SEARCH_MIN_GROWTH, min(SEARCH_MAX_GROWTH, implied_growth))
+    implied_growth_pct = implied_growth * 100.0
+
+    # ── Consensus comparison ────────────────────────────────────
+    consensus_pct: Optional[float] = None
+    growth_gap_pp: Optional[float] = None
+    if consensus_revenue_cagr is not None and math.isfinite(consensus_revenue_cagr):
+        consensus_pct = float(consensus_revenue_cagr) * 100.0
+        growth_gap_pp = implied_growth_pct - consensus_pct
+
+    # ── Historical-anchor framing ───────────────────────────────
+    historical_pct: Optional[float] = None
+    if (
+        historical_revenue_cagr_3y is not None
+        and math.isfinite(historical_revenue_cagr_3y)
+    ):
+        historical_pct = float(historical_revenue_cagr_3y) * 100.0
+
+    # ── Margin-expansion framing (bps vs current) ───────────────
+    # Only meaningful when we have BOTH a current and historical
+    # margin anchor — otherwise the bps gap is unidentified. We do
+    # not infer a "consensus margin" here because none of the
+    # upstream data paths carry one consistently; the corresponding
+    # implied-margin axis lives in compute_reverse_dcf already.
+    implied_margin_expansion_bps: Optional[float] = None
+    if (
+        current_margin is not None
+        and historical_margin is not None
+        and math.isfinite(current_margin)
+        and math.isfinite(historical_margin)
+    ):
+        implied_margin_expansion_bps = (
+            float(current_margin) - float(historical_margin)
+        ) * 10_000.0
+
+    # ── Implied WACC echo ───────────────────────────────────────
+    # The solver doesn't re-derive WACC — we surface the WACC used
+    # for the solve so the frontend can show "at WACC = 11.5%". This
+    # keeps the rich card self-describing without a second solve.
+    implied_wacc_pct: Optional[float] = float(wacc) * 100.0
+
+    # ── Label + score ───────────────────────────────────────────
+    label = classify_market_expectation(implied_growth_pct, historical_pct)
+    score = compute_plausibility_score(implied_growth_pct, historical_pct, sector)
+
+    headline = _format_headline(implied_growth_pct, consensus_pct, historical_pct, label)
+
+    return ImpliedAssumptionsResult(
+        implied_revenue_cagr_pct=float(implied_growth_pct),
+        implied_terminal_growth_pct=float(terminal_growth) * 100.0,
+        implied_margin_expansion_bps=implied_margin_expansion_bps,
+        implied_wacc_pct=implied_wacc_pct,
+        consensus_revenue_cagr_pct=consensus_pct,
+        growth_gap_pp=growth_gap_pp,
+        market_expectation_label=label,
+        plausibility_score=int(score),
+        headline=headline,
+    )
+
+
+def implied_assumptions_to_dict(
+    result: Optional[ImpliedAssumptionsResult],
+) -> Optional[dict]:
+    """Shallow JSON-safe projection for the AnalysisResponse field.
+
+    Mirrors the convention used elsewhere in the analysis payload
+    (every nested service result lands as a plain dict so Pydantic
+    can serialise without bespoke encoders). None passes through so
+    the caller can chain ``implied_assumptions_to_dict(maybe_None)``.
+    """
+    if result is None:
+        return None
+    return asdict(result)
