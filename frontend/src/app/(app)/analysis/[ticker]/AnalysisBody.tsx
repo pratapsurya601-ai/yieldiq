@@ -37,6 +37,13 @@ import { ChartDrawIn, RevealOnScroll } from "@/components/anim"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import EarningsImpactPanel from "@/components/analysis/EarningsImpactPanel"
+// Forward earnings calendar — bridges "next earnings in N days +
+// consensus EPS + this ticker's historical surprise track record"
+// to a per-5%-beat FV sensitivity. Self-hides (returns null) when
+// no event falls inside the service's lookahead window, so for
+// roughly half the universe on any given day this slot is empty
+// — which is exactly the behaviour an above-the-fold mount needs.
+import UpcomingEarningsCalendar from "@/components/analysis/UpcomingEarningsCalendar"
 import PeerComparison from "@/components/analysis/PeerComparison"
 // Stage-2 redesign / PR-3 (acquisition four-hero retire): the full
 // 3-column EditorialHero is retired from the analysis page render path.
@@ -1293,6 +1300,18 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         // returns null for those keys, so the personalization picker's
         // vocabulary stays whole but the duplicate render is gone.
         <div className="space-y-16 md:space-y-20">
+          {/* Forward earnings calendar — renders ABOVE the fold for
+              tickers with imminent earnings (lookahead 45 days).
+              Self-hides for the ~half of the universe with no
+              scheduled event inside the window, so the slot is
+              invisible on most page loads — exactly what an
+              above-the-fold mount needs. Backed by the
+              earnings_calendar_fv_impact endpoint which re-uses
+              earnings_calendar_service's "next earnings" lookup
+              and the SAME sector × dampener from
+              earnings_impact_service so the forward preview and
+              the post-print panel agree on a beat day. */}
+          <UpcomingEarningsCalendar ticker={ticker} />
           {/* Phase-3 (2026-05-25) — The Worry Index sits between the
               hero / confidence indicators and the numbered sections so
               the user gets one emotional read before the rest of the
