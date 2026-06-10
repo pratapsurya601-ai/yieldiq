@@ -5354,25 +5354,60 @@ class AnalysisService(NarrativeMixin):
                 _apply_confidence_verdict_gate as _vg_apply,
             )
             _vg_before = verdict
+            # Phase C.2 (2026-06-10): verdict gate now consumes
+            # composite_intrinsic_value when available, falling back
+            # to the DCF-only `iv` when composite is missing/zero.
+            # The DCF fair_value field on the response (valuation.fair_value)
+            # is UNCHANGED — only the gate's FV input swaps. See
+            # cache_invalidation_manifest entry
+            # `v_phase_c_2_verdict_gate_composite_consumption_2026_06_10`
+            # and bridge contract test
+            # `test_verdict_gate_composite_consumption.py` for the
+            # pre-pinned behavior.
+            #
+            # Edge cases (covered by the bridge contract):
+            #   * composite=0      -> fall back to iv (truthiness check)
+            #   * composite=None   -> fall back to iv (None check)
+            #   * composite=None AND iv=None/0 -> gate sees None and
+            #     returns the upstream verdict ("unavailable") unchanged
+            #     because "unavailable" is a passthrough verdict.
+            _vg_fair_value = iv
+            try:
+                _vg_composite_value = (
+                    _cf_composite_obj.value
+                    if (
+                        "_cf_composite_obj" in locals()
+                        and _cf_composite_obj is not None
+                    )
+                    else None
+                )
+            except Exception:
+                _vg_composite_value = None
+            if _vg_composite_value is not None and _vg_composite_value:
+                _vg_fair_value = float(_vg_composite_value)
             _vg_new_verdict, _vg_new_issues = _vg_apply(
                 verdict,
                 _cf_scores.get("data_quality"),
                 _cf_scores.get("model_confidence"),
                 _cf_scores.get("valuation_stability"),
                 _data_issues,
-                fair_value=iv,
+                fair_value=_vg_fair_value,
                 current_price=price,
                 valuation_model=_cf_method,
             )
             if _vg_new_verdict != _vg_before:
                 import logging as _vg_log
                 _vg_log.getLogger("yieldiq.confidence").info(
-                    "[%s] verdict gate: %s -> %s (mc=%s dq=%s vs=%s method=%s fv=%.4f px=%.4f)",
+                    "[%s] verdict gate: %s -> %s (mc=%s dq=%s vs=%s method=%s gate_fv=%.4f dcf_fv=%.4f px=%.4f composite=%s)",
                     ticker, _vg_before, _vg_new_verdict,
                     _cf_scores.get("model_confidence"),
                     _cf_scores.get("data_quality"),
                     _cf_scores.get("valuation_stability"),
-                    _cf_method, float(iv or 0.0), float(price or 0.0),
+                    _cf_method,
+                    float(_vg_fair_value or 0.0),
+                    float(iv or 0.0),
+                    float(price or 0.0),
+                    "yes" if _vg_fair_value != iv else "no",
                 )
             verdict = _vg_new_verdict
             _data_issues = _vg_new_issues
