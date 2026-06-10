@@ -26,6 +26,7 @@ import BankKpiPanel from "@/components/banks/BankKpiPanel"
 import { isPureBank } from "@/lib/bankTickers"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
+import InsiderDealsTimeline from "@/components/analysis/InsiderDealsTimeline"
 import DividendBarChart from "@/components/analysis/DividendBarChart"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
@@ -1545,6 +1546,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               "Phase 2 not landed" paths -- panel self-hides via
               empty state, no isPureBank-style guard needed. */}
           <MutualFundHoldersPanel ticker={ticker} />
+          {/* Unified insider + bulk + block deals vertical timeline.
+              Sits directly below MF holders so the "who's trading this
+              stock" picture flows: MF allocations -> promoter/director
+              disclosures + exchange-reported bulk/block deals on one
+              chronological column. The component self-hides into its
+              "Coming soon" empty state when neither underlying table
+              has rows for this ticker — no isPureBank-style guard
+              needed; the panel handles its own no-data path. */}
+          <InsiderDealsTimeline ticker={ticker} />
           {/* Phase I-frontend (Block II): per-bank operational + asset-
               quality KPIs. Only renders for tickers in
               PURE_BANK_TICKERS_FOR_DE; non-banks skip the fetch entirely
