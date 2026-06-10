@@ -30,7 +30,11 @@ import {
   getMorningBriefing,
   type MorningBriefingResponse,
 } from "@/lib/api"
-import { useAuthStore } from "@/store/authStore"
+// 2026-06-11 — authStore import dropped after the P0 "no first-name in
+// greeting" fix. The hero no longer reads email or displayName; the
+// briefing body text still receives personalization server-side via
+// build_morning_briefing(user), which is fine — that's the body copy,
+// not the top-line salutation.
 import { formatCurrency, formatPctSigned } from "@/lib/utils"
 
 // ─────────────────────────────────────────────────────────────────
@@ -112,13 +116,9 @@ function currentISTHour(): number {
   return hourPart ? parseInt(hourPart.value, 10) : new Date().getHours()
 }
 
-function nameFromEmail(email: string | null): string {
-  if (!email) return "there"
-  const local = email.split("@")[0] || ""
-  if (!local) return "there"
-  const token = local.split(/[._\-+]/)[0] || local
-  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
-}
+// 2026-06-11 — `nameFromEmail` removed after the P0 "no first-name in
+// greeting" fix. The hero greeting no longer needs an email-derived
+// fallback name because the greeting is generic.
 
 // ─────────────────────────────────────────────────────────────────
 // Sub-components — Tile, Skeleton, Fallback
@@ -241,9 +241,13 @@ function Skeleton() {
   )
 }
 
-function FallbackGreeting({ name }: { name: string }) {
+function FallbackGreeting() {
   // Quiet fallback when the briefing API errors out. Mirrors the
   // pre-hero greeting so the user never sees a broken-page banner.
+  //
+  // 2026-06-11 — name was dropped from the greeting (P0 bug). Copy is
+  // intentionally generic now ("Good morning." not "Good morning,
+  // Surya."). See block comment in MorningBriefingHero for rationale.
   //
   // SSR-safe pattern (avoids `react-hooks/set-state-in-effect`):
   // keep a "mounted" flag, compute the IST greeting only when it's
@@ -264,7 +268,7 @@ function FallbackGreeting({ name }: { name: string }) {
   return (
     <div className="pt-2" data-testid="morning-briefing-fallback">
       <h1 className="font-display text-2xl md:text-3xl font-bold text-ink leading-tight">
-        {greeting}, {name}.
+        {greeting}.
       </h1>
     </div>
   )
@@ -275,9 +279,6 @@ function FallbackGreeting({ name }: { name: string }) {
 // ─────────────────────────────────────────────────────────────────
 
 export default function MorningBriefingHero() {
-  const email = useAuthStore((s) => s.email)
-  const displayName = useAuthStore((s) => s.displayName)
-
   // Hydration-safe caption — `formatISTCaption()` depends on the
   // wall clock which differs server vs. client. We keep a "tick"
   // counter that increments once a minute; the caption is then a
@@ -308,12 +309,15 @@ export default function MorningBriefingHero() {
     retry: 1,
   })
 
-  // Falls back to the email-derived token when the user hasn't
-  // completed the StepName onboarding (matches PersonalHeader).
-  const userName =
-    (displayName && displayName.trim()) ||
-    data?.user_name ||
-    nameFromEmail(email)
+  // 2026-06-11 — greeting is intentionally generic (no first-name).
+  // The previous "Good morning, {name}" pattern personalized the hero
+  // but violated the standing UX rule: in a "spend 10s on it" home
+  // surface, a first-name salutation reads as overfamiliar to the
+  // logged-in user and offers zero information density. The time-of-
+  // day word still tracks IST so the greeting is correct for users
+  // outside India. The auth store still drives the briefing payload,
+  // so the body copy ("HDFCBANK is your biggest drag today…") stays
+  // personal; only the top-line caption is generic.
   const greetingHour = (() => {
     if (typeof window === "undefined") return 8 // SSR placeholder
     try {
@@ -329,7 +333,7 @@ export default function MorningBriefingHero() {
   }
 
   if (isError || !data) {
-    return <FallbackGreeting name={userName} />
+    return <FallbackGreeting />
   }
 
   return (
@@ -340,7 +344,7 @@ export default function MorningBriefingHero() {
       {/* Row 1: caption */}
       <div className="flex items-baseline gap-2 flex-wrap">
         <h1 className="font-display text-xl md:text-2xl font-semibold text-ink leading-tight">
-          {greetingWord}, {userName}
+          {greetingWord}
         </h1>
         {caption && (
           <span className="text-xs text-caption font-mono">

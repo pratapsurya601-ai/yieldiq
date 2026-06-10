@@ -634,6 +634,48 @@ def _query_preset_from_db(preset: str, page: int = 1,
     Replaces the previous market_metrics DB query (which returned empty
     because that table isn't populated yet). The analysis cache has
     hundreds of stocks with real DCF data — much more useful.
+
+    2026-06-11 (P0 home Quant-Picks zero-matches fix): when the strict
+    filter returns 0 candidates, an automatic relaxation pass kicks in
+    so the home tile is never wholly empty. Strict-pass thresholds are
+    preserved (they're what /screener?preset=… still shows); the relax
+    pass only runs as a last-resort widening so /home shows at least a
+    handful of "closest matches" instead of "0".
+
+    The relaxation pass is signaled to the caller via the
+    `_query_preset_from_db.last_relaxed` module-level flag —
+    intentionally side-channelled rather than threaded through the
+    return tuple so the public signature stays compatible with the
+    /export tier's existing caller. The caller copies the flag into
+    filter_applied so the frontend can show "Showing closest matches"
+    when relaxed=True.
+    """
+    stocks, total = _run_preset_pass(preset, page, page_size, relaxed=False)
+    if total > 0:
+        _query_preset_from_db.last_relaxed = False  # type: ignore[attr-defined]
+        return stocks, total
+    # Strict pass returned 0 — try the relaxed pass so /home never shows
+    # all four Quant-Pick tiles at 0/0/0/0. This is a "closest matches"
+    # widening, not a re-definition of the preset — the strict thresholds
+    # are still the canonical filter on the /screener?preset=… page.
+    stocks2, total2 = _run_preset_pass(preset, page, page_size, relaxed=True)
+    _query_preset_from_db.last_relaxed = total2 > 0  # type: ignore[attr-defined]
+    return stocks2, total2
+
+
+# Module-level flag — see docstring above for why side-channel.
+_query_preset_from_db.last_relaxed = False  # type: ignore[attr-defined]
+
+
+def _run_preset_pass(preset: str, page: int, page_size: int,
+                     relaxed: bool) -> tuple[list[ScreenerStock], int]:
+    """Single pass of the preset query. `relaxed=True` widens every
+    threshold by a uniform step so 0-match cohorts still surface
+    "closest" candidates on /home tiles.
+
+    Why uniform widening rather than per-preset tuning: keeps the relax
+    pass auditable in one place. The strict gates remain authoritative
+    for the /screener?preset=… page (relaxed=False is the default).
     """
     try:
         from backend.services.cache_service import cache as _c
@@ -648,13 +690,42 @@ def _query_preset_from_db(preset: str, page: int = 1,
         # (WAAREEINDO/EIEL/WEBELSOLAR at +0%) --- root cause was a
         # too-loose growth filter combined with an identical sort
         # across presets. Sort is now preset-specific (see below).
+        #
+        # 2026-06-11 (P0 fix): moat compare is now case-insensitive.
+        # Pre-fix, `moat == "Wide"` (strict CAP-W) skipped rows where
+        # the cache wrote "wide" / "WIDE" / "Wide moat" — which on the
+        # current analysis_cache snapshot was MOST rows. That's why
+        # the buffett tile showed 0/0 on yieldiq.in despite hundreds of
+        # wide-moat names in the universe.
+        def _moat_is_wide(moat: str | None) -> bool:
+            return bool(moat) and "wide" in moat.lower()
+
+        # Relax step: when `relaxed=True` each threshold is widened by
+        # one notch. Values calibrated from the 2026-05-21 audit so the
+        # relax pass returns ~5-30 candidates per preset on the current
+        # universe (vs. 0 strict). When `relaxed=False` the step is 0
+        # and the original strict thresholds apply unchanged.
+        score_step = 10 if relaxed else 0
+        mos_step = 10 if relaxed else 0
+
         def _is_buffett(score, mos, moat, pe, rev_cagr):
-            # Quality + reasonable price + wide moat
-            return score >= 60 and mos >= 0 and moat == "Wide"
+            # Quality + reasonable price + wide moat.
+            # Strict: score>=60, mos>=0, wide-moat.
+            # Relaxed (closest-matches): score>=50, mos>=-10, wide-moat
+            # OR narrow-moat (we'd rather show 5 narrow-moat names than
+            # an empty tile).
+            score_floor = 60 - score_step
+            mos_floor = 0 - mos_step
+            if relaxed:
+                moat_ok = _moat_is_wide(moat) or (bool(moat) and "narrow" in moat.lower())
+            else:
+                moat_ok = _moat_is_wide(moat)
+            return score >= score_floor and mos >= mos_floor and moat_ok
 
         def _is_deep_value(score, mos, moat, pe, rev_cagr):
-            # Big margin of safety + decent quality
-            return mos >= 30 and score >= 50
+            # Big margin of safety + decent quality.
+            # Strict: mos>=30, score>=50. Relaxed: mos>=20, score>=40.
+            return mos >= (30 - mos_step) and score >= (50 - score_step)
 
         def _is_growth_quality(score, mos, moat, pe, rev_cagr):
             # Score >= 70 AND positive 3y revenue growth. The growth
@@ -664,14 +735,22 @@ def _query_preset_from_db(preset: str, page: int = 1,
             # growth net of macro. Falls open (no growth gate) only
             # when rev_cagr is missing entirely; the score>=70 floor
             # still applies.
-            if score < 70:
+            #
+            # Relaxed: score>=60 and growth>=4% (or score>=65 when
+            # rev_cagr missing). The looser gate is acceptable for the
+            # "closest matches" tile on /home — it never replaces the
+            # canonical /screener preset.
+            score_floor = 70 - score_step
+            growth_floor = 0.08 if not relaxed else 0.04
+            missing_floor = 75 if not relaxed else 65
+            if score < score_floor:
                 return False
             if rev_cagr is None:
-                # Missing-data fallback — apply the prior score-only
-                # gate so we never starve the screen completely on
-                # cohorts where revenue_cagr_3y didn't backfill.
-                return score >= 75
-            return rev_cagr >= 0.08
+                # Missing-data fallback — apply a score-only gate so we
+                # never starve the screen completely on cohorts where
+                # revenue_cagr_3y didn't backfill.
+                return score >= missing_floor
+            return rev_cagr >= growth_floor
 
         def _is_custom(score, mos, moat, pe, rev_cagr):
             return score >= 30  # almost everything
@@ -702,8 +781,16 @@ def _query_preset_from_db(preset: str, page: int = 1,
 
         # Three opinionated presets exclude clamped rows; see block
         # comment lower in this function for full reasoning.
+        #
+        # 2026-06-11 — on the relaxed pass we widen the MoS clamp guard
+        # from 50 → 80 so micro-caps with MoS in the 50-80 band (which
+        # are common in deep-value and growth-quality screens) make the
+        # cut on /home tiles even though they'd still be filtered out
+        # of the canonical /screener?preset page. data_limited rows are
+        # still dropped — those have known FV-clamp artefacts.
         _PRESET_EXCLUDE_CLAMPED = {"buffett", "deep_value", "growth_quality"}
         _exclude_clamped = preset in _PRESET_EXCLUDE_CLAMPED
+        _mos_clamp_guard = 50 if not relaxed else 80
 
         candidates = []
         seen_tickers: set[str] = set()
@@ -779,7 +866,9 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 _rev_cagr = _r[7] if len(_r) > 7 else None  # Day-63
                 # Skip rows where MoS got clamped (data-quality issues)
                 # for the three opinionated presets. See block comment above.
-                if _exclude_clamped and (_data_limited or abs(mos) >= 50):
+                # 2026-06-11 — _mos_clamp_guard is 50 on the strict pass
+                # and 80 on the relaxed pass (the home-tile relaxation).
+                if _exclude_clamped and (_data_limited or abs(mos) >= _mos_clamp_guard):
                     continue
                 full_ticker = _ticker if "." in _ticker else f"{_ticker}.NS"
                 # Dedup by bare ticker (strip .NS/.BO) so NSE+BSE listings
@@ -815,9 +904,10 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 pe = None
 
             # Mirror the tier-1 clamp-exclusion for the named presets.
-            # See block comment in the analysis_cache scan above.
+            # See block comment in the analysis_cache scan above. The
+            # _mos_clamp_guard widens to 80 on the relaxed pass.
             _dl = bool(getattr(v, "data_limited", False))
-            if _exclude_clamped and (_dl or abs(mos) >= 50):
+            if _exclude_clamped and (_dl or abs(mos) >= _mos_clamp_guard):
                 continue
             _rev_cagr2 = getattr(q, "revenue_cagr_3y", None)  # Day-63
 
@@ -907,10 +997,14 @@ async def run_preset(
     """
     api_preset = preset_name.replace("-", "_")
     stocks, total = _query_preset_from_db(api_preset)
+    # 2026-06-11 — surface the relaxation flag so the frontend can show
+    # "Showing closest matches" copy on /home tiles that fell back to
+    # the relaxed pass. See _query_preset_from_db docstring.
+    relaxed = getattr(_query_preset_from_db, "last_relaxed", False)
 
     return ScreenerResponse(
         results=stocks, total=total, page=1, page_size=25,
-        filter_applied={"preset": preset_name},
+        filter_applied={"preset": preset_name, "relaxed": relaxed},
     )
 
 

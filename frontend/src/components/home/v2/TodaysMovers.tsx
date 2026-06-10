@@ -309,13 +309,22 @@ function WorthALookPreview({
 
 export default function TodaysMovers() {
   const queryClient = useQueryClient()
+  // 2026-06-11 (P0 fix — Markets data lagging error)
+  // Previous retry: 1 fast retry, then surface the Tier-3 "lagging" copy
+  // and stall until the user clicked Retry or the next 60s tick. On a
+  // transient backend hiccup (cold-start, redeploy mid-fetch, Aiven
+  // rate-limit blip) the user sat on the error banner for 30-60s with
+  // no auto-recovery. Bumped to 3 retries with exponential backoff
+  // (1s → 2s → 4s, capped at 8s) so most blips heal silently before
+  // the fallback chain runs at all.
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["today-movers", "nifty500", 5],
     queryFn: () => getTodayMovers("nifty500", 5),
     staleTime: 60 * 1000,
     refetchInterval: () => (isMarketHoursIST() ? 60 * 1000 : false),
     refetchIntervalInBackground: false,
-    retry: 1,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt), 8000),
   })
 
   // Persist every fresh, non-stale, non-empty payload so the Tier-1
@@ -525,8 +534,12 @@ function PreviewOrRetry({
   }
   // Tier-3: actionable single-line retry, compact (no full-panel
   // wasted whitespace). Uses the existing "lagging" copy as required
-  // by the SEBI vocabulary review but pairs it with a Retry button so
-  // the user has a clear action.
+  // by the SEBI vocabulary review but pairs it with TWO actions:
+  // (a) Retry → in-place refetch, (b) Open Markets hub → /markets,
+  // which has its own indices + sector view and is the right escape
+  // hatch when the movers endpoint stays down. 2026-06-11: added the
+  // hub link so the user is never strung along by Retry alone on a
+  // sustained outage.
   return (
     <div
       className="bg-surface border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3"
@@ -535,15 +548,24 @@ function PreviewOrRetry({
       <p className="text-xs text-caption">
         Markets data lagging &mdash; refreshing in a moment.
       </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        disabled={isFetching}
-        className="text-xs font-semibold text-brand hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
-        data-testid="movers-retry"
-      >
-        Retry →
-      </button>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={isFetching}
+          className="text-xs font-semibold text-brand hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+          data-testid="movers-retry"
+        >
+          Retry →
+        </button>
+        <Link
+          href="/markets"
+          className="text-xs font-semibold text-brand hover:underline"
+          data-testid="movers-markets-hub"
+        >
+          Open Markets hub →
+        </Link>
+      </div>
     </div>
   )
 }

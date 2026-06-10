@@ -4,7 +4,17 @@
 // Limitation: no market-cap weighting on this endpoint yet, so all tiles
 // are equal-sized. Follow-up: backend /market/sectors could add a
 // total_mcap_cr field so tiles can be sized proportionally (treemap layout).
+//
+// 2026-06-11 (P0 fix — "stuck on loading skeleton"): the previous
+// render path bailed to <Skeleton /> on BOTH (isLoading) AND (!data).
+// When /api/v1/market/sectors errored, react-query surfaced
+// data=undefined and the skeleton animated forever — no empty-state
+// copy, no retry handle, no escape hatch. The render path now treats
+// (errored | empty | loading-too-long) as three distinct states and
+// each gets dedicated copy. A 5s loading-timeout swap-out guarantees
+// the user never sees the pulsing gray bars beyond a single beat.
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getSectorOverview } from "@/lib/api"
@@ -24,7 +34,10 @@ function colorFor(score: number): string {
 
 function Skeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+    <div
+      className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2"
+      data-testid="sector-heatmap-skeleton"
+    >
       {[...Array(13)].map((_, i) => (
         <div key={i} className="h-20 bg-border/60 rounded-lg animate-pulse" />
       ))}
@@ -32,13 +45,80 @@ function Skeleton() {
   )
 }
 
+function EmptyState({ onRetry }: { onRetry: () => void }) {
+  // Compact single-tile fallback when the endpoint returned empty,
+  // errored out, or didn't resolve within the 5s timeout. Keeps the
+  // section heading consistent so the layout doesn't jump; the body
+  // is replaced by a tile-shaped pane that explains the state and
+  // offers a retry. Never let the skeleton animate forever — that's
+  // the bug this fallback exists to close.
+  return (
+    <div
+      className="bg-surface border border-border rounded-lg p-4 flex items-center justify-between gap-3 min-h-[80px]"
+      data-testid="sector-heatmap-empty"
+    >
+      <div>
+        <p className="text-xs font-semibold text-ink">
+          Heatmap data unavailable
+        </p>
+        <p className="text-[11px] text-caption mt-0.5">
+          The sector aggregator is refreshing. Try again in a moment.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="text-xs font-semibold text-brand hover:underline whitespace-nowrap"
+        data-testid="sector-heatmap-retry"
+      >
+        Retry →
+      </button>
+    </div>
+  )
+}
+
 export default function SectorHeatmap() {
-  const { data, isLoading } = useQuery({
+  // 2026-06-11 — retry bumped from 1 to 2 with exponential backoff
+  // (1s → 2s) so a transient backend blip heals before the user sees
+  // the EmptyState. Two retries is the sweet spot here: more than that
+  // and we hang the panel during a real outage; less and we surface
+  // the error too eagerly on a perfectly recoverable blip.
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["sector-overview-home"],
     queryFn: getSectorOverview,
     staleTime: 15 * 60 * 1000,
-    retry: 1,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt), 4000),
   })
+
+  // 5s loading-timeout. Closes the "skeleton-animates-forever" P0
+  // bug: a slow or hung endpoint leaves react-query in isLoading
+  // indefinitely and the previous render path had no escape. After
+  // 5s of nothing, we swap from <Skeleton /> to <EmptyState /> so
+  // the user has a clear "Heatmap data unavailable" + Retry handle
+  // instead of pulsing gray bars. The timeout resets every render
+  // so a fast successful response still skips straight to the
+  // populated grid.
+  const [loadingTooLong, setLoadingTooLong] = useState(false)
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTooLong(false)
+      return
+    }
+    const id = setTimeout(() => setLoadingTooLong(true), 5_000)
+    return () => clearTimeout(id)
+  }, [isLoading])
+
+  // Resolve which render mode we're in. Order matters:
+  //   1. errored      → EmptyState (highest signal — the fetch failed)
+  //   2. loaded+empty → EmptyState (data array is [])
+  //   3. loaded+ok    → the populated grid
+  //   4. loading slow → EmptyState (after the 5s timeout)
+  //   5. loading      → Skeleton
+  const showEmpty =
+    isError ||
+    (!isLoading && (!data || data.length === 0)) ||
+    (isLoading && loadingTooLong)
 
   return (
     <section>
@@ -48,7 +128,9 @@ export default function SectorHeatmap() {
         </h2>
         <p className="text-[10px] text-caption">Color: aggregate score · Click to screen</p>
       </div>
-      {isLoading || !data ? (
+      {showEmpty ? (
+        <EmptyState onRetry={() => refetch()} />
+      ) : !data ? (
         <Skeleton />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
