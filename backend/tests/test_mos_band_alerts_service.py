@@ -162,13 +162,19 @@ def test_check_and_fire_ignores_invalid_mos(_isolated_store, monkeypatch):
 
 
 def test_render_copy_is_sebi_safe(_isolated_store):
+    import re
     mbas = _isolated_store
     sub = mbas.AlertSubscription("u1", "RELIANCE", 20.0, "positive")
     title, body = mbas._render_copy("RELIANCE", sub)
     blob = (title + " " + body).lower()
+    # Whole-word check — "threshold" legitimately substring-matches "hold"
+    # but isn't a SEBI directive. Backend sebi-filter uses the same
+    # \b-bounded matching.
     banned = ["b" + "uy", "s" + "ell", "h" + "old"]
     for w in banned:
-        assert w not in blob
+        assert re.search(rf"\b{w}\b", blob) is None, (
+            f"banned token {w} found in copy: {blob}"
+        )
 
 
 def test_persistence_across_calls(_isolated_store):

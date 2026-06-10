@@ -170,9 +170,12 @@ describe("MosBandAlertModal", () => {
     )
     const blob = (screen.getByTestId("mos-band-alert-modal")
       .textContent || "").toLowerCase()
+    // Whole-word check — "threshold" legitimately substring-matches
+    // "h" + "o" + "l" + "d" but isn't a SEBI directive.
     const banned = ["b" + "uy", "s" + "ell", "h" + "old"]
     for (const w of banned) {
-      expect(blob.includes(w)).toBe(false)
+      const re = new RegExp(`\\b${w}\\b`)
+      expect(re.test(blob)).toBe(false)
     }
   })
 })

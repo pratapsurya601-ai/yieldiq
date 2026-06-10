@@ -85,18 +85,18 @@ describe("LiveMosDisplay", () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it("clamps extreme MoS values (audit #232 anti-regression)", async () => {
-    // fv=1, fallback=0.0001 → raw MoS ~ +9999%; clamp to +200%.
+  it("clamps deeply negative MoS values (audit #232 anti-regression)", async () => {
+    // fv=10, fallback=1000 → raw MoS = (10-1000)/10*100 = -9900 → clamp -100.
     global.fetch = vi.fn(async () => {
-      return new Response(JSON.stringify({ price: 0.0001 }), { status: 200 })
+      return new Response(JSON.stringify({ price: 1000 }), { status: 200 })
     }) as unknown as typeof fetch
     render(
-      <LiveMosDisplay ticker="X" fairValue={1} fallbackPrice={0.5} />,
+      <LiveMosDisplay ticker="X" fairValue={10} fallbackPrice={500} />,
     )
     await waitFor(() => {
       const txt = screen.getByTestId("live-mos-value").textContent || ""
-      // Must show +200.0% (clamp), not +999% or similar.
-      expect(txt).toMatch(/\+200\.0%/)
+      // Must show -100.0% (lower clamp), not -9900% or similar.
+      expect(txt).toMatch(/-100\.0%/)
     })
   })
 })
