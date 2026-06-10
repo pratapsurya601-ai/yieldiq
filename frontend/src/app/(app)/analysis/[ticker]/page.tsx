@@ -87,6 +87,16 @@ interface PrismSsrPayload {
   sector?: string | null
   price?: number | null
   fair_value?: number | null
+  /**
+   * Canonical headline FV (composite IV when present, else DCF).
+   * ROOT CAUSE #1 (2026-06-10) — the JSON-LD emitter consumes this
+   * so the SEO schema agrees with every other "Fair Value" pill on
+   * the page. The Prism endpoint mirrors this off the analysis
+   * payload's `headline_fair_value` slot (populated by
+   * routers/analysis.py `_inject_headline_fair_value_*`).
+   */
+  headline_fair_value?: number | null
+  headline_fair_value_method?: "composite" | "dcf" | null
   mos_pct?: number | null
   verdict_label?: string | null
   yieldiq_score_100?: number | null
@@ -141,7 +151,14 @@ export default async function AnalysisPage({
           companyName={prism.company_name ?? displayTicker}
           sector={prism.sector}
           currentPrice={prism.price}
-          fairValue={prism.fair_value}
+          // ROOT CAUSE #1 (2026-06-10): prefer the canonical headline
+          // FV (composite-IV-preferred) so the structured data ships
+          // the same number every user-visible FV pill displays.
+          // Falls back to fair_value for legacy Prism payloads that
+          // predate the field. Method label drives the schema.org
+          // PropertyValue name in JsonLd.
+          fairValue={prism.headline_fair_value ?? prism.fair_value}
+          fairValueMethod={prism.headline_fair_value_method ?? null}
           mosPct={prism.mos_pct}
           yieldiqScore={prism.yieldiq_score_100}
           verdict={prism.verdict_label ?? ""}

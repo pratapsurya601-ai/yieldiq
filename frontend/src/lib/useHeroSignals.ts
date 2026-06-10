@@ -39,8 +39,49 @@ export interface HeroSignals {
   verdict: Verdict | null
   /** True when the verdict pill must collapse to "Under Review" (sub-50% conf, wide band, etc.). */
   verdictGated: boolean
-  /** Display fair value in payload currency. Null when unreliable. */
+  /**
+   * DCF-only fair value (mirrors `valuation.fair_value`). Kept for
+   * surfaces that LEGITIMATELY need the DCF number specifically —
+   * `DcfMultiplesChip` (which compares DCF vs Multiples by definition)
+   * and `ValuationMethodsPanel` (which breaks out per-engine values).
+   *
+   * Every OTHER hero / caveat / FAQ / AI-Why / OG / JSON-LD / peer
+   * surface MUST read `headlineFairValue` below — that is the single
+   * canonical number every user-visible FV pill agrees on. The
+   * ESLint rule in `frontend/.eslintrc.cjs` enforces this invariant.
+   */
   fairValue: number | null
+  /**
+   * Canonical headline Fair Value — composite IV when present + > 0,
+   * else the DCF `fairValue` above, else null. SINGLE source of truth
+   * for the hero pill, caveat line, side-rail summary, AI Why
+   * paragraph, FAQ Q1/Q2, peer comparison table, Prism Price ladder,
+   * History tab legend, and every SEO surface (OG card, JSON-LD,
+   * Twitter card).
+   *
+   * Background (ROOT CAUSE #1, 2026-06-10): a prod audit of the
+   * HDFCBANK analysis page found 8+ surfaces reading from 3
+   * different fields and producing 3 different visible numbers:
+   *   - Hero pill          → composite_intrinsic_value (₹1,147.77)
+   *   - Caveat line below  → signals.fairValue / DCF      (₹1,142)
+   *   - Side-rail summary  → signals.fairValue / DCF      (₹1,141.82)
+   *   - Price ladder       → valuation.fair_value         (₹1,141.82)
+   *   - AI Why paragraph   → valuation.fair_value         (₹1,142)
+   *   - Quality FAQ Q1/Q2  → valuation.fair_value         (₹1,141.82)
+   *   - Peer table         → peer-endpoint fair_value     (₹1,129)
+   *   - History legend     → inconsistent label
+   *
+   * The architectural fix is this field. Every consumer reads
+   * `signals.headlineFairValue`; only DcfMultiplesChip /
+   * ValuationMethodsPanel may keep reading `signals.fairValue`.
+   */
+  headlineFairValue: number | null
+  /**
+   * Source of the headline FV — "composite" when composite_intrinsic_value
+   * drove the number, "dcf" when fallback to valuation.fair_value, null
+   * when neither was usable (data-limited path).
+   */
+  headlineFairValueMethod: "composite" | "dcf" | null
   /** Whether the headline FV is sitting at the +/-200% display clamp. */
   fairValueClamped: boolean
   /** Signed discount-to-FV percent (MoS), clamped to the backend's display range. Null when unreliable. */
@@ -128,6 +169,63 @@ export function resolveHeroSignals(
       ? v.fair_value
       : null
 
+  // Canonical headline FV resolver (ROOT CAUSE #1, 2026-06-10).
+  //
+  // Prefer the backend-stamped `headline_fair_value` field when
+  // present (populated by routers/analysis.py
+  // `_inject_headline_fair_value_*` on every response). Fall back to
+  // the same composite-IV-or-DCF chain client-side so legacy cached
+  // payloads — which predate the backend field — still surface a
+  // coherent number on every consumer (hero, FAQ, AI Why, peer
+  // table, OG/JSON-LD). Returns null only when neither composite IV
+  // nor the DCF FV is usable, mirroring the `fairValue` null branch
+  // above.
+  const headlinePayload = payload as unknown as {
+    headline_fair_value?: number | null
+    headline_fair_value_method?: "composite" | "dcf" | null
+    composite_intrinsic_value?: number | null
+  }
+  const backendHeadline = headlinePayload.headline_fair_value
+  const compositeIv = headlinePayload.composite_intrinsic_value
+  let headlineFairValue: number | null
+  let headlineFairValueMethod: "composite" | "dcf" | null
+  if (
+    typeof backendHeadline === "number" &&
+    Number.isFinite(backendHeadline) &&
+    backendHeadline > 0 &&
+    !dataLimited
+  ) {
+    headlineFairValue = backendHeadline
+    headlineFairValueMethod =
+      headlinePayload.headline_fair_value_method === "composite" ||
+      headlinePayload.headline_fair_value_method === "dcf"
+        ? headlinePayload.headline_fair_value_method
+        : // When the backend stamped a value but no method (legacy
+          // half-armed payload), infer from whether the composite slot
+          // matches the headline within the 2dp rounding the backend
+          // applies before serialising.
+          typeof compositeIv === "number" &&
+            Number.isFinite(compositeIv) &&
+            compositeIv > 0 &&
+            Math.abs(compositeIv - backendHeadline) < 0.5
+          ? "composite"
+          : "dcf"
+  } else if (
+    typeof compositeIv === "number" &&
+    Number.isFinite(compositeIv) &&
+    compositeIv > 0 &&
+    !dataLimited
+  ) {
+    headlineFairValue = compositeIv
+    headlineFairValueMethod = "composite"
+  } else if (fairValue != null) {
+    headlineFairValue = fairValue
+    headlineFairValueMethod = "dcf"
+  } else {
+    headlineFairValue = null
+    headlineFairValueMethod = null
+  }
+
   const discount =
     !dataLimited && Number.isFinite(v.margin_of_safety)
       ? v.margin_of_safety
@@ -152,6 +250,8 @@ export function resolveHeroSignals(
     verdict: v.verdict ?? null,
     verdictGated,
     fairValue,
+    headlineFairValue,
+    headlineFairValueMethod,
     fairValueClamped,
     discount,
     worry: (w?.tier as WorryTier | undefined) ?? null,
@@ -172,6 +272,8 @@ const EMPTY: HeroSignals = {
   verdict: null,
   verdictGated: false,
   fairValue: null,
+  headlineFairValue: null,
+  headlineFairValueMethod: null,
   fairValueClamped: false,
   discount: null,
   worry: null,

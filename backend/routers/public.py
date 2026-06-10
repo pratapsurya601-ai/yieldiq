@@ -369,8 +369,17 @@ def _extract_analysis_summary(result) -> dict:
     # floor. See Audit#5 P0b follow-up: og-data was forwarding engine
     # fair_value verbatim and rendered "₹0 fair value" on ULTRACEMCO.NS
     # OG cards while this endpoint was already correct.
+    # ROOT CAUSE #1 (2026-06-10) — pass `headline_fair_value` (composite
+    # IV preference, populated by routers/analysis.py
+    # `_inject_headline_fair_value_*`) so og-data / stock-summary read
+    # the SAME canonical number every user-visible FV pill shows. Falls
+    # back to engine fair_value when the field is absent (legacy cached
+    # payloads) or the response is being projected from a path that
+    # didn't run the inject chain.
     _fv_out = resolve_fair_value(
-        v.fair_value, getattr(v, "base_case", None),
+        v.fair_value,  # headline-fv-allow: legacy fallback inside resolve_fair_value (headline_fv preferred)
+        getattr(v, "base_case", None),
+        headline_fv=getattr(result, "headline_fair_value", None),
     )
     return {
         "ticker": result.ticker,
@@ -380,6 +389,17 @@ def _extract_analysis_summary(result) -> dict:
         "exchange": getattr(c, "exchange", "NSE"),
         "currency": getattr(c, "currency", "INR"),
         "fair_value": _fv_out,
+        # ROOT CAUSE #1 (2026-06-10) — surface the canonical headline
+        # FV + the method label ("composite" / "dcf" / None) explicitly
+        # so the og-image route, JSON-LD, and any future SEO consumer
+        # reads them directly rather than re-deriving from `fair_value`
+        # alone. `headline_fair_value` mirrors `_fv_out` when the inject
+        # chain ran on this response and falls back to the engine FV
+        # otherwise — same number, different name documents the contract.
+        "headline_fair_value": _fv_out,
+        "headline_fair_value_method": getattr(
+            result, "headline_fair_value_method", None,
+        ),
         "current_price": _price,
         "price": _price,
         "mos": _mos,
@@ -3852,7 +3872,17 @@ async def get_peers(
                 q = analysis.quality
                 c = analysis.company
                 company_name = c.company_name
-                fair_value = round(v.fair_value, 2) if v.fair_value is not None else None
+                # ROOT CAUSE #1 (2026-06-10) — peer surfaces read the
+                # canonical headline FV so the comparison table agrees
+                # with the hero pill / FAQ / OG card. Falls back to the
+                # DCF-only field for legacy cached payloads that
+                # predate the inject chain.
+                _headline = getattr(analysis, "headline_fair_value", None)
+                fair_value = (
+                    round(_headline, 2)
+                    if _headline is not None and _headline > 0
+                    else round(v.fair_value, 2) if v.fair_value is not None else None  # headline-fv-allow: legacy fallback only when canonical missing
+                )
                 current_price = round(v.current_price, 2) if v.current_price is not None else None
                 mos = round(v.margin_of_safety, 1) if v.margin_of_safety is not None else None
                 verdict = v.verdict
@@ -6926,7 +6956,16 @@ async def get_sector_heatmap(
                 v = analysis.valuation
                 c = analysis.company
                 company_name = c.company_name
-                fair_value = round(v.fair_value, 2) if v.fair_value is not None else None
+                # ROOT CAUSE #1 (2026-06-10) — peer-tile FV reads the
+                # canonical headline number so the peer table agrees
+                # with the hero pill, FAQ and OG card. Falls back to
+                # the DCF-only field for legacy cached payloads.
+                _headline = getattr(analysis, "headline_fair_value", None)
+                fair_value = (
+                    round(_headline, 2)
+                    if _headline is not None and _headline > 0
+                    else round(v.fair_value, 2) if v.fair_value is not None else None  # headline-fv-allow: legacy fallback only when canonical missing
+                )
                 current_price = round(v.current_price, 2) if v.current_price is not None else None
                 mos_pct = round(v.margin_of_safety, 1) if v.margin_of_safety is not None else None
                 verdict = v.verdict
@@ -6976,7 +7015,15 @@ async def get_sector_heatmap(
                 v = analysis.valuation
                 c = analysis.company
                 subj_name = c.company_name or clean
-                subj_fv = round(v.fair_value, 2) if v.fair_value is not None else None
+                # ROOT CAUSE #1 (2026-06-10) — subject-tile fallback FV
+                # reads the canonical headline number so the peer-table
+                # subject row matches the hero pill exactly.
+                _subj_headline = getattr(analysis, "headline_fair_value", None)
+                subj_fv = (
+                    round(_subj_headline, 2)
+                    if _subj_headline is not None and _subj_headline > 0
+                    else round(v.fair_value, 2) if v.fair_value is not None else None  # headline-fv-allow: legacy fallback only when canonical missing
+                )
                 subj_price = round(v.current_price, 2) if v.current_price is not None else None
                 subj_mos = round(v.margin_of_safety, 1) if v.margin_of_safety is not None else None
                 subj_verdict = v.verdict

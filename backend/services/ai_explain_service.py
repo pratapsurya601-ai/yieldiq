@@ -271,7 +271,17 @@ def build_context_from_analysis(
         sector=company.get("sector") or "",
         verdict_display=_verdict_display((valuation.get("verdict") or "")),
         current_price=_safe_float(valuation.get("current_price")),
-        fair_value=_safe_float(valuation.get("fair_value")),
+        # ROOT CAUSE #1 (2026-06-10) — read the canonical headline FV the
+        # router populates from composite-IV-preferred. Legacy cached
+        # payloads (pre-inject-chain) lack the field; fall back to the
+        # DCF-only field below. Keeps the AI Why prompt context aligned
+        # with the same number the hero pill / FAQ / OG card / peer
+        # table all display.
+        fair_value=_safe_float(
+            payload.get("headline_fair_value")
+            if payload.get("headline_fair_value") is not None
+            else valuation.get("fair_value")  # headline-fv-allow: legacy payload fallback
+        ),
         bear_case=_scenario("bear"),
         base_case=_scenario("base"),
         bull_case=_scenario("bull"),

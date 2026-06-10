@@ -126,31 +126,24 @@ export default function HonestHero({
   const valueTrap = redFlagList.some((f) => f?.flag === "value_trap")
   const distress = hasDistressFlag(redFlagList)
 
-  // Phase C visual completion (T1.1 follow-through): when the backend
-  // emits a `composite_intrinsic_value` (weighted DCF + Peer Multiples +
-  // Wall Street consensus — see T1.1 PR #803 / Phase C wiring), the
-  // hero headline must read the composite, not the DCF-only fair_value.
+  // ROOT CAUSE #1 (2026-06-10): single source of truth for the
+  // headline FV. Reads from the resolver's `signals.headlineFairValue`
+  // — which prefers the backend-stamped `headline_fair_value` field
+  // (composite-IV-preferred), falling back to composite_intrinsic_value
+  // and finally signals.fairValue (DCF) for legacy cached payloads.
   //
   // Background: T1.1 closed the ~40% HDFCBANK-class gap vs AlphaSpread
   // by computing a composite IV. Phase C switched the verdict gate to
-  // the composite, but the hero headline figure was still reading
-  // `valuation.fair_value` (DCF-only) — producing a 4-5 rupee mismatch
-  // on HDFCBANK between the headline number (₹1,141.82, DCF) and the
-  // verdict the engine was actually scoring against (₹1,147.77,
-  // composite). The DCF stays visible inside the DcfMultiplesChip
-  // below, so users still see both estimators — only the SINGLE
-  // headline figure switches to the composite.
-  //
-  // Fallback chain: composite when present + finite + >0, else the
-  // resolver's signals.fairValue (which is already null-guarded for
-  // data-limited / non-positive cases).
-  const compositeIv = payload.composite_intrinsic_value
-  const headlineFv =
-    typeof compositeIv === "number" &&
-    Number.isFinite(compositeIv) &&
-    compositeIv > 0
-      ? compositeIv
-      : signals.fairValue
+  // the composite, but the hero headline figure (and every other
+  // user-visible "Fair Value" pill on the page) was still reading
+  // `valuation.fair_value` (DCF-only) — producing 3+ different numbers
+  // on the same page. The canonical-headline contract makes the hero,
+  // caveat, side-rail, FAQ, AI Why, peer table, and SEO surfaces all
+  // read the SAME number. The DCF stays visible inside the
+  // DcfMultiplesChip below, so users still see both estimators — only
+  // every SINGLE headline figure switches to the canonical number.
+  const headlineFv = signals.headlineFairValue
+  const usingComposite = signals.headlineFairValueMethod === "composite"
   // Recompute the headline discount/premium off the headline FV when
   // we promote the composite. Otherwise pass through the resolver's
   // already-clamped discount (which is keyed off the DCF FV upstream).
@@ -160,7 +153,7 @@ export default function HonestHero({
     typeof currentPrice === "number" &&
     Number.isFinite(currentPrice) &&
     currentPrice > 0 &&
-    headlineFv !== signals.fairValue
+    usingComposite
       ? ((headlineFv - currentPrice) / currentPrice) * 100
       : signals.discount
 
@@ -265,17 +258,17 @@ export default function HonestHero({
                     showLabel={false}
                     title="Fair Value"
                     description={
-                      headlineFv !== signals.fairValue && headlineFv != null
+                      usingComposite && headlineFv != null
                         ? "Composite of three estimators: our DCF, a peer-multiples comparable, and the analyst consensus, weighted by reliability per ticker."
                         : "Our estimate of what one share is worth based on the cash the business looks set to generate in the future, discounted back to today."
                     }
                     formula={
-                      headlineFv !== signals.fairValue && headlineFv != null
+                      usingComposite && headlineFv != null
                         ? "Composite IV = w₁·DCF + w₂·Peer Multiples + w₃·Wall Street consensus"
                         : "Discounted Cash Flow — future FCF discounted at WACC"
                     }
                     caveat={
-                      headlineFv !== signals.fairValue && headlineFv != null
+                      usingComposite && headlineFv != null
                         ? "Each input has its own model risk; the composite reduces single-method bias but is not a forecast."
                         : "A DCF is only as good as its inputs — treat the number as a centre of gravity, not a precise figure."
                     }

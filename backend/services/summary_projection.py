@@ -18,18 +18,26 @@ from typing import Optional
 def resolve_fair_value(
     engine_fv: Optional[float],
     base_case: Optional[float],
+    headline_fv: Optional[float] = None,
 ) -> Optional[float]:
     """Return the user-facing fair_value to surface in summary projections.
 
     Policy (see AUDIT5_P0B_FAIR_VALUE_FLOOR in routers/public.py for the
-    long-form rationale):
+    long-form rationale; ROOT CAUSE #1 2026-06-10 added the
+    ``headline_fv`` parameter so og-data / stock-summary read the same
+    canonical headline number the analysis page hero pill shows):
 
-      * If the engine produced a positive value, use it verbatim.
+      * If the response carries a positive ``headline_fair_value``
+        (composite IV when present, else DCF — populated by
+        ``_inject_headline_fair_value_*`` on every AnalysisResponse),
+        prefer THAT — it is the single source of truth every
+        user-visible FV pill agrees on.
+      * Otherwise, if the engine produced a positive value, use it.
       * Otherwise, if the base scenario midpoint is positive, surface
-        base_case so the verdict-pill gating shows the analyst-meaningful
-        number instead of "₹0".
-      * If neither is available (both None), return None so the
-        frontend hides the pill (AnalysisHero branches on fairValue > 0).
+        base_case so the verdict-pill gating shows the
+        analyst-meaningful number instead of "₹0".
+      * If none of those is available, return None so the frontend
+        hides the pill (AnalysisHero branches on fairValue > 0).
       * If the engine genuinely computed 0 (and base is also 0/missing),
         preserve the 0 — the verdict gate is already data_limited and
         that's the truthful signal. Never synthesise a positive number.
@@ -39,10 +47,18 @@ def resolve_fair_value(
             0, negative, or positive float).
         base_case: Base-scenario midpoint from the scenario layer (may
             be None or a positive float).
+        headline_fv: Canonical headline_fair_value field from the
+            response (set by routers/analysis.py
+            ``_inject_headline_fair_value_*``). When positive, preferred
+            over engine_fv so og-data / stock-summary surface the same
+            number as the hero pill. Optional for back-compat with
+            callers predating ROOT CAUSE #1.
 
     Returns:
-        Rounded float to 2 dp, or None when both inputs are missing.
+        Rounded float to 2 dp, or None when all inputs are missing.
     """
+    if headline_fv is not None and float(headline_fv) > 0:
+        return round(float(headline_fv), 2)
     if engine_fv is not None and float(engine_fv) > 0:
         return round(float(engine_fv), 2)
     if base_case is not None and float(base_case) > 0:

@@ -68,29 +68,73 @@ function buildFAQ(data: AnalysisResponse): FAQItem[] {
   const cur = (v: number) => formatCurrency(v, currency, company.ticker)
   const items: FAQItem[] = []
 
-  // 1 — Fair value
-  if (valuation.fair_value > 0) {
+  // 1 — Fair value.
+  //
+  // ROOT CAUSE #1 (2026-06-10): Read the canonical headline FV — the
+  // composite-IV-preferred number that EVERY user-visible "Fair Value"
+  // pill on this page agrees on. Falls back to the DCF-only
+  // `valuation.fair_value` only when the backend stamp is absent
+  // (legacy cached payloads).
+  //
+  // The DCF-specific number stays surfaced in question 1b below ("What
+  // is X's DCF base case?") so a user looking for the standalone DCF
+  // figure still finds it — but the primary "What is X's fair value?"
+  // question reads the canonical composite number that matches the
+  // hero pill, side-rail summary, AI Why paragraph, and peer table.
+  const headlineFv =
+    data.headline_fair_value != null && data.headline_fair_value > 0
+      ? data.headline_fair_value
+      : data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
+        ? data.composite_intrinsic_value
+        : valuation.fair_value > 0
+          ? valuation.fair_value
+          : null
+  const headlineMethod =
+    data.headline_fair_value_method ??
+    (data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
+      ? "composite"
+      : "dcf")
+  if (headlineFv != null) {
     const bear = scenarios?.bear?.iv ?? valuation.bear_case
     const bull = scenarios?.bull?.iv ?? valuation.bull_case
+    const methodSuffix =
+      headlineMethod === "composite"
+        ? " (composite of DCF, peer multiples, and analyst consensus)"
+        : " (DCF base case)"
     items.push({
       q: `What is ${name}'s fair value?`,
-      a: `${cur(valuation.fair_value)} (DCF base case). Bear scenario ${cur(bear)}, bull scenario ${cur(bull)}.`,
-      chip: `Fair Value: ${cur(valuation.fair_value)}`,
+      a: `${cur(headlineFv)}${methodSuffix}. Bear scenario ${cur(bear)}, bull scenario ${cur(bull)}.`,
+      chip: `Fair Value: ${cur(headlineFv)}`,
     })
+    // 1b — DCF-specific question, only when the headline IS the composite
+    // (i.e. there's a separate DCF number worth surfacing). When the
+    // headline already IS the DCF, this question is redundant.
+    if (headlineMethod === "composite" && valuation.fair_value > 0) {
+      items.push({
+        q: `What is the DCF base case for ${name}?`,
+        a: `${cur(valuation.fair_value)} from the discounted cash flow model. The headline fair value above blends this with peer multiples and analyst consensus.`,
+        chip: `DCF: ${cur(valuation.fair_value)}`,
+      })
+    }
   }
 
   // 2 — Margin of safety
   if (
     valuation.margin_of_safety != null &&
     Number.isFinite(valuation.margin_of_safety) &&
-    valuation.fair_value > 0
+    headlineFv != null
   ) {
-    const mos = valuation.margin_of_safety
-    const direction =
-      valuation.current_price < valuation.fair_value ? "below" : "above"
+    // Recompute MoS off the headline FV when the canonical number is
+    // the composite — otherwise the stored MoS (DCF-keyed) and the
+    // direction sentence read off mismatched anchors.
+    const mos =
+      headlineMethod === "composite"
+        ? ((headlineFv - valuation.current_price) / valuation.current_price) * 100
+        : valuation.margin_of_safety
+    const direction = valuation.current_price < headlineFv ? "below" : "above"
     items.push({
-      q: `Is ${name} below or above its base-case fair value?`,
-      a: `${mosLabel(mos)}. Margin of safety ${formatPct(mos)}. Current price ${cur(valuation.current_price)} ${direction} base-case fair value ${cur(valuation.fair_value)}.`,
+      q: `Is ${name} below or above its fair value?`,
+      a: `${mosLabel(mos)}. Margin of safety ${formatPct(mos)}. Current price ${cur(valuation.current_price)} ${direction} fair value ${cur(headlineFv)}.`,
       chip: `MoS: ${formatPct(mos)}`,
     })
   }

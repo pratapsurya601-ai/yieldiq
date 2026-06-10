@@ -351,6 +351,39 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Canonical headline Fair Value (ROOT CAUSE #1, 2026-06-10) —
+        # introduces ``AnalysisResponse.headline_fair_value`` +
+        # ``headline_fair_value_method`` as the SINGLE source of truth
+        # every user-visible FV pill reads from. Backend orchestrator
+        # populates the field at the same point composite IV is
+        # computed; frontend ``useHeroSignals`` resolver exposes
+        # ``signals.headlineFairValue`` to every consumer (hero, FAQ,
+        # AI-Why, OG, JSON-LD, peer table). The DCF-specific
+        # ``valuation.fair_value`` remains for the DcfMultiplesChip
+        # and Valuation Methods Panel breakdown — both legitimately
+        # need the DCF-only number.
+        #
+        # No engine math changes: the new field is a pure derivation
+        # of composite_intrinsic_value (when finite + > 0) falling
+        # back to valuation.fair_value. Existing cached fields are
+        # byte-identical. scope.fields=[] documents the additive-only
+        # nature; scope.tickers="*" marks the surface as universal.
+        "version_id": "v_headline_fair_value_canonical_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Canonical headline Fair Value field — single source of "
+            "truth across hero pill, caveat line, side-rail summary, "
+            "AI Why paragraph, FAQ Q1/Q2, peer comparison table, OG "
+            "card, JSON-LD structured data, and PDF/share-card "
+            "export. Pure derivation of existing composite IV / DCF "
+            "fields. No engine math, no cached field invalidated."
+        ),
+    },
+    {
         # Sector Heatmap Mini (2026-06-10) — additive public endpoint
         # /api/v1/public/sector-heatmap/{ticker} returning the subject
         # ticker's sector cohort as a flat list of tiles (size by
