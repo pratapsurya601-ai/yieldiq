@@ -125,7 +125,7 @@ export default function TotalReturnDisplay({
     staleTime: 6 * 60 * 60 * 1000,        // matches backend 6h cache
   })
 
-  // Hold onto the last good payload across queryKey changes so toggling
+  // Keep the last good payload across queryKey changes so toggling
   // years (which is a different queryKey) doesn't flash the skeleton
   // between periods. The chart updates as soon as the new data lands.
   const lastGoodRef = useRef<TotalReturnResponse | null>(null)
