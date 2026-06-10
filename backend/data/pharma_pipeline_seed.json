@@ -1,0 +1,119 @@
+{
+  "_meta": {
+    "version": "v_pharma_pipeline_seed_phase_a_2026_06_10",
+    "description": "Hand-curated pharma pipeline seed used by backend/services/pharma_pipeline_service.py to compute per-asset rNPV. Indian listed pharma names carry substantial in-flight pipelines (NCEs, biosimilars, complex generics) whose value the standard FCF-based DCF cannot capture. This is a Phase A seed — three tickers (SUNPHARMA, DRREDDY, BIOCON) with 2-3 illustrative assets each, plausible but invented numbers. A production data ingestion (operator-curated form, sell-side scrape, or analyst-day notes) is out of scope for Phase A.",
+    "field_dictionary": {
+      "name": "Human-readable asset / programme name. Surfaces in driver lists.",
+      "phase": "One of discovery | preclinical | phase_1 | phase_2 | phase_3 | filed | approved | marketed. Phase determines the default probability of approval (POA) via POA_BY_PHASE in the service. Override with custom_poa_override when CMC / regulatory has a known special situation.",
+      "indication": "Therapy area or specific disease label. Cosmetic only — the math is indifferent to indication.",
+      "target_market_size_usd": "TAM in USD, peak-year. The driver of peak revenue together with expected_peak_share_pct.",
+      "expected_peak_share_pct": "Peak market share assumed, 0-100. Sanity-warned if >60%.",
+      "expected_margin_pct": "Operating margin on peak sales, 0-100. Captures the profitability of the franchise once exclusivity is in effect.",
+      "expected_launch_year_offset": "Years from today until first revenue. Cashflows are pushed out this many years before the penetration ramp begins.",
+      "exclusivity_years": "How many years post-launch the asset enjoys protection (patent / data / market exclusivity). NCE typical 10-12; biosimilar typical 5-7.",
+      "is_biosimilar": "When true: faster penetration ramp (rebate-driven formulary adoption) and shorter default exclusivity. The service applies a different curve.",
+      "custom_poa_override": "Optional explicit POA (0-1). Use when CMC issues, breakthrough designation, accelerated approval, or a known FDA / CDSCO holdup makes the phase-default wrong."
+    },
+    "caveats": [
+      "All numbers are invented for Phase A. Do NOT cite these to anyone — they are scaffolding, not data.",
+      "Production data needs an ingestion pipeline (operator form + sell-side / analyst-day cross-check). Out of scope for Phase A.",
+      "Tickers are NSE bare symbols, no .NS / .BO suffix. Match the convention used by backend/data/holdco_underlyings.json."
+    ]
+  },
+  "SUNPHARMA": {
+    "assets": [
+      {
+        "name": "Iluvien-class GA programme",
+        "phase": "phase_3",
+        "indication": "geographic_atrophy",
+        "target_market_size_usd": 4500000000,
+        "expected_peak_share_pct": 12.0,
+        "expected_margin_pct": 35.0,
+        "expected_launch_year_offset": 3,
+        "exclusivity_years": 11
+      },
+      {
+        "name": "Deuruxolitinib alopecia areata",
+        "phase": "filed",
+        "indication": "alopecia_areata",
+        "target_market_size_usd": 1200000000,
+        "expected_peak_share_pct": 18.0,
+        "expected_margin_pct": 38.0,
+        "expected_launch_year_offset": 1,
+        "exclusivity_years": 10
+      },
+      {
+        "name": "Specialty oncology biosimilar",
+        "phase": "phase_2",
+        "indication": "oncology_biosimilar",
+        "target_market_size_usd": 3000000000,
+        "expected_peak_share_pct": 8.0,
+        "expected_margin_pct": 22.0,
+        "expected_launch_year_offset": 5,
+        "exclusivity_years": 6,
+        "is_biosimilar": true
+      }
+    ]
+  },
+  "DRREDDY": {
+    "assets": [
+      {
+        "name": "gRevlimid (lenalidomide) post-settlement ramp",
+        "phase": "approved",
+        "indication": "multiple_myeloma_generic",
+        "target_market_size_usd": 9000000000,
+        "expected_peak_share_pct": 5.0,
+        "expected_margin_pct": 28.0,
+        "expected_launch_year_offset": 0,
+        "exclusivity_years": 3
+      },
+      {
+        "name": "Pegfilgrastim biosimilar US",
+        "phase": "phase_3",
+        "indication": "supportive_oncology_biosimilar",
+        "target_market_size_usd": 2200000000,
+        "expected_peak_share_pct": 14.0,
+        "expected_margin_pct": 24.0,
+        "expected_launch_year_offset": 2,
+        "exclusivity_years": 6,
+        "is_biosimilar": true
+      },
+      {
+        "name": "Sputnik / proprietary biologic India",
+        "phase": "preclinical",
+        "indication": "novel_biologic_india",
+        "target_market_size_usd": 800000000,
+        "expected_peak_share_pct": 22.0,
+        "expected_margin_pct": 30.0,
+        "expected_launch_year_offset": 7,
+        "exclusivity_years": 10
+      }
+    ]
+  },
+  "BIOCON": {
+    "assets": [
+      {
+        "name": "Insulin Aspart biosimilar US/EU",
+        "phase": "filed",
+        "indication": "diabetes_biosimilar",
+        "target_market_size_usd": 5500000000,
+        "expected_peak_share_pct": 9.0,
+        "expected_margin_pct": 20.0,
+        "expected_launch_year_offset": 1,
+        "exclusivity_years": 7,
+        "is_biosimilar": true
+      },
+      {
+        "name": "Bevacizumab biosimilar developed markets",
+        "phase": "approved",
+        "indication": "oncology_biosimilar",
+        "target_market_size_usd": 6500000000,
+        "expected_peak_share_pct": 7.0,
+        "expected_margin_pct": 22.0,
+        "expected_launch_year_offset": 0,
+        "exclusivity_years": 5,
+        "is_biosimilar": true
+      }
+    ]
+  }
+}
