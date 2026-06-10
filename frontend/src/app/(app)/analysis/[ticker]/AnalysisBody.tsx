@@ -103,6 +103,16 @@ import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import YIQScoreBreakdown from "@/components/analysis/YIQScoreBreakdown"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
+// Interactive DCF + Reverse-DCF Playground (2026-06-10) —
+// v_interactive_dcf_playground_2026_06_10. AlphaSpread-parity killer
+// feature. Three sliders (WACC / Terminal Growth / FCF Growth) with
+// live FV recompute, plus a Reverse-DCF mode that locks the price and
+// solves for implied growth. Lives at the top of the Valuation tab,
+// below the CompositeCompositionPanel which sits above the tab bar.
+// Pure-frontend math anchored to the engine's published WACC / TGR /
+// FCF growth + PV(FCFs) so the sliders start at the engine's actual
+// defaults and the playground produces the engine FV at the defaults.
+import InteractiveDcfPlayground from "@/components/analysis/InteractiveDcfPlayground"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import CompoundedGrowthTrustStrip from "@/components/analysis/CompoundedGrowthTrustStrip"
 import NumberedSectionHeader from "@/components/analysis/NumberedSectionHeader"
@@ -1439,6 +1449,57 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               DerivedInsightsPanel so the user can ask the model
               about the very numbers the cards below them show. */}
           <AnalysisPromptPresets data={data} />
+          {/* Interactive DCF + Reverse-DCF Playground (2026-06-10) —
+              v_interactive_dcf_playground_2026_06_10. AlphaSpread-
+              parity feature. Three sliders + live FV recompute, plus
+              a Reverse-DCF mode that locks the price and solves for
+              implied growth. Sits at the top of the Valuation tab so
+              users can drag the levers immediately after seeing the
+              composite-composition breakdown above the tabs. Pure-
+              frontend math; the playground self-hides on bank
+              cohorts and on tickers where the DCF anchors are not
+              populated. We derive net debt from the engine's
+              enterprise_value − equity_value (so the playground
+              produces the published Fair Value at the default
+              slider positions), and shares from market_cap /
+              current_price (so the per-share output is comparable to
+              the headline number even when shares_outstanding is
+              absent from the payload). */}
+          {(() => {
+            const sharesFromMcap =
+              valuation.current_price > 0 && company.market_cap > 0
+                ? company.market_cap / valuation.current_price
+                : 0
+            const netDebt = Number.isFinite(valuation.enterprise_value) &&
+              Number.isFinite(valuation.equity_value)
+                ? valuation.enterprise_value - valuation.equity_value
+                : 0
+            const revCagr3y = quality.revenue_cagr_3y != null
+              ? quality.revenue_cagr_3y * 100
+              : null
+            const revCagr5y = quality.revenue_cagr_5y != null
+              ? quality.revenue_cagr_5y * 100
+              : null
+            return (
+              <InteractiveDcfPlayground
+                ticker={data.ticker}
+                currency={company.currency}
+                isBank={isPureBank(data.ticker)}
+                baseFairValue={valuation.fair_value}
+                currentPrice={valuation.current_price}
+                baseWacc={valuation.wacc}
+                baseTerminalGrowth={valuation.terminal_growth}
+                baseFcfGrowthRate={valuation.fcf_growth_rate}
+                basePvFcfs={valuation.pv_fcfs}
+                basePvTerminal={valuation.pv_terminal}
+                netDebt={netDebt}
+                shares={sharesFromMcap}
+                fcfGrowthHistoricalAvg={valuation.fcf_growth_historical_avg}
+                revenueCagr3y={revCagr3y}
+                revenueCagr5y={revCagr5y}
+              />
+            )
+          })()}
           {/* T5.3 (2026-06-10) — 4 derived insights synthesized from
               composite IV + 5-pillar confidence + Graham/Tobin anchors
               + per-sector backtest accuracy. Rendered at the top of

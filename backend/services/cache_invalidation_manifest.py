@@ -4062,6 +4062,38 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Sprint B.1 (2026-06-10) — AlphaSpread-parity Interactive DCF +
+        # Reverse-DCF Playground on the Valuation tab. Pure-frontend
+        # additive UI. The engine math is byte-identical pre/post; only
+        # the UI surface that lets users drag WACC / Terminal Growth /
+        # FCF Growth sliders against the engine's published anchors is
+        # new. No backend field invalidation.
+        "version_id": "v_interactive_dcf_playground_2026_06_10",
+        "title_public": (
+            "Interactive DCF Playground — live WACC/Terminal Growth/"
+            "FCF Growth sliders with real-time fair value recompute"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Adds the InteractiveDcfPlayground component to the top of "
+            "the Valuation tab below the CompositeCompositionPanel. "
+            "Three sliders (WACC 5-18%, Terminal Growth 0-7%, FCF "
+            "Growth -10-+25%) recompute the 5-year + Gordon-terminal "
+            "DCF client-side using the engine's published wacc, "
+            "terminal_growth, fcf_growth_rate, and pv_fcfs as anchors. "
+            "Reverse-DCF mode locks the current price and bisects for "
+            "implied FCF growth over [-15%, 35%]. Scenarios persist to "
+            "localStorage under yq:dcf-playground:scenarios. Banks "
+            "(per isPureBank) render a caption pointing users back to "
+            "the Composite Composition breakdown. No engine math, no "
+            "field invalidation — engine outputs are byte-identical."
+        ),
+    },
+    {
         # ROOT-CAUSE #11 (2026-06-10) — Permanent fix for the recurring
         # manifest title-jargon leak.
         "version_id": "v_manifest_title_public_split_2026_06_10",
