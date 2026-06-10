@@ -18,6 +18,7 @@ import Reveal from "@/components/common/Reveal"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
+import PostMergerRatioCaption from "@/components/analysis/PostMergerRatioCaption"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import HoldingsTrendMiniChart from "@/components/analysis/HoldingsTrendMiniChart"
 import MutualFundHoldersPanel from "@/components/analysis/MutualFundHoldersPanel"
@@ -1651,6 +1652,16 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ticker={company.ticker}
             analystConsensus={data.analyst_consensus ?? null}
           />
+          {/* ROOT CAUSE #2 (2026-06-11) — post-merger ratio caption.
+              Self-hides when AnalysisResponse.ma_event is absent or
+              outside the normalisation window. Placed above QualityRatios
+              so the explainer reads before the depressed ROE/ROA cards. */}
+          <PostMergerRatioCaption
+            maEvent={data.ma_event ?? null}
+            companyName={company.company_name}
+            roePct={quality.roe ?? null}
+            roaPct={quality.roa ?? null}
+          />
           <QualityRatios
             quality={quality}
             insights={insights}
@@ -1782,6 +1793,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               )}
             </div>
           )}
+          {/* ROOT CAUSE #2 (2026-06-11) — post-merger ratio caption on
+              the dedicated Quality tab. Self-hides when ma_event is
+              absent or out of the normalisation window. */}
+          <PostMergerRatioCaption
+            maEvent={data.ma_event ?? null}
+            companyName={company.company_name}
+            roePct={quality.roe ?? null}
+            roaPct={quality.roa ?? null}
+          />
           <QualityRatios
             quality={quality}
             insights={insights}

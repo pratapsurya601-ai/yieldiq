@@ -708,6 +708,37 @@ export interface AnalysisResponse {
     estimator_breakdown?: unknown[]
   } | null
   /**
+   * M&A-aware context (ROOT CAUSE #2 + #8, 2026-06-11). Populated by
+   * `backend/services/ma_event_detector.detect_ma_event` when the
+   * ticker has a material structural event (merger / demerger /
+   * reverse-merger / scheme / material acquisition) inside the
+   * trailing 8-quarter normalisation window.
+   *
+   * Consumers:
+   *   * `PostMergerRatioCaption` on the Quality tab — explains why
+   *     trailing ROE / ROA look depressed (post-merger scale jump).
+   *     Self-hides when the field is absent or
+   *     `is_within_normalization_window` is false.
+   *   * `EarningsImpactPanel` (quarterly surprise card) — body copy
+   *     swaps to the "Baseline distorted by M&A" suppression message
+   *     when the latest quarter's YoY comp straddles `event_date`.
+   *
+   * Field-additive: legacy cached payloads predate this field; both
+   * consumers self-hide / render the legacy state when absent.
+   */
+  ma_event?: {
+    event_date: string
+    event_type: string
+    magnitude_pct: number | null
+    multiplier: number | null
+    normalization_window_quarters: number
+    quarters_since_event: number
+    description: string
+    source_url: string | null
+    source_doc: string | null
+    is_within_normalization_window: boolean
+  } | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of

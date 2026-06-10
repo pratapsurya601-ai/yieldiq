@@ -1039,6 +1039,39 @@ class AnalysisResponse(BaseModel):
     #    sanity_warnings, estimator_breakdown}``.
     cross_engine_consensus: Optional[dict] = None
 
+    # ── M&A-aware context (ROOT CAUSE #2 + #8, 2026-06-11) ─────────
+    # v_ma_event_context_2026_06_11 — populated when the ticker has a
+    # material M&A event (merger, demerger, reverse merger, scheme of
+    # arrangement, material acquisition) inside the trailing 8-quarter
+    # normalisation window. See backend/services/ma_event_detector.py
+    # for the shape; in summary:
+    #   {
+    #     "event_date":                    "YYYY-MM-DD",
+    #     "event_type":                    "REVERSE_MERGER" | ...,
+    #     "magnitude_pct":                 70.0 | None,  # bal-sheet expansion %
+    #     "multiplier":                    2.0 | None,   # raw corp_actions value
+    #     "normalization_window_quarters": 8,
+    #     "quarters_since_event":          3,
+    #     "description":                   "Reverse merger — HDFC Ltd absorbed ...",
+    #     "source_url":                    "https://..." | None,
+    #     "source_doc":                    "RBI/SEBI joint approval ..." | None,
+    #     "is_within_normalization_window": True,
+    #   }
+    #
+    # Frontend consumers:
+    #   * `PostMergerRatioCaption` on the Quality tab — explains why
+    #     trailing ROE/ROA look depressed (post-merger scale jump).
+    #     Self-hides when `ma_event` is absent or
+    #     `is_within_normalization_window` is False.
+    #   * `EarningsImpactPanel` (quarterly surprise card) — body copy
+    #     swaps to "Baseline distorted by M&A; YoY resumes in Q...".
+    #
+    # Purely ADDITIVE — pre-PR cached payloads and clients without the
+    # field surface as `None` and both surfaces render their legacy
+    # state (no caption / standard surprise number). Pure read over
+    # `corporate_actions`; never raises.
+    ma_event: Optional[dict] = None
+
 
 # ── The Honest Card response model ────────────────────────────
 class HonestCardOutput(BaseModel):
