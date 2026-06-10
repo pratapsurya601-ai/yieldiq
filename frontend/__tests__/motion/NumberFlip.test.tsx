@@ -5,7 +5,7 @@
  *   1. Renders the initial value on mount (SSR-equivalent paint).
  *   2. When `value` prop changes, the displayed value flips to the
  *      new value within the flip duration (DURATION.fast = 200ms).
- *   3. Under reduced motion, the new value appears immediately
+ *   3. Under reduced motion, the new value renders immediately
  *      without going through the flip transform.
  *   4. Carries `data-motion="number-flip"` for observability.
  */
@@ -91,7 +91,7 @@ describe("NumberFlip", () => {
     expect(settledSpan.getAttribute("data-motion-flipping")).toBe("false")
   })
 
-  it("under reduced motion, new value appears without flip class", () => {
+  it("under reduced motion, new value renders without flip class", () => {
     setReducedMotion(true)
     const { rerender } = render(<NumberFlip value={5} />)
     act(() => {
