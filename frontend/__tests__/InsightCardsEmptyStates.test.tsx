@@ -2,10 +2,18 @@
  * InsightCards — empty-state copy tests (task #191).
  *
  * Verifies that "ugly" null/empty states on the /analysis/[ticker]
- * page have been replaced with intentional, positive-signal copy:
+ * page have been replaced with intentional, positive-signal copy.
  *
- *   - Analyst Consensus: "Independent" + first-principles framing
- *     instead of bare "No coverage" / "No analyst coverage".
+ * History:
+ *   - 2026-06-10 (fix/remove-legacy-independent-analyst-copy): the
+ *     compact "Analyst Coverage / Independent" card was removed from
+ *     <InsightCards/>. AnalystConsensusReframePanel (PR #838) now owns
+ *     the with-data + empty-state surface end-to-end on the Valuation
+ *     tab, so the Sprint A3 "Independent" assertions in this file were
+ *     dropped. Tests for AnalystConsensusReframePanel's own empty
+ *     state live in AnalystConsensusReframePanel.test.tsx.
+ *
+ * Currently scoped to:
  *   - Insider Activity: "Quiet ✓" with blue (positive) styling
  *     instead of "None" with neutral border.
  *   - Red Flags: "Clean ✓" with explanatory subtitle instead of
@@ -71,7 +79,12 @@ const insightsEmpty: InsightCardsType = {
 const valuation = {} as ValuationOutput
 
 describe("InsightCards — empty-state copy (task #191)", () => {
-  it("reframes 'no analyst coverage' as 'Independent' with first-principles explanation", () => {
+  // The legacy "Analyst Coverage / Independent" compact card was removed
+  // 2026-06-10 (fix/remove-legacy-independent-analyst-copy). The Analyst
+  // Consensus Reframe Panel (PR #838) renders the no-coverage notice
+  // on the Valuation tab; its tests live in
+  // AnalystConsensusReframePanel.test.tsx.
+  it("does NOT render the legacy 'Independent' compact card when analyst coverage is missing", () => {
     const analyst: AnalystConsensus = {
       coverage_count: 0,
     } as unknown as AnalystConsensus
@@ -84,15 +97,11 @@ describe("InsightCards — empty-state copy (task #191)", () => {
         analystConsensus={analyst}
       />
     )
-    expect(screen.getByText("Independent")).toBeInTheDocument()
-    expect(
-      screen.getByText(/first-principles DCF/i)
-    ).toBeInTheDocument()
-    expect(screen.queryByText("No coverage")).toBeNull()
-    expect(screen.queryByText("No analyst coverage")).toBeNull()
+    expect(screen.queryByText("Independent")).toBeNull()
+    expect(screen.queryByText("Analyst Coverage")).toBeNull()
   })
 
-  it("falls back to 'Independent' framing on legacy payloads without analyst_consensus", () => {
+  it("does NOT render the legacy 'Independent' card on payloads without analyst_consensus", () => {
     render(
       <InsightCards
         quality={quality}
@@ -101,9 +110,8 @@ describe("InsightCards — empty-state copy (task #191)", () => {
         currency="INR"
       />
     )
-    expect(screen.getByText("Independent")).toBeInTheDocument()
-    expect(screen.queryByText("No coverage")).toBeNull()
-    expect(screen.queryByText("No analyst coverage")).toBeNull()
+    expect(screen.queryByText("Independent")).toBeNull()
+    expect(screen.queryByText("Analyst Coverage")).toBeNull()
   })
 
   it("renders 'Quiet ✓' for Insider Activity when no bulk/block deals in 90 days", () => {
@@ -139,14 +147,10 @@ describe("InsightCards — empty-state copy (task #191)", () => {
     expect(screen.queryByText("No concerns detected")).toBeNull()
   })
 
-  it("renders the no-coverage card with the rewritten Sprint A3 Independent framing", () => {
-    // Sprint A3 (2026-06-09): the broker-research line was replaced
-    // with a confident "Independent valuation" framing that positions
-    // no-coverage as a feature (many of the best opportunities sit
-    // outside the coverage universe) rather than a missing third-party
-    // validation. The legacy "Not tracked by broker research desks"
-    // copy is gone -- it read as apologetic per the analysis-page
-    // competitor audit.
+  it("does NOT render the legacy 'many of the best opportunities' subtitle from the removed Independent card", () => {
+    // Sprint A3 framing was removed 2026-06-10 along with the compact
+    // analyst-coverage card. AnalystConsensusReframePanel (PR #838) now
+    // carries the empty-state copy on the Valuation tab.
     render(
       <InsightCards
         quality={quality}
@@ -156,9 +160,9 @@ describe("InsightCards — empty-state copy (task #191)", () => {
       />
     )
     expect(
-      screen.getByText(/many of the best opportunities sit outside the coverage universe/i)
-    ).toBeInTheDocument()
-    // Old apologetic copy must be gone.
+      screen.queryByText(/many of the best opportunities sit outside the coverage universe/i)
+    ).toBeNull()
+    // Old apologetic copy must also stay gone.
     expect(
       screen.queryByText(/Not tracked by broker research desks/i)
     ).toBeNull()
