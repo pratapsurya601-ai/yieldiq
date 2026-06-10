@@ -4504,6 +4504,75 @@ async def get_dividend_history(
 
 
 # ─────────────────────────────────────────────────────────────────
+# Total Return vs Price Return endpoint.
+#
+# Reinvests dividend events at the close-on-ex-date so the resulting
+# curve compounds — material for high-payout FMCG / IT names where 5y
+# total return can be 30%+ above price return. Computed at request time
+# from the same corporate_actions + daily_prices sources that power
+# /dividends/{ticker} and /price-history/{ticker} so cross-surface
+# drift is impossible.
+#
+# 6h edge cache + 1h in-memory cache — both upstreams refresh daily.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/total-return/{ticker}")
+async def get_total_return(
+    ticker: str,
+    years: int = Query(default=5, ge=1, le=25),
+    initial_investment: float = Query(
+        default=100_000.0, ge=1.0, le=10_000_000.0,
+        description="Notional rupee amount for the 'X became Y' framing.",
+    ),
+):
+    """Price return vs total return (with dividend reinvestment).
+
+    Response shape:
+        {
+            ticker, years, start_date, end_date,
+            start_price, end_price,
+            price_return,             # %
+            total_return,             # %
+            dividends_paid_total,     # cumulative ₹ per-share inside window
+            dividend_count,
+            reinvested_value,         # final ₹/share including reinvested divs
+            initial_investment, price_only_value, total_return_value,
+            dividend_boost_pct,       # total_return - price_return
+            curve: [{date, price_return, total_return}, ...],
+            data_source, notes
+        }
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+
+    _cache_key = (
+        f"public:total-return:{clean}:{years}:{int(initial_investment)}"
+    )
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=86400)
+
+    try:
+        from backend.services.total_return_service import (
+            compute_total_return,
+            result_to_dict,
+        )
+        result = compute_total_return(
+            clean,
+            years=int(years),
+            initial_investment=float(initial_investment),
+        )
+        payload = result_to_dict(result)
+        cache.set(_cache_key, payload, ttl=3600)
+        return _cached_json(payload, s_maxage=21600, swr=86400)
+    except Exception as exc:
+        logger.warning(
+            "total-return failed for %s years=%s: %s",
+            clean, years, exc, exc_info=True,
+        )
+        return _data_unavailable_payload(full_ticker, "total_return_compute_failed")
+
+
+# ─────────────────────────────────────────────────────────────────
 # Ticker index — slim JSON dump used by the client-side fuzzy search.
 # Returns every known instrument (stocks + ETFs + MFs) with just the
 # fields the search UI needs. ~90 KB uncompressed, ~20 KB gzipped.
