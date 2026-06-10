@@ -569,7 +569,7 @@ describe("ARSignalsPanel — ROOT CAUSE #9 unit-validation filter", () => {
       within(section).getByText("Retail Banking - Non-Digital"),
     ).toBeInTheDocument()
     // The 8.59 Cr row must be filtered out — its label NEVER
-    // appears anywhere in the rendered DOM.
+    // renders anywhere in the DOM.
     expect(within(section).queryByText("Retail Banking - Digital")).toBeNull()
   })
 
