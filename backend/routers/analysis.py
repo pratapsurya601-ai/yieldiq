@@ -2748,6 +2748,95 @@ def _inject_consensus_signal_model(result: "AnalysisResponse") -> "AnalysisRespo
     return result
 
 
+# ─────────────────────────────────────────────────────────────────
+# Canonical headline Fair Value inject (2026-06-10 — ROOT CAUSE #1)
+# ─────────────────────────────────────────────────────────────────
+# Picks the single number that EVERY user-visible "Fair Value" pill,
+# caveat line, AI-Why paragraph, FAQ answer, OG card and JSON-LD
+# document MUST agree on. See the field-level docstring on
+# ``AnalysisResponse.headline_fair_value`` for the full rationale.
+#
+# Rule:
+#   composite_intrinsic_value     -> when finite + > 0  ("composite")
+#   else valuation.fair_value     -> when finite + > 0  ("dcf")
+#   else None                                              (None)
+#
+# MUST run AFTER ``_inject_composite_iv_*`` so the composite slot is
+# populated when we read it. Sequenced in the orchestrator call-sites
+# accordingly. Pure derivation, no I/O. Never raises — failure leaves
+# the field None and the frontend's resolver supplies the same fallback
+# chain client-side (legacy / cached payloads behave correctly).
+# ─────────────────────────────────────────────────────────────────
+
+
+def _resolve_headline_fair_value(
+    composite_iv,
+    dcf_fv,
+):
+    """Pure helper — used by both the dict and model inject paths.
+
+    Returns ``(value, method)`` where ``method`` is one of
+    "composite" | "dcf" | None.
+    """
+    try:
+        if composite_iv is not None:
+            try:
+                cv = float(composite_iv)
+            except (TypeError, ValueError):
+                cv = None
+            if cv is not None and cv > 0 and cv == cv:  # cv == cv excludes NaN
+                return (round(cv, 2), "composite")
+    except Exception:
+        pass
+    try:
+        if dcf_fv is not None:
+            try:
+                dv = float(dcf_fv)
+            except (TypeError, ValueError):
+                dv = None
+            if dv is not None and dv > 0 and dv == dv:
+                return (round(dv, 2), "dcf")
+    except Exception:
+        pass
+    return (None, None)
+
+
+def _inject_headline_fair_value_dict(payload: dict) -> dict:
+    """Populate ``headline_fair_value`` + ``headline_fair_value_method``
+    on a dict payload. See module docstring above. MUST run AFTER
+    ``_inject_composite_iv_dict``.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        composite_iv = payload.get("composite_intrinsic_value")
+        valuation = payload.get("valuation") or {}
+        dcf_fv = valuation.get("fair_value") if isinstance(valuation, dict) else None
+        value, method = _resolve_headline_fair_value(composite_iv, dcf_fv)
+        payload["headline_fair_value"] = value
+        payload["headline_fair_value_method"] = method
+    except Exception:
+        # Additive field only — never break the response. The frontend
+        # resolver supplies the same fallback chain client-side.
+        pass
+    return payload
+
+
+def _inject_headline_fair_value_model(
+    result: "AnalysisResponse",
+) -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_headline_fair_value_dict`."""
+    try:
+        composite_iv = getattr(result, "composite_intrinsic_value", None)
+        dcf_fv = result.valuation.fair_value if result.valuation else None
+        value, method = _resolve_headline_fair_value(composite_iv, dcf_fv)
+        result.headline_fair_value = value
+        result.headline_fair_value_method = method
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -2913,6 +3002,11 @@ async def get_analysis(
             # MUST run after composite + Phase-B so every estimator
             # is reachable. Pure derivation; safe on every warm path.
             _inject_consensus_signal_dict(_out)
+            # ROOT CAUSE #1 (2026-06-10): canonical headline FV — single
+            # source of truth for hero / caveat / FAQ / OG / JSON-LD /
+            # peer / AI-Why / Chat / PDF. MUST run AFTER composite so
+            # the composite_intrinsic_value slot is populated.
+            _inject_headline_fair_value_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
@@ -2926,6 +3020,7 @@ async def get_analysis(
         _inject_composite_iv_dict(_out)
         _inject_derived_insights_dict(_out)
         _inject_consensus_signal_dict(_out)
+        _inject_headline_fair_value_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -2960,6 +3055,7 @@ async def get_analysis(
         _inject_composite_iv_dict(_enc)
         _inject_derived_insights_dict(_enc)
         _inject_consensus_signal_dict(_enc)
+        _inject_headline_fair_value_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -3008,6 +3104,7 @@ async def get_analysis(
             _inject_composite_iv_dict(_out)
             _inject_derived_insights_dict(_out)
             _inject_consensus_signal_dict(_out)
+            _inject_headline_fair_value_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -3223,6 +3320,10 @@ async def get_analysis(
         # Phase-B estimators. Additive field; runs after composite +
         # Phase B so every estimator is reachable.
         _inject_consensus_signal_model(result)
+        # ROOT CAUSE #1 (2026-06-10): canonical headline FV — single
+        # source of truth for hero / caveat / FAQ / AI-Why / OG /
+        # JSON-LD / peer / Chat / PDF. MUST run AFTER composite.
+        _inject_headline_fair_value_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

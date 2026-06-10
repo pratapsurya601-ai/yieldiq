@@ -28,7 +28,24 @@ interface JsonLdProps {
   companyName: string
   sector: string | null | undefined
   currentPrice: number | null | undefined
+  /**
+   * Canonical headline Fair Value (composite IV when present, else DCF).
+   * ROOT CAUSE #1 (2026-06-10) — the SEO surface MUST emit the same
+   * number every user-visible "Fair Value" pill on the analysis page
+   * shows. Pre-fix, this prop was the DCF-only `valuation.fair_value`
+   * and the Rich Results card for HDFCBANK said "₹1,142" while the
+   * page hero said "₹1,148". Callers should pass `headline_fair_value`
+   * (falling back to `composite_intrinsic_value` and finally
+   * `valuation.fair_value` for legacy payloads).
+   */
   fairValue: number | null | undefined
+  /**
+   * Source of the fairValue prop above — "composite" when composite IV
+   * drove the number, "dcf" when fallback to DCF, null when neither
+   * usable. Influences the schema.org PropertyValue label so consumers
+   * can tell DCF-only from composite at a glance.
+   */
+  fairValueMethod?: "composite" | "dcf" | null
   mosPct: number | null | undefined
   yieldiqScore: number | null | undefined
   verdict: string
@@ -41,6 +58,7 @@ export default function JsonLd({
   sector,
   currentPrice,
   fairValue,
+  fairValueMethod,
   mosPct,
   yieldiqScore,
   verdict,
@@ -81,9 +99,17 @@ export default function JsonLd({
   // YieldIQ-specific fields as additionalProperty entries
   const additionalProperty: Record<string, unknown>[] = []
   if (fairValue && fairValue > 0) {
+    // ROOT CAUSE #1 (2026-06-10) — label the PropertyValue accurately:
+    // "Fair Value (composite estimate)" when the headline came from the
+    // composite IV path (DCF + peer multiples + analyst consensus),
+    // "Fair Value (DCF estimate)" when only the DCF path was usable.
+    const fvName =
+      fairValueMethod === "composite"
+        ? "Fair Value (composite estimate)"
+        : "Fair Value (DCF estimate)"
     additionalProperty.push({
       "@type": "PropertyValue",
-      name: "Fair Value (DCF estimate)",
+      name: fvName,
       value: fairValue.toFixed(2),
       unitCode: "INR",
     })

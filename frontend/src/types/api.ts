@@ -544,6 +544,31 @@ export interface AnalysisResponse {
     multiples_weight?: number | null
     consensus_weight?: number | null
   } | null
+  /**
+   * Canonical headline Fair Value (ROOT CAUSE #1, 2026-06-10) — SINGLE
+   * source of truth for the headline FV number across the hero pill,
+   * caveat line, side-rail summary, AI Why paragraph, Quality-tab FAQ,
+   * peer comparison table, Prism Price ladder, OG / JSON-LD SEO
+   * surfaces, History tab legend, and PDF / share-card export.
+   *
+   * Populated server-side by routers/analysis.py
+   * `_inject_headline_fair_value_*` at the same point composite IV is
+   * computed:
+   *   composite_intrinsic_value when finite + > 0   ("composite")
+   *   else valuation.fair_value when > 0            ("dcf")
+   *   else null                                      (null)
+   *
+   * Consumers MUST read via `signals.headlineFairValue` from
+   * `useHeroSignals` rather than this raw payload field. The resolver
+   * handles the legacy-payload fallback so legacy cached responses
+   * still render correctly. The ESLint rule in
+   * `frontend/.eslintrc.cjs` blocks direct reads of
+   * `valuation.fair_value` / `signals.fairValue` in render paths
+   * EXCEPT for `DcfMultiplesChip` and `ValuationMethodsPanel` (which
+   * legitimately need the DCF-only value).
+   */
+  headline_fair_value?: number | null
+  headline_fair_value_method?: "composite" | "dcf" | null
   three_stage_fv?: number | null
   three_stage_method?: string | null
   three_stage_reason?: string | null

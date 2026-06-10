@@ -737,7 +737,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       // and verdict pill on the page surface the verdict visibly;
       // the tab does not need to repeat it.
 
-      const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
+      // ROOT CAUSE #1 (2026-06-10) — meta description must read the
+      // canonical headline FV so social previews agree with the page.
+      const metaHeadlineFv =
+        (data.headline_fair_value != null && data.headline_fair_value > 0
+          ? data.headline_fair_value
+          : data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
+            ? data.composite_intrinsic_value
+            : data.valuation.fair_value) || 0
+      const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${metaHeadlineFv.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
       const metaDesc = document.querySelector('meta[name="description"]')
       if (metaDesc) {
         metaDesc.setAttribute("content", desc)
@@ -1841,10 +1849,25 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
           <div className="bg-bg rounded-2xl border border-border p-4">
             <h2 className="text-sm font-semibold text-ink mb-3">Price History</h2>
+            {/* ROOT CAUSE #1 (2026-06-10): History tab fair-value
+                reference line reads from the canonical headline FV
+                (composite-IV-preferred) so the chart legend agrees
+                with the hero pill, FAQ, AI Why paragraph and peer
+                table. Falls back to DCF for legacy cached payloads.
+                Pre-fix, the History description said "Today's
+                composite intrinsic value" while the chart legend
+                read "DCF fair value" — different sources, different
+                numbers, same chart. */}
             <PriceChart
               ticker={ticker}
               currentPrice={valuation.current_price}
-              fairValue={valuation.fair_value}
+              fairValue={
+                data.headline_fair_value != null && data.headline_fair_value > 0
+                  ? data.headline_fair_value
+                  : data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
+                    ? data.composite_intrinsic_value
+                    : valuation.fair_value
+              }
               currency={company.currency}
             />
           </div>
@@ -2107,10 +2130,26 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             typeof s === "string" && s.includes("Fair value clamped"),
           )
           const baseScenario = data.scenarios?.base
+          // ROOT CAUSE #1 (2026-06-10): the canonical headline FV.
+          // Prefer the backend-stamped `headline_fair_value` field
+          // (composite-IV-preferred) so this hero band agrees with
+          // HonestHero, the side-rail summary, the AI Why paragraph,
+          // the Quality FAQ, and the peer comparison table. The
+          // clamp-fallback still overrides when the backend signals
+          // a clamp (that path runs at the engine layer BEFORE the
+          // composite, so headline_fair_value reflects the clamped
+          // value already — but we keep the explicit promotion of
+          // baseScenario.iv as defense in depth for legacy payloads).
+          const canonicalHeadline =
+            data.headline_fair_value != null && data.headline_fair_value > 0
+              ? data.headline_fair_value
+              : data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
+                ? data.composite_intrinsic_value
+                : valuation.fair_value
           const headlineFairValue =
             fvClamped && baseScenario && baseScenario.iv > 0
               ? baseScenario.iv
-              : valuation.fair_value
+              : canonicalHeadline
           // fix/mos-clamp-enforce (2026-05-26): NEVER let a raw
           // base-scenario MoS (which is uncapped — `base_unclamped`-class
           // numbers like WIPRO 321% / KALYANI 829%) reach the hero.

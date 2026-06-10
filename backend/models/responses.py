@@ -755,6 +755,57 @@ class AnalysisResponse(BaseModel):
     # DCF-only "Fair Value" headline in that case.
     composite_intrinsic_value: Optional[float] = None
     composite_components: Optional[dict] = None
+    # ── Canonical headline Fair Value (2026-06-10) ─────────────
+    # The SINGLE source of truth for "what number does this stock's
+    # Fair Value pill show?" across EVERY user-visible surface — the
+    # hero pill, the side-rail "Stock signals summary", the AI Why
+    # paragraph, the Quality-tab FAQ ("What is X's fair value?"), the
+    # peer-comparison table, the Prism Price ladder, the OG/JSON-LD
+    # SEO surface, the History tab legend, the PDF / share-card
+    # export, the AI Chat model context.
+    #
+    # Background (ROOT CAUSE #1, 2026-06-10): a prod audit of the
+    # HDFCBANK analysis page found 8+ surfaces reading from 3
+    # different fields and producing 3 different visible numbers:
+    #   - Hero pill ......................... composite_intrinsic_value
+    #   - "trades at X% below fair value" ... valuation.fair_value
+    #   - Side-rail summary ................. valuation.fair_value
+    #   - Price ladder ...................... valuation.fair_value
+    #   - AI Why paragraph .................. valuation.fair_value
+    #   - FAQ Q1/Q2 ......................... valuation.fair_value
+    #   - Peer table ........................ peer-endpoint fair_value
+    #   - History chart legend .............. inconsistent
+    #
+    # The architectural fix: every consumer reads ONLY
+    # ``headline_fair_value`` from now on. The DCF-specific
+    # ``valuation.fair_value`` field is kept (the DCF-vs-Multiples
+    # chip and the Valuation Methods Panel breakdown LEGITIMATELY
+    # need the DCF-only value), but ANY hero / caveat / FAQ /
+    # AI-Why / OG / JSON-LD / peer surface that previously read it
+    # is now wired to ``headline_fair_value``.
+    #
+    # Rule (populated in routers/analysis.py
+    # ``_inject_headline_fair_value_dict`` / ``_..._model``):
+    #   headline_fair_value = composite_intrinsic_value
+    #       if (composite_intrinsic_value is not None and
+    #           composite_intrinsic_value > 0)
+    #       else valuation.fair_value (when > 0; else None)
+    #
+    # ``headline_fair_value_method`` documents the source:
+    #   "composite" — composite IV was usable + > 0
+    #   "dcf"       — composite was None / 0 / negative; fell back
+    #                  to valuation.fair_value (which itself may be
+    #                  DCF or peer_capped / tier2_fallback per
+    #                  valuation.fair_value_source)
+    #   None        — neither was usable (data-limited path)
+    #
+    # Purely ADDITIVE — pre-PR cached payloads and clients see this
+    # field as None. The frontend resolver (useHeroSignals) supplies
+    # the same fallback chain client-side so legacy payloads still
+    # render a coherent number; new payloads benefit from the
+    # backend-stamped invariant + the method label.
+    headline_fair_value: Optional[float] = None
+    headline_fair_value_method: Optional[str] = None
     # ── Phase B — additive standalone estimator surfacing (2026-06-10) ──
     # Five OPTIONAL per-ticker estimators surfaced alongside the
     # DCF + Multiples + Wall-St composite. Each is a thin projection
