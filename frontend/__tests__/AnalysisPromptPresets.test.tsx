@@ -317,7 +317,7 @@ describe("AnalysisPromptPresets", () => {
       ).toHaveTextContent(/first answer/)
     })
 
-    // Click the same card a second time — the text panel should
+    // Click the same card a second time — the response panel must // sebi-allow: should
     // reset before the new stream starts (no stale concatenation).
     fireEvent.click(
       screen.getByTestId("analysis-prompt-preset-card-why_valued"),

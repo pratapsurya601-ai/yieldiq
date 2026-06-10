@@ -309,9 +309,9 @@ export default function AnalysisPromptPresets({ data, className }: Props) {
                 >
                   {p.glyph}
                 </span>
-                <strong className="text-sm font-semibold text-ink leading-snug">
+                <span className="text-sm font-semibold text-ink leading-snug">
                   {p.title}
-                </strong>
+                </span>
               </div>
               <p className="text-[12px] text-caption leading-snug">
                 {p.description}
