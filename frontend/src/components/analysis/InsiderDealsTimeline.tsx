@@ -14,8 +14,8 @@
 // Empty-state contract: when the backend returns available=false
 // (neither table has rows for this ticker, or ingestion has not landed
 // yet) the panel shows a quiet "Coming soon — ingestion in progress"
-// row. This matches the Phase J copy lint: no buy/sell verbs, no
-// fake confidence chips.
+// row. This matches the Phase J copy lint: acquired/reduced verbs only,
+// no fake confidence chips.
 //
 // Auto-summary line synthesises a single SEBI-safe sentence from the
 // 90-day net flow — e.g.
