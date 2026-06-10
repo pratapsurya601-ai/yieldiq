@@ -91,7 +91,18 @@ export default function ScoreVerdictReconcilerCaption({
       aria-label="Score and verdict signals point in different directions"
       data-testid="score-verdict-reconciler-caption"
       data-diverges="true"
-      className={`mt-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[12px] leading-snug text-slate-700 dark:border-slate-700/70 dark:bg-slate-900/40 dark:text-slate-300 ${className ?? ""}`}
+      // Layout note (2026-06-11, P1 fix bug A): the analysis page mounts
+      // <StickyTableOfContents/> as a `xl:block fixed right-6 w-52`
+      // overlay. On viewports wide enough for the centered max-w-6xl
+      // content column to extend into that 232px-from-right reserved
+      // strip, prose without a max-width would wrap awkwardly under
+      // the TOC ("intrinsic value today" tucked under the TOC list).
+      // `max-w-[80ch]` keeps the explanation paragraph inside a
+      // comfortable reading measure that never reaches the TOC rail,
+      // and the wrapper still flexes wider when the parent constrains
+      // it (the TOC is hidden below xl so the constraint is a no-op
+      // there).
+      className={`mt-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-[12px] leading-snug text-slate-700 max-w-[80ch] dark:border-slate-700/70 dark:bg-slate-900/40 dark:text-slate-300 ${className ?? ""}`}
     >
       <header className="flex items-baseline justify-between gap-3 mb-1">
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -99,7 +110,7 @@ export default function ScoreVerdictReconcilerCaption({
         </span>
         {typeof divergence.score_percentile === "number" && (
           <span
-            className="font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400"
+            className="font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400 shrink-0"
             data-testid="score-verdict-reconciler-caption-score"
           >
             Score {divergence.score_percentile} / 100
