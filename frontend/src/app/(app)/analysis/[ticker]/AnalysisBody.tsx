@@ -73,6 +73,7 @@ import DerivedInsightsPanel, {
 import ConsensusSignalBadge, {
   type ConsensusSignal as ConsensusSignalShape,
 } from "@/components/analysis/ConsensusSignalBadge"
+import AnalysisPromptPresets from "@/components/analysis/AnalysisPromptPresets"
 import MobileScoreStrip from "@/components/analysis/MobileScoreStrip"
 import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
@@ -1331,6 +1332,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "Valuation",
       content: (
         <div className="space-y-4">
+          {/* Competitor audit #4 (2026-06-10) — quick AI prompt cards
+              that piggyback on the T6.2 chat-stream endpoint. Two
+              pre-baked questions ("Why is this valued this way?" and
+              "What do other platforms think?") render their answer
+              token-by-token inside the panel. Sits above
+              DerivedInsightsPanel so the user can ask the model
+              about the very numbers the cards below them show. */}
+          <AnalysisPromptPresets data={data} />
           {/* T5.3 (2026-06-10) — 4 derived insights synthesized from
               composite IV + 5-pillar confidence + Graham/Tobin anchors
               + per-sector backtest accuracy. Rendered at the top of
