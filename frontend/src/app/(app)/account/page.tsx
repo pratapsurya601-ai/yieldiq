@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Cookies from "js-cookie"
 import api from "@/lib/api"
 import ThemeToggle from "@/components/layout/ThemeToggle"
+import ReduceMotionToggle from "@/components/motion/ReduceMotionToggle"
 import UpgradeActivationModal from "@/components/account/UpgradeActivationModal"
 import {
   trackUpgradeClicked,
@@ -350,6 +351,15 @@ function AccountInner() {
             <div className={`w-4 h-4 bg-bg dark:bg-surface rounded-full shadow transition-transform ${learnMode ? "translate-x-5" : "translate-x-1"}`} />
           </button>
         </label>
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <span className="text-sm text-body block">Reduce motion</span>
+            <span className="text-xs text-caption block">
+              Skip page reveals + ticker animations. Honours OS pref by default.
+            </span>
+          </div>
+          <ReduceMotionToggle />
+        </div>
         {tier !== "free" && (
           <label className="flex items-center justify-between">
             <span className="text-sm text-body">Pro Mode</span>

@@ -71,6 +71,13 @@ const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 // preference from a returning user is preserved as-is.
 const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');if(s!=='dark'&&s!=='light'){try{localStorage.setItem('yieldiq_theme','dark');}catch(e){}s='dark';}var e=document.documentElement;if(s==='light'){e.classList.remove('dark');}else{e.classList.add('dark');}}catch(e){}})();`;
 
+// Motion-off init: same anti-FOUC pattern as theme. If the user has
+// flipped the in-app "Reduce motion" toggle (localStorage key
+// `yq:motion-off`), we add `data-yq-motion-off="1"` to <html> before
+// first paint so CSS utilities (.hover-lift, .pressable, .shimmer,
+// etc.) can disable themselves in lockstep with the React hook.
+const motionInitScript = `(function(){try{if(localStorage.getItem('yq:motion-off')==='1'){document.documentElement.setAttribute('data-yq-motion-off','1');}}catch(e){}})();`;
+
 export const metadata: Metadata = {
   // Root-level default title. Per-route layouts under (app)/ override
   // this so a user with five tabs open sees five distinct titles
@@ -155,6 +162,8 @@ export default function RootLayout({
       <head>
         {/* Anti-FOUC theme init — must run before body paint. */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* Motion-off init — same pattern, drives [data-yq-motion-off]. */}
+        <script dangerouslySetInnerHTML={{ __html: motionInitScript }} />
 
         {/* Google Analytics 4 */}
         {GA4_ID && (
