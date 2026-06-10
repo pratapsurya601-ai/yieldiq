@@ -4331,6 +4331,59 @@ MANIFEST: list[dict] = [
             "in shareholding_pattern and the peer_context block."
         ),
     },
+    {
+        # Data hardening — AR segment unit consistency + FV history
+        # write-time sanity gate (ROOT CAUSE #9 + #12, 2026-06-11).
+        #
+        # AR-side: ar_intel_service occasionally produces
+        # unit-inconsistent segment rows (HDFCBANK FY25 'Retail
+        # Banking — Digital' Revenue ₹8.59 Cr is the reference case
+        # — a likely %-of-total or Cr/Lakh misread by the LLM).
+        # A new pure validator
+        # (backend/services/ar_segment_validator.py) stamps each row
+        # with unit_validated + validation_reason; the AR signals
+        # router passes raw_segments through it on every read;
+        # ARSignalsPanel hides rows where unit_validated === false
+        # and shows a caption "N segment(s) hidden — extraction
+        # confidence too low". No engine math; the underlying
+        # ar_signals row is unchanged.
+        #
+        # FV-side: fair_value_history write hook now gates daily
+        # |Δ| > 25 %, requiring corroboration via a contemporaneous
+        # manifest entry, corporate action, or concall summary on
+        # the write date. Rejected rows route to a quarantine table
+        # instead of polluting the canonical history. Pairs with a
+        # dense day-level interpolation backfill
+        # (scripts/backfill_fair_value_history.py) that fills
+        # between recompute anchors with confidence=-1 +
+        # source='interpolated' sentinels. No FV / verdict / scoring
+        # change for any user already in cache.
+        "version_id": "v_data_hardening_ar_fv_history_2026_06_11",
+        "title_public": (
+            "Data hardening — AR segment unit consistency check, "
+            "FV history sparse backfill, write-time anomaly gate"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "Two data-layer hardening surfaces shipped together. "
+            "(1) ar_segment_validator stamps annual-report segment "
+            "rows with a per-row unit-consistency verdict; the panel "
+            "hides rows that fail the heuristic instead of showing "
+            "implausible 'Revenue ₹8.59 Cr' style entries. "
+            "(2) fair_value_history_writer rejects daily FV deltas "
+            "> 25 % when no manifest entry / corporate action / "
+            "concall summary lands on the same date, routing the "
+            "rejected row to fair_value_history_quarantine for "
+            "review. Plus a dense interpolation backfill closes the "
+            "331-of-365 no-data-day gap on the HDFCBANK MoS "
+            "calendar. Read-side additive; no engine math, no "
+            "cached field invalidated."
+        ),
+    },
 ]
 
 

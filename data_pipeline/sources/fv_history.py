@@ -112,6 +112,30 @@ def _warn_if_volatile(
         pass
 
 
+def _previous_fv(ticker: str, today_date, db: Session) -> float | None:
+    """Return the most-recent prior fair_value for ticker, or None.
+
+    Caller pattern: the FV-write sanity gate (ROOT CAUSE #12)
+    needs the day-1 anchor to compute the |Δ| guard. Pure read,
+    swallow errors.
+    """
+    try:
+        prev = (
+            db.query(FairValueHistory)
+            .filter(
+                FairValueHistory.ticker == ticker,
+                FairValueHistory.date < today_date,
+            )
+            .order_by(FairValueHistory.date.desc())
+            .first()
+        )
+        if prev and prev.fair_value:
+            return float(prev.fair_value)
+    except Exception:
+        return None
+    return None
+
+
 def store_today_fair_value(
     ticker: str,
     fv: float,
@@ -153,6 +177,15 @@ def store_today_fair_value(
     don't have a score to persist — those leave the columns NULL and
     the frontend renders the peer score as `—` until the row is
     re-touched by the live write-hook.
+
+    Write-time sanity gate (ROOT CAUSE #12):
+    After all skip-rules pass and BEFORE the upsert, the FV is
+    compared against the previous day's row. Daily |Δ| > 25 %
+    must be corroborated by a manifest entry / corporate action /
+    concall_ai_summary landing on the same date, else the row is
+    routed to ``fair_value_history_quarantine`` instead of the
+    canonical table. See
+    ``backend.services.fair_value_history_writer`` for the policy.
     """
     today = date.today()
     try:
@@ -184,6 +217,50 @@ def store_today_fair_value(
         smoothed_mos = (
             round((smoothed_fv - price) / price * 100, 1) if price > 0 else mos
         )
+
+        # ── Gate: write-time sanity (ROOT CAUSE #12) ──────────────
+        # Compare smoothed_fv against the previous day's row.
+        # If the |Δ| exceeds 25 % AND no corroborating manifest /
+        # corporate action / concall summary lands on today's
+        # date, route the row to quarantine instead of polluting
+        # the canonical table.
+        try:
+            from backend.services.fair_value_history_writer import (
+                insert_into_quarantine,
+                should_persist_fv_row,
+            )
+            from backend.services.cache_invalidation_manifest import MANIFEST
+            prev_fv = _previous_fv(ticker, today, db)
+            decision = should_persist_fv_row(
+                ticker=ticker,
+                today_fv=smoothed_fv,
+                prev_fv=prev_fv,
+                write_date=today,
+                manifest_entries=MANIFEST,
+                db_session=db,
+            )
+        except Exception as exc:
+            # Defensive: a gate-import failure must NEVER block writes.
+            log.debug("FV writer gate import failed for %s: %s", ticker, exc)
+            decision = None
+
+        if decision is not None and not decision.persist:
+            log.warning(
+                "FV history quarantined for %s: %s",
+                ticker, decision.reason,
+            )
+            insert_into_quarantine(
+                db,
+                ticker=ticker,
+                write_date=today,
+                today_fv=round(smoothed_fv, 2),
+                prev_fv=decision.prev_fv,
+                decision=decision,
+                price=round(price, 2),
+                mos_pct=smoothed_mos,
+                verdict=verdict,
+            )
+            return
 
         existing = (
             db.query(FairValueHistory)

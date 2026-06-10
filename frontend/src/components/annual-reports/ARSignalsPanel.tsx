@@ -54,6 +54,13 @@ interface SegmentRow {
   note?: string | null
   fy?: string | null
   quote?: string | null
+  // ROOT CAUSE #9 — set by backend ar_segment_validator. False
+  // means the row tripped the unit-consistency heuristic (e.g.
+  // HDFCBANK FY25 "Retail Banking — Digital" Revenue ₹8.59 Cr
+  // misread from a %-of-total column). When false, the panel
+  // hides the row and shows a caption with the hidden count.
+  unit_validated?: boolean
+  validation_reason?: string | null
 }
 
 interface CapexRow {
@@ -385,7 +392,15 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
     )
   }
 
-  const segments = signals.segment_data ?? []
+  // ROOT CAUSE #9 — drop rows the backend validator flagged as
+  // unit-inconsistent. `unit_validated === false` is the explicit
+  // failure stamp; undefined / true both pass through (default-
+  // safe for legacy rows that predate the validator).
+  const rawSegments = signals.segment_data ?? []
+  const segments = rawSegments.filter(
+    (s) => s?.unit_validated !== false,
+  )
+  const segmentsHidden = rawSegments.length - segments.length
   const capex = signals.capex_commitments ?? []
   const rpts = signals.related_party_transactions ?? []
   const auditors = signals.auditor_flags ?? []
@@ -478,9 +493,29 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
         {segments.length === 0 ? (
           <p className="text-xs italic text-caption">
             No segment breakdown disclosed in this AR.
+            {segmentsHidden > 0 && (
+              <span
+                data-testid="ar-segments-hidden-caption"
+                className="block mt-1 not-italic text-[11px] text-caption"
+              >
+                {segmentsHidden === 1
+                  ? "1 segment hidden — extraction confidence too low."
+                  : `${segmentsHidden} segments hidden — extraction confidence too low.`}
+              </span>
+            )}
           </p>
         ) : (
           <ul className="space-y-2">
+            {segmentsHidden > 0 && (
+              <li
+                data-testid="ar-segments-hidden-caption"
+                className="text-[11px] text-caption italic"
+              >
+                {segmentsHidden === 1
+                  ? "1 segment hidden — extraction confidence too low."
+                  : `${segmentsHidden} segments hidden — extraction confidence too low.`}
+              </li>
+            )}
             {segments.slice(0, 8).map((s, i) => {
               const label =
                 (s.name && String(s.name).trim()) ||

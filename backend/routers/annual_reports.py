@@ -30,6 +30,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 
+from backend.services.ar_segment_validator import validate_segment_rows
+
 logger = logging.getLogger("yieldiq.annual_reports")
 
 router = APIRouter(prefix="/api/v1/annual-reports", tags=["annual-reports"])
@@ -110,11 +112,19 @@ def _row_to_payload(row: tuple) -> dict:
     if (quality_flag or "").lower() == "sebi_withheld":
         return {**base_envelope, "signals": None, "withheld": True}
 
+    # ROOT CAUSE #9 — stamp segment_data rows with unit_validated /
+    # validation_reason so the frontend can hide rows flagged as
+    # likely unit-misreads (e.g. HDFCBANK FY25 "Retail Banking —
+    # Digital" Revenue ₹8.59 Cr). The validator is a pure
+    # post-processor; we never mutate the underlying ar_signals
+    # row. See backend/services/ar_segment_validator.py.
+    raw_segments = _parse_jsonb(segment_data) or []
+    stamped_segments = validate_segment_rows(raw_segments)
     return {
         **base_envelope,
         "withheld": False,
         "signals": {
-            "segment_data": _parse_jsonb(segment_data) or [],
+            "segment_data": stamped_segments,
             "capex_commitments": _parse_jsonb(capex_commitments) or [],
             "related_party_transactions":
                 _parse_jsonb(related_party_transactions) or [],
