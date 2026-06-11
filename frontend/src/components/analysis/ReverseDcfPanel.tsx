@@ -200,9 +200,48 @@ export default function ReverseDcfPanel({ ticker }: Props) {
     retry: 1,
   })
 
-  if (isLoading || !data) {
-    // Still hide on null/error — only the bank-skip payload renders.
-    return null
+  // P0 empty-state fix (2026-06-11) — previously returned null on
+  // loading/null which orphaned the surrounding "REVERSE DCF" header.
+  // Now we render a skeleton during fetch and an explanatory empty
+  // state when the endpoint has no payload (data_limited tickers,
+  // missing inputs, transient 5xx). The bank-skip card below still
+  // wins for the structured non-applicable shape.
+  if (isLoading) {
+    return (
+      <section
+        aria-label="Reverse DCF — loading"
+        aria-busy="true"
+        className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-3"
+        data-testid="reverse-dcf-loading"
+      >
+        <div className="h-4 w-32 rounded bg-surface animate-pulse" />
+        <div className="h-3 w-64 rounded bg-surface animate-pulse" />
+        <div className="h-12 w-full rounded bg-surface animate-pulse" />
+      </section>
+    )
+  }
+  if (!data) {
+    return (
+      <section
+        aria-label="Reverse DCF — unavailable"
+        className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
+        data-testid="reverse-dcf-empty"
+      >
+        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center">
+          <p className="text-sm font-medium text-ink mb-1">
+            Reverse DCF not available right now
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            We solve for the growth rate implied by the current price
+            using the engine&rsquo;s discount and terminal-growth
+            anchors. On tickers where those anchors are not populated
+            yet (data-limited names, recently listed companies, or a
+            transient upstream outage), the reverse-DCF endpoint
+            withholds an answer rather than guess.
+          </p>
+        </div>
+      </section>
+    )
   }
 
   // Day-87: bank-skip card. Banks / NBFCs / insurers do not admit an

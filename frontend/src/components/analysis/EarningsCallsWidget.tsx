@@ -107,9 +107,34 @@ export default function EarningsCallsWidget({ ticker }: Props) {
       </div>
 
       {items.length === 0 ? (
-        <p className="text-xs italic text-caption">
-          Earnings call transcripts not available yet.
-        </p>
+        // P0 empty-state fix (2026-06-11) — never leave the
+        // NumberedSectionHeader orphaned with no body. The previous
+        // single-line italic read as "section is broken" on tickers
+        // whose concall filings the weekly NSE corp-announcements
+        // cron hasn't indexed yet (POWERGRID + similar). The new
+        // copy explains WHY the slot is empty, points the user at
+        // the upstream source, and links to the full Financials
+        // tab where AI-summarised concall transcripts live.
+        <div
+          role="status"
+          className="rounded-xl border border-dashed border-border bg-surface/40 p-4 text-center"
+          data-testid="earnings-calls-empty"
+        >
+          <p className="text-sm font-medium text-ink mb-1">
+            No earnings call transcripts indexed yet
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            We pull transcript filings from NSE&rsquo;s corporate-announcements
+            feed on a weekly cron. Coverage typically lands within 7 days
+            of each call.
+          </p>
+          <a
+            href="#section-earnings_calls"
+            className="inline-flex items-center mt-3 px-3 py-1.5 text-[11px] font-semibold text-brand bg-brand-50 dark:bg-brand/10 rounded-full hover:opacity-90 transition"
+          >
+            See AI-summarised concalls on the Financials tab &rarr;
+          </a>
+        </div>
       ) : (
         <ul className="space-y-2">
           {items.map((t, i) => {

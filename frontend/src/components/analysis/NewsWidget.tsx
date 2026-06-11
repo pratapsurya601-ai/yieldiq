@@ -118,9 +118,43 @@ export default function NewsWidget({ ticker }: Props) {
   }
 
   const items = (data?.items ?? []).slice(0, 5)
-  if (items.length === 0) return null
-
   const cleanTicker = ticker.replace(".NS", "").replace(".BO", "")
+
+  // P0 empty-state fix (2026-06-11) — previously returned null when
+  // no news items were ingested, which orphaned the surrounding
+  // "RECENT NEWS" CollapsibleSection header. Now we render an
+  // informative empty state so the slot never goes blank.
+  if (items.length === 0) {
+    return (
+      <div
+        className="bg-bg rounded-2xl border border-border p-4"
+        data-testid="news-widget-empty"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-ink">
+            Recent news &amp; filings
+          </h2>
+        </div>
+        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center">
+          <p className="text-sm font-medium text-ink mb-1">
+            No fresh items in the last 14 days
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            We aggregate news and corporate filings from BSE, NSE, and
+            tiered India-native sources every few hours. Quieter
+            tickers may have weeks with no coverage; check back during
+            results season or near a corporate action.
+          </p>
+          <Link
+            href={`/stocks/${cleanTicker}/news`}
+            className="inline-flex items-center mt-3 px-3 py-1.5 text-[11px] font-semibold text-brand bg-brand-50 dark:bg-brand/10 rounded-full hover:opacity-90 transition"
+          >
+            Browse older coverage &rarr;
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   // Day-79: avoid visual noise on all-Tier-A lists (India-native
   // sources only) — the chip carries no additional signal then.

@@ -83,11 +83,33 @@ export default function BullsBearsPanel({ bulls, bears, updated }: Props) {
   const safeBulls = Array.isArray(bulls) ? bulls : []
   const safeBears = Array.isArray(bears) ? bears : []
 
-  // Render nothing only when BOTH sides are missing — keeps the
-  // panel out of the way for pre-PR cached payloads where neither
-  // field is populated yet. Once the cache catches up (≤ 24h via the
-  // bulls_bears manifest entry), one or both sides will render.
-  if (safeBulls.length === 0 && safeBears.length === 0) return null
+  // P0 empty-state fix (2026-06-11) — previously returned null when
+  // BOTH sides were missing, which orphaned the surrounding "BULL /
+  // BEAR THESIS" header. Now we render an explanatory empty state
+  // so the slot never goes blank. (The cache catches up within
+  // 24h via the bulls_bears manifest entry once the engine is
+  // unblocked.)
+  if (safeBulls.length === 0 && safeBears.length === 0) {
+    return (
+      <section
+        className="bg-bg rounded-2xl border border-border p-4"
+        aria-label="Bulls and Bears thesis — pending"
+        data-testid="bulls-bears-empty"
+      >
+        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center">
+          <p className="text-sm font-medium text-ink mb-1">
+            Thesis bullets are being generated
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            We auto-derive the bull and bear arguments from this
+            company&rsquo;s own fundamentals on a 24-hour refresh
+            cadence. Newly added tickers and post-cache-bump payloads
+            may show this slot empty for a few hours after a recompute.
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section

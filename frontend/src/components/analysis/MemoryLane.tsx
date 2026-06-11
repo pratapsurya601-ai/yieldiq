@@ -13,11 +13,13 @@
 // ago"), no advisory language. Verdict labels reuse the established
 // verdictDisplayLabel() helper so they match the page hero verbatim.
 //
-// Renders null for:
-//   - anon users (no token)
-//   - logged-in users with no prior visit (GET returned 204)
-// Visit-tracking POST is fired by AnalysisBody, not by this component,
-// so the GET below sees a fresh row on the very first interaction.
+// Empty-state policy (2026-06-11 P0 fix — Section 12 ORPHAN HEADER):
+//   - anon users (no token)        → renders a sign-in nudge card
+//   - users with no prior visit    → renders a "welcome from here" card
+//   - users with at least one visit → renders the full timeline + note
+// Previously this component returned null for anon users, which left
+// the surrounding "YOUR MEMORY LANE" header on the analysis page with
+// no body underneath. Components never silently null-return now.
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -193,13 +195,92 @@ export default function MemoryLane({ ticker, companyName }: Props) {
     }
   }, [])
 
-  // Render nothing for anon, first-time visitors, or before data lands.
-  // (No skeleton — Memory Lane is additive; an empty slot is fine.)
-  if (!enabled) return null
-  const data = query.data
-  if (!data || !data.first_visited_at) return null
-
   const target = companyName ? formatCompanyName(companyName) : cleanTicker(ticker)
+
+  // P0 (2026-06-11) — anon-user empty state. The previous return-null
+  // left the parent "Your Memory Lane" / Section-12 chrome with nothing
+  // below it on every anon-visited analysis page. Now we surface a
+  // sign-in CTA so the slot always carries explanatory copy.
+  if (!enabled) {
+    return (
+      <section
+        aria-labelledby="memory-lane-heading"
+        className="bg-bg rounded-2xl border border-border p-4 sm:p-6 space-y-3"
+        data-testid="memory-lane-signin-cta"
+      >
+        <header>
+          <h3
+            id="memory-lane-heading"
+            className="text-xs sm:text-sm font-semibold tracking-[0.18em] uppercase text-caption"
+          >
+            Your Memory Lane
+          </h3>
+        </header>
+        <p className="text-sm text-ink leading-relaxed max-w-prose">
+          Sign in to keep a personal record of every analysis you run on{" "}
+          <span className="font-semibold">{target}</span>. We snapshot the
+          price, fair value and verdict on your first visit, then let you
+          watch how those numbers evolve every time you come back.
+        </p>
+        <a
+          href="/login"
+          className="inline-flex items-center px-3 py-2 text-xs font-semibold text-white bg-brand rounded-lg hover:opacity-90 active:scale-[0.98] transition"
+        >
+          Sign in to start tracking
+        </a>
+      </section>
+    )
+  }
+
+  // Loading skeleton — while the first GET resolves, keep the slot
+  // populated with a skeleton instead of an empty fragment.
+  const data = query.data
+  if (query.isLoading) {
+    return (
+      <section
+        aria-labelledby="memory-lane-heading"
+        aria-busy="true"
+        className="bg-bg rounded-2xl border border-border p-4 sm:p-6 space-y-3"
+        data-testid="memory-lane-loading"
+      >
+        <div className="h-3 w-32 rounded bg-surface animate-pulse" />
+        <div className="h-4 w-64 rounded bg-surface animate-pulse" />
+        <div className="h-4 w-48 rounded bg-surface animate-pulse" />
+      </section>
+    )
+  }
+
+  // P0 (2026-06-11) — no prior visit yet (204 from /me/memory-lane).
+  // Previously returned null; now show a welcome card so the slot
+  // never reads as a broken section.
+  if (!data || !data.first_visited_at) {
+    return (
+      <section
+        aria-labelledby="memory-lane-heading"
+        className="bg-bg rounded-2xl border border-border p-4 sm:p-6 space-y-3"
+        data-testid="memory-lane-welcome"
+      >
+        <header>
+          <h3
+            id="memory-lane-heading"
+            className="text-xs sm:text-sm font-semibold tracking-[0.18em] uppercase text-caption"
+          >
+            Your Memory Lane
+          </h3>
+        </header>
+        <p className="text-sm text-ink leading-relaxed max-w-prose">
+          Welcome &mdash; we&rsquo;ll start tracking from here.
+        </p>
+        <p className="text-sm text-body leading-relaxed max-w-prose">
+          Each return visit to{" "}
+          <span className="font-semibold">{target}</span> adds another
+          data point. Come back in a few weeks to see how the
+          model&rsquo;s fair value moved and how a hypothetical
+          &#8377;10,000 position would have evolved.
+        </p>
+      </section>
+    )
+  }
   const firstPrice = data.price_at_first_visit
   const firstFv = data.fair_value_at_first_visit
   const curPrice = data.current_price
