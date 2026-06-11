@@ -26,6 +26,8 @@ import BullsBearsPanel from "@/components/analysis/BullsBearsPanel"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import MemoryLane from "@/components/analysis/MemoryLane"
+import FinancialsChartPanel from "@/components/analysis/FinancialsChartPanel"
+import DividendBarChart from "@/components/analysis/DividendBarChart"
 import { useAuthStore } from "@/store/authStore"
 
 function renderWithClient(ui: React.ReactElement) {
@@ -148,6 +150,79 @@ describe("AnalysisSectionEmptyStates — orphan-header regression suite", () => 
     )
     expect(screen.getByTestId("memory-lane-signin-cta")).toBeInTheDocument()
     expect(container.textContent?.trim().length ?? 0).toBeGreaterThan(0)
+  })
+
+  it("FinancialsChartPanel renders an empty-state card when no FY rows come back", async () => {
+    // Mock the axios-backed `getFinancials` to return a payload with
+    // empty income / cash_flow arrays — mirrors a freshly-added ticker
+    // (or a between-CACHE_VERSION recompute window) where the BSE XBRL
+    // backfill hasn't populated the financials_history rows yet.
+    const apiMod = await import("@/lib/api")
+    vi.spyOn(apiMod, "getFinancials").mockResolvedValue({
+      ticker: "POWERGRID",
+      period: "annual",
+      currency: "INR",
+      currency_unit: "Cr",
+      income: [],
+      cash_flow: [],
+      balance_sheet: [],
+      has_quarterly: false,
+      data_source: "yfinance_fallback",
+      tier_limited: false,
+    } as unknown as Awaited<ReturnType<typeof apiMod.getFinancials>>)
+    const { container } = renderWithClient(
+      <FinancialsChartPanel
+        ticker="POWERGRID"
+        currency="INR"
+        sector="Utilities"
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId("financials-chart-empty")).toBeInTheDocument()
+    })
+    expect(container.textContent?.trim().length ?? 0).toBeGreaterThan(0)
+  })
+
+  it("DividendBarChart renders an empty-state card with known-payer copy when has_dividends=true but fy_history is empty", () => {
+    // POWERGRID-shape — has_dividends true and a current yield, but
+    // the per-FY DPS series hasn't been backfilled yet.
+    const { container } = renderWithClient(
+      <DividendBarChart
+        dividend={{
+          has_dividends: true,
+          ticker: "POWERGRID",
+          message: "",
+          current_yield_pct: 5.4,
+          payout_ratio_pct: 60,
+          five_yr_avg_yield: 5.1,
+          dividend_rate_per_share: 12,
+          last_dividend_value: 3,
+          next_ex_date: null,
+          next_ex_days: null,
+          consecutive_years: 18,
+          fy_history: [],
+          coverage_ratio: 1.5,
+          sustainability: "strong",
+          sustainability_reason: "covered by FCF",
+        }}
+        currency="INR"
+        ticker="POWERGRID"
+      />,
+    )
+    expect(screen.getByTestId("dividend-bar-chart-empty")).toBeInTheDocument()
+    expect(container.textContent?.trim().length ?? 0).toBeGreaterThan(0)
+    // Known-payer phrasing — re-uses the existing chip data instead of
+    // claiming the stock pays no dividends.
+    expect(container.textContent ?? "").toMatch(/backfill/i)
+  })
+
+  it("DividendBarChart renders an empty-state card with non-payer copy when there is no dividend payload", () => {
+    const { container } = renderWithClient(
+      <DividendBarChart dividend={null} currency="INR" ticker="WIPRO" />,
+    )
+    expect(screen.getByTestId("dividend-bar-chart-empty")).toBeInTheDocument()
+    expect(container.textContent?.trim().length ?? 0).toBeGreaterThan(0)
+    expect(container.textContent ?? "").toMatch(/No dividend history/i)
   })
 
   it("MemoryLane renders a welcome card for authed users with no prior visit", async () => {
