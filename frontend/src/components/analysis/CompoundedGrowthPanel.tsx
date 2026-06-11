@@ -69,16 +69,45 @@ export default function CompoundedGrowthPanel({ ticker }: Props) {
 
   const panel: PanelData | null = query.data?.compounded_growth ?? null
 
-  // Hide entirely when we have nothing meaningful to show — keeps the
-  // page from rendering a 12-cell wall of "—" for fresh listings or
-  // when older cached payloads predate Day-103c.
-  if (!panel) return null
-
-  const allRowsEmpty = ROWS.every((row) => {
-    const metric = panel[row.key]
-    return WINDOWS.every((w) => metric?.[w] === null || metric?.[w] === undefined)
-  })
-  if (allRowsEmpty) return null
+  // P0 empty-state fix (2026-06-11) — previously returned null for
+  // null / all-empty payloads, which left the surrounding
+  // "COMPOUNDED GROWTH" CollapsibleSection orphaned. Now we render an
+  // explanatory empty state so the slot never goes blank.
+  const allRowsEmpty = panel
+    ? ROWS.every((row) => {
+        const metric = panel[row.key]
+        return WINDOWS.every(
+          (w) => metric?.[w] === null || metric?.[w] === undefined,
+        )
+      })
+    : true
+  if (!panel || allRowsEmpty) {
+    return (
+      <section
+        className="bg-bg rounded-2xl border border-border p-4"
+        aria-label={`Compounded growth — pending for ${ticker}`}
+        data-testid="compounded-growth-empty"
+      >
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-ink">Compounded growth</h2>
+          <p className="text-xs text-caption mt-1">
+            Annualised growth rates over the trailing 3, 5 and 10 years.
+          </p>
+        </div>
+        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center">
+          <p className="text-sm font-medium text-ink mb-1">
+            Compounded growth rates not yet computed
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            CAGRs need at least four consecutive annual filings before
+            the 3y window populates, and ten before the 10y window
+            does. Newly listed names and tickers in a fresh recompute
+            window may show this slot empty for a short while.
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   // Use revenue.as_of_fy as the canonical "as of" — all 4 metrics
   // share the same source year by construction.

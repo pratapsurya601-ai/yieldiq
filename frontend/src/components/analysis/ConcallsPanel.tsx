@@ -122,9 +122,28 @@ export default function ConcallsPanel({ ticker }: Props) {
       </div>
 
       {items.length === 0 ? (
-        <p className="text-xs italic text-caption">
-          Concall transcripts coming soon for this ticker.
-        </p>
+        // P0 empty-state fix (2026-06-11) — explain WHY the slot is
+        // empty rather than the previous one-liner "coming soon".
+        // Coverage depends on the Anthropic AI-summary backfill on
+        // top of the BSE/NSE concall ingestion cron; on tickers where
+        // the cron hasn't picked up a filing yet, the panel previously
+        // read as a broken section.
+        <div
+          role="status"
+          className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center"
+          data-testid="concalls-panel-empty"
+        >
+          <p className="text-sm font-medium text-ink mb-1">
+            No concall transcripts in our library yet
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            Our quarterly concall library ingests transcripts from BSE
+            and NSE corporate-announcements, then runs an AI summariser
+            over the raw text. Coverage lands within a few days of each
+            call once the filing is published. Newer listings and a few
+            cohorts may not have full coverage yet.
+          </p>
+        </div>
       ) : (
         <>
           <ul className="space-y-4">

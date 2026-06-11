@@ -1,12 +1,16 @@
 /**
  * Phase 4 manifesto (Paradigm 11) — MemoryLane personal history widget.
  *
- * Pins:
- *   1. Anon user (no token) → renders null, never calls GET.
- *   2. Logged-in user, 204 from GET → renders null.
+ * Pins (updated 2026-06-11 — PR #901 empty-state policy):
+ *   1. Anon user (no token) → renders a sign-in CTA card, never calls GET.
+ *   2. Logged-in user, 204 from GET → renders a "welcome from here" card.
  *   3. Logged-in user, populated payload → renders days/price/FV/hypo10k
  *      copy.
  *   4. Typing in the note textarea debounces a PUT after 1s (auto-save).
+ *
+ * Previous behavior (returning null on cases 1 and 2) left the parent
+ * "YOUR MEMORY LANE" section header on the analysis page with no body
+ * below it; the component now always renders an explanatory slot.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { render, screen, waitFor, act, fireEvent } from "@testing-library/react"
@@ -89,22 +93,37 @@ afterEach(() => {
 })
 
 // ─────────────────────────────────────────────────────────────────
-// 1. Anon — never renders, never fetches
+// 1. Anon + 204 — empty-state cards (PR #901 fix — no more orphan
+//    "YOUR MEMORY LANE" header). Both branches now render a section
+//    with explanatory copy instead of returning null.
 // ─────────────────────────────────────────────────────────────────
 describe("MemoryLane — empty states", () => {
-  it("renders null and skips the GET when the user is anonymous", async () => {
+  it("renders a sign-in CTA and skips the GET when the user is anonymous", async () => {
     const fetchMock = installFetchMock()
     const { container } = renderWithClient(
       <MemoryLane ticker="HDFCBANK.NS" companyName="HDFC Bank" />,
     )
-    // The component returns null; container has no section.
-    expect(container.querySelector("section")).toBeNull()
-    // A tick to confirm no async fetch was queued.
+    // The component now renders a sign-in CTA section instead of null.
+    const section = container.querySelector(
+      '[data-testid="memory-lane-signin-cta"]',
+    )
+    expect(section).not.toBeNull()
+    // Section header still present so the slot reads as a real section.
+    expect(
+      screen.getByRole("heading", { name: /your memory lane/i }),
+    ).toBeInTheDocument()
+    // Sign-in nudge copy + CTA link.
+    expect(screen.getByText(/sign in to keep a personal record/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole("link", { name: /sign in to start tracking/i }),
+    ).toBeInTheDocument()
+    // A tick to confirm no async fetch was queued — auth gate still
+    // prevents the network call.
     await new Promise((r) => setTimeout(r, 10))
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("renders null when the GET returns 204 (no prior visit)", async () => {
+  it("renders a welcome card when the GET returns 204 (no prior visit)", async () => {
     useAuthStore.setState({
       token: "test-token",
       userId: "user-alice",
@@ -116,7 +135,25 @@ describe("MemoryLane — empty states", () => {
       <MemoryLane ticker="HDFCBANK.NS" companyName="HDFC Bank" />,
     )
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    expect(container.querySelector("section")).toBeNull()
+    // Wait for the welcome card to mount (replaces the loading skeleton
+    // after the 204 resolves).
+    await waitFor(() => {
+      expect(
+        container.querySelector('[data-testid="memory-lane-welcome"]'),
+      ).not.toBeNull()
+    })
+    // Section header still present.
+    expect(
+      screen.getByRole("heading", { name: /your memory lane/i }),
+    ).toBeInTheDocument()
+    // Welcome copy from the component (uses HTML entities — match on a
+    // stable substring).
+    expect(
+      screen.getByText(/we.ll start tracking from here/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/each return visit to/i),
+    ).toBeInTheDocument()
   })
 })
 
