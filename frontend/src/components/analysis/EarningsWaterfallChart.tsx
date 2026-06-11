@@ -42,6 +42,7 @@ import {
 } from "recharts"
 import { getFinancials, type FinancialYear, type FinancialsResponse } from "@/lib/api"
 import { getDisplayRevenue, getDisplayRevenueLabel } from "@/lib/sectorFinancials"
+import { formatCrore, formatPct as formatPctCanonical } from "@/lib/formatNumbers"
 
 interface EarningsWaterfallChartProps {
   ticker: string
@@ -211,19 +212,14 @@ export function buildChartRows(
 // ────────────────────────────────────────────────────────────────────
 // Formatting helpers
 // ────────────────────────────────────────────────────────────────────
+/* Canonical formatters (lib/formatNumbers) — identical output to the
+   old local implementations; single source of truth for Cr / Lakh Cr
+   tiering, signing, and the em-dash fallback. */
 function formatCr(cr: number | null | undefined): string {
-  if (cr == null || !Number.isFinite(cr)) return "—"
-  const abs = Math.abs(cr)
-  const sign = cr < 0 ? "-" : ""
-  if (abs >= 100_000) return `${sign}₹${(abs / 100_000).toFixed(2)} Lakh Cr`
-  if (abs >= 1_000) return `${sign}₹${Math.round(abs).toLocaleString("en-IN")} Cr`
-  if (abs >= 1) return `${sign}₹${abs.toFixed(1)} Cr`
-  return `${sign}₹${abs.toFixed(2)} Cr`
+  return formatCrore(cr)
 }
 function formatPct(pct: number | null | undefined): string {
-  if (pct == null || !Number.isFinite(pct)) return "—"
-  const sign = pct >= 0 ? "+" : ""
-  return `${sign}${pct.toFixed(1)}%`
+  return formatPctCanonical(pct, { signed: true })
 }
 
 // ────────────────────────────────────────────────────────────────────

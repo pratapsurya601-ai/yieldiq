@@ -539,6 +539,12 @@ function toneForGap(gap: number | null): string {
  * "Some New Method" rather than "some new method".
  */
 const METHOD_LABELS: Record<string, string> = {
+  // multiples_method values ("pe" | "pb" | "ev_ebitda") previously fell
+  // through to the title-case fallback and rendered as "Pe" / "Pb" /
+  // "Ev Ebitda" — raw-field jargon in a visible label. Hand-tuned:
+  pe: "P/E multiple",
+  pb: "P/B multiple",
+  ev_ebitda: "EV/EBITDA multiple",
   bank_composite_2_method: "Bank Composite (2-method)",
   bank_composite_residual_multiples_analyst:
     "Bank Composite (Residual Income × Multiples × Wall St)",

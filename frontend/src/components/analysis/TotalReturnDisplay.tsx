@@ -27,6 +27,7 @@ import {
 } from "recharts"
 import { getTotalReturn, type TotalReturnResponse } from "@/lib/api"
 import { formatCurrency } from "@/lib/utils"
+import { formatPct as formatPctCanonical } from "@/lib/formatNumbers"
 
 interface Props {
   ticker: string
@@ -46,12 +47,12 @@ const YEARS_OPTIONS: { key: 1 | 3 | 5 | 10; label: string }[] = [
 
 const DEFAULT_NOTIONAL = 100_000
 
-// ── tiny helpers (kept local — no shared util dep) ────────────────────
+// ── tiny helpers ──────────────────────────────────────────────────────
 
+/* Returns are deltas → signed percentage via the canonical formatter
+   (lib/formatNumbers). Missing values render the standard em-dash. */
 function formatPct(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "--"
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${value.toFixed(1)}%`
+  return formatPctCanonical(value, { signed: true })
 }
 
 function pctTone(value: number | null | undefined): string {
@@ -62,7 +63,7 @@ function pctTone(value: number | null | undefined): string {
 }
 
 function formatLakhInr(value: number | null | undefined, currency: string): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "--"
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—"
   return formatCurrency(value, currency, null)
 }
 

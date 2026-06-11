@@ -8,6 +8,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import SectorTable from "./SectorTable"
 import { NumberFlip, RevealStagger } from "@/components/motion"
+import NumberContext from "@/components/common/NumberContext"
 import {
   SECTOR_PAGE_SLUGS,
   SECTOR_DISPLAY,
@@ -166,6 +167,7 @@ export default async function SectorPage(
             numericValue={data.aggregates.median_mos_pct}
             decimals={1}
             suffix="%"
+            context={cohortContext(data.aggregates.ticker_count)}
           />
         )}
         {data.aggregates.median_score !== null && data.aggregates.median_score !== undefined && (
@@ -173,6 +175,7 @@ export default async function SectorPage(
             label="Median score"
             numericValue={data.aggregates.median_score}
             decimals={0}
+            context={cohortContext(data.aggregates.ticker_count)}
           />
         )}
         {data.aggregates.median_pe !== null && data.aggregates.median_pe !== undefined && (
@@ -180,6 +183,7 @@ export default async function SectorPage(
             label="Median P/E"
             numericValue={data.aggregates.median_pe}
             decimals={1}
+            context={cohortContext(data.aggregates.ticker_count)}
           />
         )}
         {data.aggregates.median_roe !== null && data.aggregates.median_roe !== undefined && (
@@ -188,6 +192,7 @@ export default async function SectorPage(
             numericValue={data.aggregates.median_roe}
             decimals={1}
             suffix="%"
+            context={cohortContext(data.aggregates.ticker_count)}
           />
         )}
       </RevealStagger>
@@ -239,16 +244,31 @@ export default async function SectorPage(
   )
 }
 
+/**
+ * Number-comprehension context (2026-06-11): each median tile says
+ * how wide the cohort behind it is. Uses ticker_count, which is
+ * already in the aggregates payload — no invented data.
+ */
+function cohortContext(tickerCount: number | null | undefined): string | null {
+  if (typeof tickerCount !== "number" || !Number.isFinite(tickerCount) || tickerCount <= 0) {
+    return null
+  }
+  return `${tickerCount} ${tickerCount === 1 ? "stock" : "stocks"}`
+}
+
 function Stat({
   label,
   numericValue,
   decimals,
   suffix,
+  context,
 }: {
   label: string
   numericValue: number
   decimals: number
   suffix?: string
+  /** e.g. "12 stocks" — rendered as a muted "across N stocks" caption. */
+  context?: string | null
 }) {
   // Motion (2026-06-11): NumberFlip tweens the value on first view.
   // Reduced-motion users see the static number — the primitive
@@ -263,6 +283,7 @@ function Stat({
           suffix={suffix ?? ""}
         />
       </div>
+      <NumberContext label="across" value={context} className="block mt-0.5 text-[10px]" />
     </div>
   )
 }

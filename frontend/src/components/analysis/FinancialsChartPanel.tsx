@@ -36,6 +36,7 @@ import {
   CartesianGrid,
 } from "recharts"
 import { getFinancials, type FinancialYear, type FinancialsResponse } from "@/lib/api"
+import { formatCompactCount } from "@/lib/formatNumbers"
 import {
   getDisplayRevenue,
   getDisplayRevenueLabel,
@@ -82,7 +83,9 @@ function formatTooltip(value: number | null, unit: string): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—"
   const abs = Math.abs(value)
   const sign = value < 0 ? "-" : ""
-  if (abs >= 1000) return `${sign}${abs.toLocaleString("en-IN", { maximumFractionDigits: 0 })} ${unit}`
+  // Canonical Indian-grouping count formatter (lib/formatNumbers) for
+  // the whole-number tier; sub-1000 values keep one decimal of detail.
+  if (abs >= 1000) return `${sign}${formatCompactCount(abs)} ${unit}`
   return `${sign}${abs.toLocaleString("en-IN", { maximumFractionDigits: 1 })} ${unit}`
 }
 

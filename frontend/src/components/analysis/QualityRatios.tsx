@@ -4,7 +4,9 @@ import { useState, useMemo } from "react"
 import type { QualityOutput, InsightCards as InsightCardsType } from "@/types/api"
 import type { RatioHistoryResponse, RatioHistoryPeriod } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { formatMultiple, formatPct } from "@/lib/formatNumbers"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import NumberContext from "@/components/common/NumberContext"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import Sparkline, { type SparklinePoint } from "@/components/analysis/Sparkline"
 import RatioTrendModal, { type RatioTrendSeriesPoint } from "@/components/analysis/RatioTrendModal"
@@ -52,6 +54,22 @@ function seriesToPoints(series: RatioTrendSeriesPoint[]): SparklinePoint[] {
   return series.map(p => (p.value === null ? null : p.value))
 }
 
+/**
+ * Mean of the last (up to) five numeric points in a ratio-history
+ * series — the "5y avg" context caption on each ratio card. Requires
+ * at least 3 numeric years so a single stray filing can't masquerade
+ * as a five-year norm. Data source is the same ratioHistory payload
+ * that drives the sparklines — no new data is invented.
+ */
+function avgOfLastFive(series: RatioTrendSeriesPoint[]): number | null {
+  const vals = series
+    .slice(-5)
+    .map(p => p.value)
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+  if (vals.length < 3) return null
+  return vals.reduce((s, v) => s + v, 0) / vals.length
+}
+
 /* ------------------------------------------------------------------ */
 /* Tiny card primitive                                                  */
 /* ------------------------------------------------------------------ */
@@ -63,6 +81,7 @@ function RatioCard({
   metricKey,
   sparklinePoints,
   onExpand,
+  fiveYearAvg,
 }: {
   label: string
   value: string
@@ -74,6 +93,8 @@ function RatioCard({
   sparklinePoints?: SparklinePoint[]
   /** If provided, card becomes clickable and opens the expanded trend modal. */
   onExpand?: () => void
+  /** Pre-formatted 5-year average ("17.2%"), shown as a muted context caption. */
+  fiveYearAvg?: string | null
 }) {
   const toneClass = {
     green:   "border-l-green-500",
@@ -108,6 +129,11 @@ function RatioCard({
       {subtitle && (
         <p className="text-[10px] text-caption mt-0.5">{subtitle}</p>
       )}
+      <NumberContext
+        label="5y avg"
+        value={fiveYearAvg}
+        className="block mt-0.5 text-[10px]"
+      />
       {hasTrend && (
         <div className="mt-2">
           <Sparkline
@@ -209,16 +235,16 @@ function revenueCagrTone(v: number | null | undefined): "green" | "amber" | "red
   return "red"
 }
 
+/* Canonical formatters (lib/formatNumbers) — same output as the old
+   local toFixed() implementations, single source of truth for the
+   em-dash fallback and decimal convention. */
 function fmtRatio(v: number | null | undefined, suffix: string): string {
-  if (v === null || v === undefined) return "—"
-  return `${v.toFixed(1)}${suffix}`
+  return suffix === "x" ? formatMultiple(v) : formatPct(v)
 }
 
-/* Revenue CAGR is a DECIMAL — convert to percent for display.
-   toFixed already preserves the minus sign for negative growth. */
+/* Revenue CAGR is a DECIMAL — convert to percent for display. */
 function fmtCagr(v: number | null | undefined): string {
-  if (v === null || v === undefined) return "—"
-  return `${(v * 100).toFixed(1)}%`
+  return formatPct(v == null ? null : v * 100)
 }
 
 /* ------------------------------------------------------------------ */
@@ -415,6 +441,13 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
     revenue_yoy: buildSeries(ratioHistory, "revenue_yoy"),
     roa: buildSeries(ratioHistory, "roa"),
   }), [ratioHistory])
+
+  // 5y-avg context captions (NumberContext). Derived from the SAME
+  // ratioHistory payload as the sparklines — surfaced, not invented.
+  const avg5 = (series: RatioTrendSeriesPoint[], kind: "%" | "x"): string | null => {
+    const a = avgOfLastFive(series)
+    return a == null ? null : fmtRatio(a, kind)
+  }
 
   // Expanded-chart modal state — single modal, driven by which ratio is open.
   type OpenRatio =
@@ -618,6 +651,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
               value={fmtRatio(quality.roa, "%")}
               tone={roaTone(quality.roa)}
               metricKey="roa"
+              fiveYearAvg={avg5(trends.roa, "%")}
               sparklinePoints={seriesToPoints(trends.roa)}
               onExpand={() => setOpenRatio({
                 key: "roa", title: "ROA \u2014 10-year trend",
@@ -633,6 +667,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
                 : quality.roe >= 15 ? "green"
                 : quality.roe >= 10 ? "amber" : "red"}
               metricKey="roe"
+              fiveYearAvg={avg5(trends.roe, "%")}
               sparklinePoints={seriesToPoints(trends.roe)}
               onExpand={() => {
                 const tone: "green" | "amber" | "red" | "neutral" =
@@ -701,6 +736,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
             value={fmtRatio(roce, "%")}
             tone={roceTone(roce)}
             metricKey="roce"
+            fiveYearAvg={avg5(trends.roce, "%")}
             sparklinePoints={seriesToPoints(trends.roce)}
             onExpand={() => setOpenRatio({
               key: "roce", title: "ROCE \u2014 10-year trend",
@@ -713,6 +749,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
             value={fmtRatio(evEbitda, "x")}
             tone={evEbitdaTone(evEbitda)}
             metricKey="ev_ebitda"
+            fiveYearAvg={avg5(trends.ev_ebitda, "x")}
             sparklinePoints={seriesToPoints(trends.ev_ebitda)}
             onExpand={() => setOpenRatio({
               key: "ev_ebitda", title: "EV / EBITDA \u2014 10-year trend",
@@ -726,6 +763,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
             subtitle={debt_ebitda_label ?? undefined}
             tone={debtEbitdaTone(debt_ebitda)}
             metricKey="debt_ebitda"
+            fiveYearAvg={avg5(trends.debt_ebitda, "x")}
             sparklinePoints={seriesToPoints(trends.debt_ebitda)}
             onExpand={() => setOpenRatio({
               key: "debt_ebitda", title: "Debt / EBITDA \u2014 10-year trend",
@@ -738,6 +776,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
             value={fmtRatio(interest_coverage, "x")}
             tone={interestCoverageTone(interest_coverage)}
             metricKey="interest_coverage"
+            fiveYearAvg={avg5(trends.interest_cov, "x")}
             sparklinePoints={seriesToPoints(trends.interest_cov)}
             onExpand={() => setOpenRatio({
               key: "interest_cov", title: "Interest Coverage \u2014 10-year trend",
@@ -756,6 +795,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
             subtitle="Short-term liquidity"
             tone={currentRatioTone(currentRatio)}
             metricKey="current_ratio"
+            fiveYearAvg={avg5(trends.current_ratio, "x")}
             sparklinePoints={seriesToPoints(trends.current_ratio)}
             onExpand={() => setOpenRatio({
               key: "current_ratio", title: "Current Ratio \u2014 10-year trend",
@@ -770,6 +810,7 @@ export default function QualityRatios({ quality, insights, ratioHistory, bankKpi
             subtitle="Revenue per \u20b9 of assets"
             tone={assetTurnoverTone(assetTurnover)}
             metricKey="asset_turnover"
+            fiveYearAvg={avg5(trends.asset_turnover, "x")}
             sparklinePoints={seriesToPoints(trends.asset_turnover)}
             onExpand={() => setOpenRatio({
               key: "asset_turnover", title: "Asset Turnover \u2014 10-year trend",
