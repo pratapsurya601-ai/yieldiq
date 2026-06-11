@@ -165,11 +165,6 @@ export default function HonestHero({
       ? formatCurrency(headlineFv, currency, ticker)
       : "—"
 
-  const confNote =
-    signals.confidence != null && !signals.dataLimited
-      ? `conf ${Math.round(signals.confidence)}%`
-      : null
-
   const showClampNote = signals.fairValueClamped && !signals.dataLimited
 
   const showValueTrapPara =
@@ -186,18 +181,21 @@ export default function HonestHero({
           {/* Verdict colour bar — saturated cascade carries the tier */}
           <span aria-hidden className={cn("block h-1 -mt-6 md:-mt-8 -mx-6 md:-mx-8 mb-4 rounded-t-2xl", palette.bar)} />
 
-          {/* "1. INTRINSIC VALUE" — the AlphaSpread-style first numbered
-              section REPLACES the legacy FV/Discount dl grid + the
-              DcfMultiplesChip pill row (feat/alphaspread-style-opening).
-              Centered numbered heading, SEBI-templated narrative with
-              the canonical headline IV, "Based on N methods" rows (DCF /
-              Peer Multiples / sector estimator), italic reconciliation
-              note, and the right-hand IV card (huge figure + Discount /
-              Premium badge + IV-vs-price bars). The verdict pill rides
-              the headingExtra slot so it stays the single above-the-fold
-              verdict surface. Degraded (WIPRO-clamp) payloads keep the
-              clamped-FV + DegradedScenarioCard treatment via
-              degradedContent — heading stays, so numbering never gaps. */}
+          {/* "1. INTRINSIC VALUE" — the investment-thesis redesign
+              (feat/intrinsic-value-thesis-redesign). Centered numbered
+              heading, then IntrinsicHero (headline gap numeral + SEBI-
+              templated narrative with the canonical headline IV),
+              ValuationRangeStrip (bear→bull band + IV/price markers),
+              ScenarioCards (bear/base/bull values + assumptions),
+              "Based on N methods" rows + reconciliation note beside the
+              ConfidenceGauge, and the ValuationDrivers strip. The
+              verdict pill rides the headingExtra slot so it stays the
+              single above-the-fold verdict surface; the old "conf N%"
+              text chip is retired — confidence now renders inside the
+              section (hero badge + gauge). Degraded (WIPRO-clamp)
+              payloads keep the clamped-FV + DegradedScenarioCard
+              treatment via degradedContent — heading stays, so
+              numbering never gaps. */}
           <IntrinsicValueSection
             ticker={ticker}
             displayTicker={displayTicker}
@@ -210,24 +208,30 @@ export default function HonestHero({
             multiplesMethod={payload.multiples_method ?? null}
             sectorSpecificValue={payload.sector_specific_fv ?? null}
             sectorSpecificLabel={payload.sector_specific_label ?? null}
+            scenarios={payload.scenarios ?? null}
+            confidence={signals.confidence}
+            confidencePillars={{
+              model_confidence: payload.valuation?.model_confidence_score ?? null,
+              data_quality: payload.valuation?.data_quality_score ?? null,
+              valuation_stability:
+                payload.valuation?.valuation_stability_score ?? null,
+            }}
+            quality={payload.quality ?? null}
+            sectorMedians={payload.sector_medians ?? null}
+            fcfYield={payload.insights?.fcf_yield ?? null}
             dataLimited={signals.dataLimited}
             degraded={signals.degraded}
             headingExtra={
-              <>
-                <span
-                  id="honest-hero-heading"
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold",
-                    pillClasses(tier),
-                  )}
-                >
-                  <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", dotForTier(tier))} />
-                  {verdictLabel}
-                </span>
-                {confNote && (
-                  <span className="text-[11px] text-caption">{confNote}</span>
+              <span
+                id="honest-hero-heading"
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold",
+                  pillClasses(tier),
                 )}
-              </>
+              >
+                <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", dotForTier(tier))} />
+                {verdictLabel}
+              </span>
             }
             degradedContent={
               <div className="mt-2">
