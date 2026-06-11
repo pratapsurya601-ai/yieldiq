@@ -65,10 +65,13 @@ SECTOR_ALIASES: dict[str, str] = {
     "technology":                        "IT Services",
     # Banks
     "bank":                              "Banks",
+    "banks":                             "Banks",
     "banking":                           "Banks",
     "private bank":                      "Banks",
+    "private banks":                     "Banks",
     "private sector bank":               "Banks",
     "public sector bank":                "PSU Bank",
+    "psu bank":                          "PSU Bank",
     "psu banks":                         "PSU Bank",
     # Pharma
     "pharmaceuticals":                   "Pharma",
@@ -160,12 +163,36 @@ SECTOR_COHORT_RULES: dict[str, dict] = {
         # yfinance stores banks under "Financial Services" with
         # industry "Banks - Regional"/"Banks - Diversified". Post-PR
         # #196, NSE-canonical "Banks" lands directly in stocks.sector.
+        #
+        # v_composite_warm_path_estimator_fix_2026_06_11: the NSE rows
+        # actually carry sector "Bank" (singular — verified live on
+        # HDFCBANK via /api/v1/prism) and industries like "Private
+        # Sector Bank" which the `industry_like='Banks%'` filter never
+        # matched, so the cohort collapsed to <3 peers and the hex
+        # Value pillar fell back to the broad-market national cohort
+        # on every bank. `sectors_unambiguous` rows are bank-only
+        # sector labels matched WITHOUT the industry filter; the
+        # `industry_like` filter applies only to the coarse
+        # "Financial Services" bucket where it disambiguates banks
+        # from NBFCs / AMCs / insurers. The canonical_sector column
+        # match accepts the `canonicals` variants the backfill wrote
+        # (Bank / Private Bank / PSU Bank — see _build_cohort_query
+        # comment about the canonical backfill routing).
         "sectors": [
             "Financial Services",        # yfinance legacy (filtered by industry_like)
             "Banks",                     # NSE canonical (post-PR #196)
         ],
         # Banks - Regional / Banks - Diversified / etc.
         "industry_like": "Banks%",
+        "sectors_unambiguous": [
+            "Banks", "Bank", "Banking",
+            "Private Bank", "Private Banks", "Private Sector Bank",
+            "PSU Bank", "Public Sector Bank",
+        ],
+        "canonicals": [
+            "Banks", "Bank", "Banking",
+            "Private Bank", "PSU Bank", "Public Sector Bank",
+        ],
     },
     "PSU Bank": {
         # yfinance does not split PSU vs private — fall back to all
@@ -175,6 +202,15 @@ SECTOR_COHORT_RULES: dict[str, dict] = {
             "Banks",                     # NSE canonical (post-PR #196)
         ],
         "industry_like": "Banks%",
+        "sectors_unambiguous": [
+            "Banks", "Bank", "Banking",
+            "Private Bank", "Private Banks", "Private Sector Bank",
+            "PSU Bank", "Public Sector Bank",
+        ],
+        "canonicals": [
+            "Banks", "Bank", "Banking",
+            "Private Bank", "PSU Bank", "Public Sector Bank",
+        ],
     },
     "Financial Services": {
         "sectors": ["Financial Services"],

@@ -952,6 +952,13 @@ class AnalysisResponse(BaseModel):
     # +Phase-C scheme.
     sector_specific_fv: Optional[float] = None
     sector_specific_label: Optional[str] = None
+    # Why the sector engine did NOT produce a value, when the ticker is
+    # routed but the underlying data is genuinely missing (e.g. a bank
+    # with no net-interest-margin data anywhere). Mirrors the *_reason
+    # convention on the Phase-B estimator slots. None when the engine
+    # produced a value or the ticker is not routed.
+    # v_composite_warm_path_estimator_fix_2026_06_11.
+    sector_specific_reason: Optional[str] = None
     # ── Phase B mega-wiring (2026-06-10) — overlay multiplier ──
     # Two overlay engines emit a multiplier on the composite rather
     # than a standalone FV: IT services overlay (TCS/INFY/WIPRO/...

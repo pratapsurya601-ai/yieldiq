@@ -13,7 +13,30 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from backend.services import sector_medians_for_ticker as svc
+
+
+@pytest.fixture(autouse=True)
+def _no_market_metrics(monkeypatch):
+    """Keep these tests hermetic against a configured DATABASE_URL.
+
+    Since v_composite_warm_path_estimator_fix_2026_06_11 the helper
+    sources cohort PE / PB from `market_metrics` first (payload quality
+    slots are the fallback). Without this stub, a dev machine with live
+    DB credentials would have REAL market multiples win over the
+    fixture payload values and the median assertions below would track
+    the market instead of the fixtures.
+    """
+    from backend.services import market_multiples
+    monkeypatch.setattr(
+        market_multiples, "_fetch_rows",
+        lambda tickers: {t: {"pe": None, "pb": None} for t in tickers},
+    )
+    market_multiples._reset_cache_for_tests()
+    yield
+    market_multiples._reset_cache_for_tests()
 
 
 def _payload(pe: float | None, pb: float | None, roe: float | None,

@@ -564,28 +564,40 @@ def is_ddm_applicable(
                     f"sector '{sector}' excluded from DDM ({kw})",
                 )
 
+    # Reason strings below are USER-FACING — the router inject writes
+    # them verbatim to `ddm_reason`, which the composite-composition
+    # panel renders. Keep them descriptive sentences without raw field
+    # names (v_composite_warm_path_estimator_fix_2026_06_11; the old
+    # "payout_ratio 26% < 30% (...)" form leaked an internal field
+    # name to the analysis page).
     if payout_ratio is None:
-        return (False, "payout_ratio unknown")
+        return (False, "Dividend payout data is unavailable for this company")
     try:
         po = float(payout_ratio)
     except (TypeError, ValueError):
-        return (False, "payout_ratio non-numeric")
+        return (False, "Dividend payout data could not be read for this company")
     if po < 0.30:
         return (
             False,
-            f"payout_ratio {po:.0%} < 30% (DDM understates FV at low payouts)",
+            (
+                f"Dividend payout of {po:.0%} sits below the 30% level "
+                "where a dividend-discount model becomes informative"
+            ),
         )
 
     if dividend_streak_years is None:
-        return (False, "dividend_streak_years unknown")
+        return (False, "Dividend payout history length is unavailable")
     try:
         streak = int(dividend_streak_years)
     except (TypeError, ValueError):
-        return (False, "dividend_streak_years non-numeric")
+        return (False, "Dividend payout history length could not be read")
     if streak < 5:
         return (
             False,
-            f"dividend streak {streak}y < 5y (growth assumption speculative)",
+            (
+                f"Dividend track record of {streak} years sits below the "
+                "5-year streak a dividend-growth assumption is anchored to"
+            ),
         )
 
     return (True, "applicable")

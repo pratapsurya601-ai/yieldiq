@@ -96,6 +96,9 @@ def _get_current_price(payload: dict) -> Optional[float]:
 def compute_multiples_fv(
     payload: dict,
     sector_medians: Optional[dict],
+    *,
+    ticker_pe: Optional[float] = None,
+    ticker_pb: Optional[float] = None,
 ) -> tuple[Optional[float], Optional[MultiplesMethod]]:
     """Compute the peer-relative fair value and the method that drove it.
 
@@ -111,6 +114,14 @@ def compute_multiples_fv(
         sector_medians: The {pe, pb, roe, div_yield, op_margin} dict
             produced by `sector_medians_for_ticker`. None or empty -> no
             chip.
+        ticker_pe / ticker_pb: explicit own-ticker multiples used as a
+            FALLBACK when the payload does not carry them. The canonical
+            AnalysisResponse never carried `quality.pe_ratio` /
+            `quality.pb_ratio`, so the router inject passes the latest
+            `market_metrics` values here
+            (v_composite_warm_path_estimator_fix_2026_06_11). Payload
+            slots still win when present, preserving the original
+            precedence for dict-shaped callers / fixtures.
 
     Returns:
         (multiples_based_fv, method) — both populated together, or both
@@ -128,6 +139,8 @@ def compute_multiples_fv(
     # the PB fallback because P/E is meaningless for banks under
     # local accounting practice).
     pe = _get_ticker_pe(payload)
+    if pe is None:
+        pe = _coerce_pos_float(ticker_pe)
     median_pe = _coerce_pos_float(sector_medians.get("pe"))
     if pe is not None and median_pe is not None:
         try:
@@ -141,6 +154,8 @@ def compute_multiples_fv(
     # cohorts often run through P/B-only valuation; the frontend treats
     # the chip identically and the tooltip label switches.
     pb = _get_ticker_pb(payload)
+    if pb is None:
+        pb = _coerce_pos_float(ticker_pb)
     median_pb = _coerce_pos_float(sector_medians.get("pb"))
     if pb is not None and median_pb is not None:
         try:

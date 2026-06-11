@@ -239,17 +239,61 @@ def _build_cohort_query(canonical_sector: str) -> tuple[str, dict]:
 
     sectors: list[str] = list(rule.get("sectors") or [])
     industry_like: Optional[str] = rule.get("industry_like")
-    params: dict = {"sectors": sectors, "canonical": canonical_sector}
-    # Primary: stored canonical_sector. Fallback: raw-sector ANY-list
-    # for rows where the backfill hasn't reached yet (canonical IS NULL).
-    sql = base + (
-        "\n          AND (s.canonical_sector = :canonical "
-        "OR (s.canonical_sector IS NULL AND s.sector = ANY(:sectors)))"
-    )
+    # v_composite_warm_path_estimator_fix_2026_06_11 — two optional
+    # rule extensions that fix the bank-cohort collapse (HDFCBANK et
+    # al degrading to the broad-market fallback on the hex Value
+    # pillar):
+    #   * `canonicals`          — accepted canonical_sector variants
+    #                             (the backfill routes banks to Bank /
+    #                             Private Bank / PSU Bank, not the
+    #                             rule key "Banks").
+    #   * `sectors_unambiguous` — raw-sector labels that identify the
+    #                             cohort on their own; matched WITHOUT
+    #                             the industry filter (NSE-style rows
+    #                             carry sector "Bank" + industry
+    #                             "Private Sector Bank", which the
+    #                             'Banks%' pattern never matched).
+    # The `industry_like` filter now applies ONLY to the ambiguous
+    # raw-sector list (the coarse yfinance "Financial Services"
+    # bucket, where it disambiguates banks from NBFCs / AMCs /
+    # insurers) — applying it unconditionally also excluded rows whose
+    # canonical_sector already matched.
+    canonicals: list[str] = list(rule.get("canonicals") or [canonical_sector])
+    sectors_unambiguous: list[str] = list(rule.get("sectors_unambiguous") or [])
+    params: dict = {
+        "sectors": sectors,
+        "canonical": canonical_sector,
+        "canonicals": canonicals,
+    }
 
     if industry_like:
-        sql += "\n          AND s.industry ILIKE :industry_like"
+        clauses = [
+            "s.canonical_sector = ANY(:canonicals)",
+            (
+                "(s.canonical_sector IS NULL AND s.sector = ANY(:sectors) "
+                "AND s.industry ILIKE :industry_like)"
+            ),
+        ]
         params["industry_like"] = industry_like
+        if sectors_unambiguous:
+            clauses.append(
+                "(s.canonical_sector IS NULL "
+                "AND s.sector = ANY(:sectors_unambiguous))"
+            )
+            params["sectors_unambiguous"] = sectors_unambiguous
+        sql = base + (
+            "\n          AND ("
+            + "\n           OR ".join(clauses)
+            + ")"
+        )
+    else:
+        # Primary: stored canonical_sector. Fallback: raw-sector
+        # ANY-list for rows where the backfill hasn't reached yet
+        # (canonical IS NULL).
+        sql = base + (
+            "\n          AND (s.canonical_sector = ANY(:canonicals) "
+            "OR (s.canonical_sector IS NULL AND s.sector = ANY(:sectors)))"
+        )
 
     # Special-case: "Financial Services" canonical excludes banks,
     # which live in their own canonical cohort. The canonical backfill
