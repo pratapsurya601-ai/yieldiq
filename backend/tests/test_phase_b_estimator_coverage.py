@@ -165,7 +165,12 @@ def test_ddm_low_payout_writes_reason() -> None:
     _inject_ddm_dict(payload)
     assert payload["ddm_fv"] is None
     assert payload.get("ddm_reason"), "ddm_reason must be populated when ddm_fv is None"
-    assert "payout_ratio" in payload["ddm_reason"].lower()
+    # Humanized copy (v_composite_warm_path_estimator_fix_2026_06_11):
+    # the rendered reason names the payout level without leaking the
+    # raw `payout_ratio` field name.
+    assert "payout" in payload["ddm_reason"].lower()
+    assert "payout_ratio" not in payload["ddm_reason"].lower()
+    assert "30%" in payload["ddm_reason"]
 
 
 def test_epv_bank_writes_reason() -> None:

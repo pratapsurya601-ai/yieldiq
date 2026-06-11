@@ -4433,6 +4433,61 @@ MANIFEST: list[dict] = [
             "cached field invalidated."
         ),
     },
+    {
+        # Warm-path estimator coverage fix (2026-06-11). Three request-
+        # time estimator inputs were never resolvable from cached
+        # payloads, so the composite blended only DCF + probability-
+        # weighted for bank tickers on every cached request:
+        #   (1) multiples_based_fv read quality.pe_ratio / pb_ratio —
+        #       slots the response model never carried; own-ticker and
+        #       cohort-median multiples now come from market_metrics.
+        #   (2) sector_specific_fv (bank residual income) gated on a
+        #       computation_inputs.bank_deepened block no pipeline
+        #       writes; the bank branch now assembles its inputs from
+        #       the payload's bank KPI fields + the
+        #       bank_operational_kpis row, and reports an honest
+        #       reason when NIM is genuinely unavailable.
+        #   (3) the Banks peer-cohort SQL excluded NSE-style rows
+        #       (sector "Bank", industry "Private Sector Bank"), so
+        #       the hex Value pillar degraded to the broad-market
+        #       cohort on every bank.
+        # Composite values move for bank tickers as additional
+        # estimators enter the weighted average — the intended
+        # behavior finally materialising on cached requests.
+        "version_id": "v_composite_warm_path_estimator_fix_2026_06_11",
+        "title_public": (
+            "Composite now blends peer multiples and the bank "
+            "residual-income estimate on every request, not only on "
+            "first computation"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "multiples_based_fv",
+                "sector_specific_fv",
+                "composite_intrinsic_value",
+                "headline_fair_value",
+                "composite_composition",
+            ],
+        },
+        "rationale": (
+            "Cached requests could not resolve the peer-multiples "
+            "estimate or the bank residual-income estimate, so the "
+            "headline blended value for lenders reduced to the "
+            "primary model plus the scenario mix. Peer multiples now "
+            "read the latest market-quoted PE / PB for the company "
+            "and its sector cohort; the bank residual-income model "
+            "now assembles its inputs from the bank metrics already "
+            "on the page and the bank KPI records, and states why it "
+            "is unavailable when the underlying data is genuinely "
+            "missing. The sector peer set for banks also matches the "
+            "exchange's sector labels now, so bank pages compare "
+            "against banks instead of the broad market. Blended "
+            "values for bank tickers move as more estimates enter "
+            "the weighted average."
+        ),
+    },
 ]
 
 

@@ -196,7 +196,32 @@ def _inject_multiples_fv_dict(payload: dict) -> dict:
         return payload
     try:
         from backend.services.multiples_fv import compute_multiples_fv
-        fv, method = compute_multiples_fv(payload, payload.get("sector_medians"))
+        # Own-ticker PE / PB fallback from market_metrics
+        # (v_composite_warm_path_estimator_fix_2026_06_11): the
+        # canonical AnalysisResponse never carried quality.pe_ratio /
+        # quality.pb_ratio, so without this lookup the multiples slot
+        # stayed (None, None) on every cached payload. TTL-cached
+        # in-process — a dict lookup after first warm-up.
+        _tick = payload.get("ticker") or (
+            (payload.get("company") or {}).get("ticker")
+            if isinstance(payload.get("company"), dict) else None
+        ) or ""
+        _own_pe = _own_pb = None
+        try:
+            from backend.services.market_multiples import (
+                get_ticker_multiples,
+            )
+            _own = get_ticker_multiples(_tick) if _tick else {}
+            _own_pe = _own.get("pe")
+            _own_pb = _own.get("pb")
+        except Exception:
+            pass
+        fv, method = compute_multiples_fv(
+            payload,
+            payload.get("sector_medians"),
+            ticker_pe=_own_pe,
+            ticker_pb=_own_pb,
+        )
         payload["multiples_based_fv"] = fv
         payload["multiples_method"] = method
     except Exception:
@@ -225,7 +250,25 @@ def _inject_multiples_fv_model(result: "AnalysisResponse") -> "AnalysisResponse"
             "quality": _qual,
             "valuation": _val,
         }
-        fv, method = compute_multiples_fv(_payload_min, result.sector_medians)
+        # Own-ticker PE / PB fallback from market_metrics — mirrors the
+        # dict-path inject (the typed QualityOutput never carried
+        # pe_ratio / pb_ratio slots).
+        _own_pe = _own_pb = None
+        try:
+            from backend.services.market_multiples import (
+                get_ticker_multiples,
+            )
+            _own = get_ticker_multiples(result.ticker or "")
+            _own_pe = _own.get("pe")
+            _own_pb = _own.get("pb")
+        except Exception:
+            pass
+        fv, method = compute_multiples_fv(
+            _payload_min,
+            result.sector_medians,
+            ticker_pe=_own_pe,
+            ticker_pb=_own_pb,
+        )
         result.multiples_based_fv = fv
         result.multiples_method = method
     except Exception:
@@ -700,7 +743,9 @@ def _inject_ddm_dict(payload: dict) -> dict:
         # rather than vanishing into `pass`. v_fix_phase_b_estimator_
         # coverage_2026_06_10.
         _log_phase_b_inject_failure("ddm", payload.get("ticker"), e)
-        payload["ddm_reason"] = "compute_failed"
+        payload["ddm_reason"] = (
+            "The estimate could not be computed from the available inputs"
+        )
     return payload
 
 
@@ -819,7 +864,9 @@ def _inject_epv_dict(payload: dict) -> dict:
             )
     except Exception as e:
         _log_phase_b_inject_failure("epv", payload.get("ticker"), e)
-        payload["epv_reason"] = "compute_failed"
+        payload["epv_reason"] = (
+            "The estimate could not be computed from the available inputs"
+        )
     return payload
 
 
@@ -840,6 +887,44 @@ def _inject_epv_model(result: "AnalysisResponse") -> "AnalysisResponse":
     except Exception as e:
         _log_phase_b_inject_failure("epv_model", result.ticker, e)
     return result
+
+
+def _humanize_three_stage_reason(slug: str, *, is_bank: bool) -> str:
+    """Translate the three-stage gate's machine tag into the sentence
+    rendered by the composite-composition panel.
+
+    v_composite_warm_path_estimator_fix_2026_06_11 — the raw tags
+    (`base_year_fcf_non_positive`, `fcf_history_too_short`,
+    `sector_uses_dedicated_framework:reit`) leaked verbatim to the
+    "How the composite is built" panel. The service keeps returning
+    machine tags (other callers and tests key off them); this is the
+    single place they become user copy. Banks get the cohort-specific
+    framing for the missing-FCF case because the absence is
+    structural, not a data gap.
+    """
+    s = (slug or "").strip()
+    if s == "base_year_fcf_non_positive":
+        if is_bank:
+            return (
+                "Banks do not report positive free cash flow under the "
+                "standard definition, so a cash-flow-based stage model "
+                "is not applicable"
+            )
+        return (
+            "Base-year free cash flow is not positive, so a multi-stage "
+            "cash-flow model is not applicable for this company"
+        )
+    if s == "fcf_history_too_short":
+        return (
+            "Fewer than 3 years of free-cash-flow history are available, "
+            "so the growth stages lack an observable anchor"
+        )
+    if s.startswith("sector_uses_dedicated_framework"):
+        return (
+            "This company is valued with a dedicated framework for its "
+            "structure, so the generic stage model is not used"
+        )
+    return s
 
 
 def _inject_three_stage_dict(payload: dict) -> dict:
@@ -894,7 +979,11 @@ def _inject_three_stage_dict(payload: dict) -> dict:
         if not applicable:
             payload["three_stage_fv"] = None
             payload["three_stage_method"] = None
-            payload["three_stage_reason"] = _reason
+            # Humanize the machine tag at the write site — this string
+            # renders verbatim on the composite-composition panel.
+            payload["three_stage_reason"] = _humanize_three_stage_reason(
+                _reason, is_bank=bool(quality.get("is_bank")),
+            )
             return payload
         # ── Build inputs ──
         n1, n2 = select_three_stage_default_horizons(sector, is_recent_ipo=False)
@@ -934,7 +1023,9 @@ def _inject_three_stage_dict(payload: dict) -> dict:
             )
     except Exception as e:
         _log_phase_b_inject_failure("three_stage", payload.get("ticker"), e)
-        payload["three_stage_reason"] = "compute_failed"
+        payload["three_stage_reason"] = (
+            "The estimate could not be computed from the available inputs"
+        )
     return payload
 
 
@@ -1377,6 +1468,7 @@ def _inject_sector_specific_dict(payload: dict) -> dict:
     # missing key.
     payload.setdefault("sector_specific_fv", None)
     payload.setdefault("sector_specific_label", None)
+    payload.setdefault("sector_specific_reason", None)
     try:
         company = _safe_payload_section(payload, "company")
         ticker = payload.get("ticker") or company.get("ticker") or ""
@@ -1405,6 +1497,7 @@ def _inject_sector_specific_model(result: "AnalysisResponse") -> "AnalysisRespon
         _inject_sector_specific_dict(_payload)
         result.sector_specific_fv = _payload.get("sector_specific_fv")
         result.sector_specific_label = _payload.get("sector_specific_label")
+        result.sector_specific_reason = _payload.get("sector_specific_reason")
     except Exception:
         pass
     return result
@@ -1522,19 +1615,38 @@ def _resolve_sector_primary_fv(
     # "bank_residual_income_deepened" so the composite weighting + the
     # frontend valuation panel both see it as a sector-specific signal
     # (distinct from the headline DCF row which uses pb_residual_income).
+    #
+    # Warm-path self-sufficiency
+    # (v_composite_warm_path_estimator_fix_2026_06_11): nothing in the
+    # compute pipeline ever writes `computation_inputs.bank_deepened`,
+    # so the previous hard gate on that block meant the engine NEVER
+    # fired outside synthetic test fixtures — on cold computes as well
+    # as cached requests. The branch now merges three input sources
+    # before deciding applicability: the snapshot block (when a future
+    # pipeline writes it), the bank KPI fields already on the payload
+    # (quality.nim / casa / cost_to_income / roe — the Phase I
+    # surfaces), and the `bank_operational_kpis` DB row (casa / pcr /
+    # gnpa / cost-to-income). When NIM is genuinely unavailable across
+    # all three, the gate still rejects the route and the honest
+    # reason is stamped on `sector_specific_reason`.
     try:
         from backend.services.financial_valuation_service import (
             is_bank_deepening_meaningful,
         )
         bank_ci = ci.get("bank_deepened") if isinstance(ci.get("bank_deepened"), dict) else {}
-        has_nim_data = bool(bank_ci.get("nim_pct"))
-        meaningful, _ = is_bank_deepening_meaningful(
+        merged_block = _merge_bank_deepened_inputs(
+            ticker, bank_ci, quality, valuation, insights,
+        )
+        has_nim_data = bool(merged_block.get("nim_pct"))
+        meaningful, _gate_reason = is_bank_deepening_meaningful(
             ticker=ticker,
             sector=sector,
             has_nim_data=has_nim_data,
         )
         if meaningful:
-            fv = _compute_bank_deepened_fv(ticker, ci, quality, valuation)
+            fv = _compute_bank_deepened_fv(
+                ticker, {"bank_deepened": merged_block}, quality, valuation,
+            )
             if fv is not None:
                 return fv, "bank_residual_income_deepened"
             # When NIM data exists but the compute returns None
@@ -1542,7 +1654,22 @@ def _resolve_sector_primary_fv(
             # bank route is the canonical home and the composite
             # tolerates None sector_specific.
             if quality.get("is_bank"):
+                payload["sector_specific_reason"] = (
+                    "The bank residual-income inputs on file do not "
+                    "produce a usable estimate for this lender."
+                )
                 return None, None
+        elif quality.get("is_bank") and not has_nim_data:
+            # Genuinely-missing data: keep the slot empty and say why,
+            # instead of a silent dash. Mirrors the gate's machine
+            # reason ("NIM data unavailable — deepened engine adds no
+            # signal over P/B") in user-readable form.
+            payload.setdefault(
+                "sector_specific_reason",
+                "Net interest margin data is not yet available for "
+                "this lender, so the bank residual-income estimate is "
+                "not computed.",
+            )
     except Exception:
         pass
 
@@ -1801,6 +1928,168 @@ def _coerce_pos(value) -> "float | None":
     if f != f or f in (float("inf"), float("-inf")) or f <= 0:
         return None
     return f
+
+
+# ── Bank KPI DB row (Phase I `bank_operational_kpis`) — 15-min TTL ──
+# Read-only enrichment for the warm-path bank residual-income branch.
+# The table carries casa_pct / pcr_pct / gnpa_pct / cost_to_income_pct
+# as 0-100 percentages. Missing table / DB-down / no row all degrade
+# to None. Never raises.
+_BANK_KPI_TTL_SECONDS = 15 * 60
+_bank_kpi_cache: "dict[str, tuple[float, dict | None]]" = {}
+_bank_kpi_cache_lock = __import__("threading").Lock()
+
+
+def _fetch_bank_kpi_row(ticker: str) -> "dict | None":
+    """Latest-annual bank KPI snapshot for a bare ticker, TTL-cached."""
+    import time as _kpi_time
+    bare = (ticker or "").replace(".NS", "").replace(".BO", "").upper()
+    if not bare:
+        return None
+    now = _kpi_time.monotonic()
+    with _bank_kpi_cache_lock:
+        entry = _bank_kpi_cache.get(bare)
+        if entry is not None and (now - entry[0]) < _BANK_KPI_TTL_SECONDS:
+            return entry[1]
+    row: "dict | None" = None
+    try:
+        from backend.routers.banks import _connect, _query_latest_annual
+        conn = _connect()
+        if conn is not None:
+            try:
+                row = _query_latest_annual(conn, bare)
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    except Exception:
+        row = None
+    with _bank_kpi_cache_lock:
+        _bank_kpi_cache[bare] = (now, row)
+    return row
+
+
+def _pct_to_decimal(v) -> "float | None":
+    """Coerce a 0-100 percentage to a 0-1 decimal. None-safe."""
+    f = _coerce_pos(v)
+    if f is None:
+        return None
+    return f / 100.0
+
+
+def _merge_bank_deepened_inputs(
+    ticker: str,
+    bank_ci: dict,
+    quality: dict,
+    valuation: dict,
+    insights: dict,
+) -> dict:
+    """Assemble the deepened-bank input block from every source the
+    request can reach, in precedence order:
+
+      1. ``computation_inputs.bank_deepened`` (decimals — snapshot
+         block; today no pipeline writes it, kept first for forward
+         compatibility and test fixtures),
+      2. the payload's own bank KPI fields (``quality.nim`` /
+         ``quality.casa`` / ``quality.cost_to_income`` /
+         ``quality.roe`` — all documented as 0-100 percents on
+         QualityOutput; payout from ``insights.dividend
+         .payout_ratio_pct``),
+      3. the ``bank_operational_kpis`` DB row (Phase I ingest — 0-100
+         percents),
+      4. derived book value per share = current_price / PB from
+         ``market_metrics`` when no explicit BVPS exists anywhere.
+
+    v_composite_warm_path_estimator_fix_2026_06_11 — this is what
+    makes the bank residual-income estimator self-sufficient on warm
+    cache paths. Returns a dict in the decimal conventions
+    ``BankDeepenedInputs`` expects. Missing slots stay absent — the
+    caller's gate and the engine's own guards handle them honestly.
+    """
+    merged: dict = dict(bank_ci) if isinstance(bank_ci, dict) else {}
+    quality = quality if isinstance(quality, dict) else {}
+    valuation = valuation if isinstance(valuation, dict) else {}
+    insights = insights if isinstance(insights, dict) else {}
+
+    is_bank_like = bool(quality.get("is_bank"))
+
+    # ── payload quality block (percents → decimals) ──
+    if merged.get("nim_pct") is None:
+        merged["nim_pct"] = _pct_to_decimal(quality.get("nim"))
+    if merged.get("casa_mix_pct") is None:
+        merged["casa_mix_pct"] = _pct_to_decimal(quality.get("casa"))
+    if merged.get("cost_to_income_pct") is None:
+        merged["cost_to_income_pct"] = _pct_to_decimal(
+            quality.get("cost_to_income")
+        )
+    if merged.get("roe_pct") is None:
+        # quality.roe_pct (legacy dict payloads) then quality.roe — both
+        # percents on the canonical model.
+        merged["roe_pct"] = _pct_to_decimal(
+            quality.get("roe_pct")
+            if quality.get("roe_pct") is not None
+            else quality.get("roe")
+        )
+    if merged.get("payout_ratio") is None:
+        payout = quality.get("payout_ratio")
+        if payout is None:
+            div_block = insights.get("dividend") if isinstance(
+                insights.get("dividend"), dict
+            ) else {}
+            payout = _pct_to_decimal(div_block.get("payout_ratio_pct"))
+        merged["payout_ratio"] = payout
+
+    # ── bank_operational_kpis DB row (percents → decimals) ──
+    # Only consult the DB when the payload left gaps AND the ticker is
+    # bank-like — keeps non-bank requests at zero extra I/O.
+    needs_db = is_bank_like and any(
+        merged.get(k) is None
+        for k in (
+            "casa_mix_pct", "provision_coverage_pct",
+            "gnpa_pct", "cost_to_income_pct",
+        )
+    )
+    if needs_db:
+        kpi_row = _fetch_bank_kpi_row(ticker) or {}
+        if merged.get("casa_mix_pct") is None:
+            merged["casa_mix_pct"] = _pct_to_decimal(kpi_row.get("casa_pct"))
+        if merged.get("provision_coverage_pct") is None:
+            merged["provision_coverage_pct"] = _pct_to_decimal(
+                kpi_row.get("pcr_pct")
+            )
+        if merged.get("gnpa_pct") is None:
+            merged["gnpa_pct"] = _pct_to_decimal(kpi_row.get("gnpa_pct"))
+        if merged.get("cost_to_income_pct") is None:
+            merged["cost_to_income_pct"] = _pct_to_decimal(
+                kpi_row.get("cost_to_income_pct")
+            )
+
+    # ── book value per share ──
+    # Explicit slots first (snapshot block, then quality); derive
+    # price / PB from market_metrics as the last resort. The lookup is
+    # only attempted when NIM resolved (the gate rejects the route
+    # otherwise, so don't pay it).
+    if merged.get("book_value_per_share") is None:
+        merged["book_value_per_share"] = _coerce_pos(
+            quality.get("book_value_per_share")
+        )
+    if merged.get("book_value_per_share") is None and merged.get("nim_pct"):
+        price = _coerce_pos(valuation.get("current_price"))
+        if price is not None:
+            try:
+                from backend.services.market_multiples import (
+                    get_ticker_multiples,
+                )
+                pb = _coerce_pos(get_ticker_multiples(ticker).get("pb"))
+                if pb is not None:
+                    merged["book_value_per_share"] = round(price / pb, 2)
+            except Exception:
+                pass
+
+    # Drop explicit-None keys the engine treats as "absent" anyway —
+    # keeps the merged dict clean for logging / tests.
+    return {k: v for k, v in merged.items() if v is not None}
 
 
 def _compute_bank_deepened_fv(

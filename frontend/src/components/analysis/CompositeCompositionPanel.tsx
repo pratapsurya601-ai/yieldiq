@@ -111,6 +111,59 @@ function pctDeltaFormat(nominal: number, effective: number): string | null {
   return `${pctFormat(nominal)} -> ${pctFormat(effective)}`
 }
 
+/* ─── reason humanizer (fallback for legacy cached strings) ───────── */
+
+/**
+ * Known machine slugs the backend emitted before the
+ * v_composite_warm_path_estimator_fix_2026_06_11 source-side rewrite.
+ * Cached payloads / older API workers can still serve them — map the
+ * known ones to the same sentences the backend now writes, and fall
+ * back to a generic snake_case -> sentence-case prettifier so no raw
+ * slug ever renders verbatim.
+ */
+const KNOWN_REASON_SLUGS: Record<string, string> = {
+  base_year_fcf_non_positive:
+    "Banks and other companies without positive free cash flow under " +
+    "the standard definition cannot be valued with a cash-flow-based " +
+    "stage model",
+  fcf_history_too_short:
+    "Fewer than 3 years of free-cash-flow history are available, so " +
+    "the growth stages lack an observable anchor",
+  compute_failed:
+    "The estimate could not be computed from the available inputs",
+}
+
+/** Legacy DDM gate string: `payout_ratio 26% < 30% (...)`. */
+const LEGACY_DDM_PAYOUT_RE = /^payout_ratio\s+(\d+(?:\.\d+)?%)\s*<\s*30%/i
+
+function looksLikeSlug(reason: string): boolean {
+  // Single snake_case token (optionally with a `:detail` suffix), no
+  // spaces — the machine-tag shape, e.g. `fcf_history_too_short` or
+  // `sector_uses_dedicated_framework:reit`.
+  return /^[a-z0-9]+(?:_[a-z0-9]+)+(?::[\w-]+)?$/i.test(reason.trim())
+}
+
+export function humanizeReason(reason: string | null): string | null {
+  if (!reason) return reason
+  const trimmed = reason.trim()
+  const known = KNOWN_REASON_SLUGS[trimmed.split(":")[0]]
+  if (known && looksLikeSlug(trimmed)) return known
+  const payoutMatch = LEGACY_DDM_PAYOUT_RE.exec(trimmed)
+  if (payoutMatch) {
+    return (
+      `Dividend payout of ${payoutMatch[1]} sits below the 30% level ` +
+      "where a dividend-discount model becomes informative"
+    )
+  }
+  if (looksLikeSlug(trimmed)) {
+    // Generic fallback: drop any `:detail` suffix, underscores ->
+    // spaces, sentence case.
+    const words = trimmed.split(":")[0].replace(/_/g, " ").toLowerCase()
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+  return reason
+}
+
 function confidenceTone(label: ConfidenceLabel): string {
   switch (label) {
     case "HIGH":
@@ -223,7 +276,8 @@ function EstimatorRow({
       </div>
       {!row.applicable && row.reason && (
         <div className="col-span-12 mt-1 text-[11px] text-caption leading-snug">
-          <span className="font-medium">Not applicable:</span> {row.reason}
+          <span className="font-medium">Not applicable:</span>{" "}
+          {humanizeReason(row.reason)}
         </div>
       )}
     </li>

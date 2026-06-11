@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest"
 import { render, screen, within } from "@testing-library/react"
 
 import CompositeCompositionPanel, {
+  humanizeReason,
   type CompositeComposition,
 } from "@/components/analysis/CompositeCompositionPanel"
 
@@ -411,7 +412,10 @@ describe("CompositeCompositionPanel — sector-specific 8-row variant", () => {
     )
   })
 
-  it("renders the DCF row as skipped with the FCF reason copy", () => {
+  it("renders the DCF row as skipped with humanized FCF reason copy", () => {
+    // Legacy cached payloads still carry the machine slug; the panel's
+    // humanizer fallback must render the sentence, never the raw slug
+    // (v_composite_warm_path_estimator_fix_2026_06_11).
     render(
       <CompositeCompositionPanel
         composition={hdfcbankSectorSpecificComposition()}
@@ -421,7 +425,9 @@ describe("CompositeCompositionPanel — sector-specific 8-row variant", () => {
     )
     const dcf = screen.getByTestId("composite-composition-row-dcf")
     expect(dcf).toHaveAttribute("data-applicable", "false")
-    expect(dcf).toHaveTextContent("base_year_fcf_non_positive")
+    expect(dcf).not.toHaveTextContent("base_year_fcf_non_positive")
+    expect(dcf).toHaveTextContent(/free cash flow/i)
+    expect(dcf).toHaveTextContent(/stage model/i)
   })
 
   it("renders the 8-row total reconciliation row", () => {
@@ -451,5 +457,38 @@ describe("CompositeCompositionPanel — SEBI vocabulary guard", () => {
       />,
     )
     assertSebiClean(container.textContent ?? "")
+  })
+})
+
+
+describe("humanizeReason — legacy slug fallback (v_composite_warm_path_estimator_fix_2026_06_11)", () => {
+  it("maps the known FCF slug to the descriptive sentence", () => {
+    const out = humanizeReason("base_year_fcf_non_positive")
+    expect(out).toMatch(/free cash flow/i)
+    expect(out).toMatch(/stage model/i)
+    expect(out).not.toContain("base_year_fcf_non_positive")
+  })
+
+  it("rewrites the legacy DDM payout string without the raw field name", () => {
+    const out = humanizeReason(
+      "payout_ratio 26% < 30% (DDM understates FV at low payouts)",
+    )
+    expect(out).toContain("26%")
+    expect(out).toContain("30%")
+    expect(out).toMatch(/dividend payout/i)
+    expect(out).not.toContain("payout_ratio")
+  })
+
+  it("title-cases unknown snake_case slugs instead of rendering them raw", () => {
+    expect(humanizeReason("fcf_history_too_short")).toMatch(/free-cash-flow history/i)
+    expect(humanizeReason("some_unknown_machine_tag")).toBe(
+      "Some unknown machine tag",
+    )
+  })
+
+  it("passes prose sentences through unchanged", () => {
+    const prose = "No broker coverage on this ticker"
+    expect(humanizeReason(prose)).toBe(prose)
+    expect(humanizeReason(null)).toBeNull()
   })
 })

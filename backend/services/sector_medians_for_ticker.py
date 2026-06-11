@@ -198,6 +198,30 @@ def _compute_medians_for_slug(slug: str) -> dict[str, Optional[float]]:
     yields: list[Any] = []
     op_margins: list[Any] = []
 
+    # PE / PB are sourced from `market_metrics` (the screener / hex
+    # source of truth), NOT from the cached payload's quality block —
+    # the AnalysisResponse QualityOutput has never carried pe_ratio /
+    # pb_ratio, so the payload read below always produced None and the
+    # cohort pe/pb medians (and downstream `multiples_based_fv`)
+    # stayed empty for EVERY cohort. Verified on prod: all 12 Banking
+    # cohort rows surface pe_ratio=None on /api/v1/public/sector/
+    # banking. Fixed in v_composite_warm_path_estimator_fix_2026_06_11.
+    # The payload-quality read is retained as a per-ticker fallback for
+    # environments without market_metrics rows (tests, local dev).
+    suffixed = [f"{bare}.NS" for bare in cohort.get("tickers", ())]
+    mm: dict[str, dict] = {}
+    try:
+        from backend.services.market_multiples import (
+            get_multiples_for_tickers,
+        )
+        mm = get_multiples_for_tickers(suffixed)
+    except Exception as exc:
+        logger.warning(
+            "sector_medians_for_ticker: market_metrics lookup failed "
+            "for %s: %s", slug, exc,
+        )
+        mm = {}
+
     for bare in cohort.get("tickers", ()):
         symbol = f"{bare}.NS"
         try:
@@ -210,12 +234,20 @@ def _compute_medians_for_slug(slug: str) -> dict[str, Optional[float]]:
                 "sector_medians_for_ticker: cache miss for %s in %s: %s",
                 symbol, slug, exc,
             )
-            continue
+            payload = None
+        mm_row = mm.get(symbol) or {}
+        qual = payload.get("quality") or {} if isinstance(payload, dict) else {}
+        # market_metrics first; payload-quality slot as fallback.
+        pes.append(
+            mm_row.get("pe") if mm_row.get("pe") is not None
+            else qual.get("pe_ratio")
+        )
+        pbs.append(
+            mm_row.get("pb") if mm_row.get("pb") is not None
+            else qual.get("pb_ratio")
+        )
         if not isinstance(payload, dict):
             continue
-        qual = payload.get("quality") or {}
-        pes.append(qual.get("pe_ratio"))
-        pbs.append(qual.get("pb_ratio"))
         roes.append(qual.get("roe"))
         yields.append(_extract_div_yield(payload))
         op_margins.append(_extract_op_margin(payload))

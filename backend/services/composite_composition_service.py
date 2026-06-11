@@ -246,6 +246,14 @@ SECTOR_SPECIFIC_LABEL_MAP: dict[str, tuple[str, str]] = {
         "Sector-specific (Bank Residual Income)",
         "Bank residual-income model — NII, CASA, PCR, GNPA-aware",
     ),
+    # Tag emitted by the T3.1 deepened-engine route in
+    # _resolve_sector_primary_fv. Without this entry the row rendered
+    # the generic "Sector-specific (domain engine)" label
+    # (v_composite_warm_path_estimator_fix_2026_06_11).
+    "bank_residual_income_deepened": (
+        "Sector-specific (Bank Residual Income)",
+        "Bank residual-income model — NIM, CASA, PCR, GNPA-aware",
+    ),
     "nbfc_roa": (
         "Sector-specific (NBFC ROA tree)",
         "NBFC ROA-tree decomposition (yield, cost of funds, opex, credit cost)",
