@@ -140,9 +140,9 @@ export default function HonestHero({
   // `valuation.fair_value` (DCF-only) — producing 3+ different numbers
   // on the same page. The canonical-headline contract makes the hero,
   // caveat, side-rail, FAQ, AI Why, peer table, and SEO surfaces all
-  // read the SAME number. The DCF stays visible inside the
-  // DcfMultiplesChip below, so users still see both estimators — only
-  // every SINGLE headline figure switches to the canonical number.
+  // read the SAME number. The DCF stays visible inside the "Based on
+  // N methods" DCF row below, so users still see both estimators —
+  // only every SINGLE headline figure reads the canonical number.
   const headlineFv = signals.headlineFairValue
   const currentPrice = payload.valuation?.current_price
   const safeCurrentPrice =
