@@ -1,0 +1,238 @@
+<!-- Mockup: yieldiq_missing_sections_complete_set (locked 2026-06-11)
+     Gap-closure surfaces: provenance bar + 52w dumbbell (chrome), 5-pillar confidence
+     dot-matrix (§1 + every section chip), ownership depth (§7), news & catalysts (§9),
+     model-change flags on history chart (§8), Pro-lock veil language (tier). -->
+<style>
+.sec{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem;margin-bottom:14px;transition:border-color .2s,transform .2s}
+.sec:hover{border-color:var(--color-border-secondary);transform:translateY(-1px)}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.st{display:flex;align-items:center;gap:10px}
+.numc{min-width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--color-text-info);background:var(--color-background-info);padding:0 8px}
+.title{font-size:16px;font-weight:500;color:var(--color-text-primary)}
+.rib{font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.rib-hi{background:var(--color-background-success);color:var(--color-text-success)}
+.muted{color:var(--color-text-secondary);font-size:12.5px;line-height:1.6}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;align-items:start}
+.subh{font-size:13px;font-weight:500;margin:2px 0 10px;color:var(--color-text-primary)}
+.pdot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:-1px;margin-right:6px}
+.live{animation:lp 1.9s ease-in-out infinite}
+@keyframes lp{0%,100%{opacity:1}50%{opacity:.3}}
+.cdrow{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:5px 0}
+.cdrow .nm{width:150px;color:var(--color-text-secondary);flex-shrink:0}
+.cdot{width:11px;height:11px;border-radius:50%;border:1.5px solid #1D9E75;display:inline-block;margin-right:4px;transition:background .3s}
+.cdot.f{background:#1D9E75}
+.mfchip{font-size:11.5px;padding:5px 11px;border-radius:999px;background:var(--color-background-secondary);color:var(--color-text-primary);display:inline-flex;align-items:center;gap:6px}
+.qcard{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px;font-size:12.5px;line-height:1.55}
+.feeditem{display:flex;gap:12px;position:relative;padding:0 0 18px 0}
+.feedrail{position:absolute;left:5px;top:14px;bottom:0;width:2px;background:var(--color-border-tertiary)}
+.feeddot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:3px;border:2px solid var(--color-background-primary);z-index:1}
+.tierchip{font-size:10px;padding:1px 7px;border-radius:999px;font-weight:500;letter-spacing:.02em}
+.t1{background:var(--color-background-success);color:var(--color-text-success)}
+.t2{background:var(--color-background-info);color:var(--color-text-info)}
+.t3{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.catchip{font-size:11.5px;padding:5px 12px;border-radius:999px;border:0.5px solid var(--color-border-secondary);color:var(--color-text-primary);display:inline-flex;gap:6px;align-items:center}
+.lockwrap{position:relative;border-radius:var(--border-radius-md);overflow:hidden}
+.lockveil{position:absolute;inset:0;background:var(--color-background-secondary);opacity:.78;display:flex;align-items:center;justify-content:center}
+.lockcard{background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:14px 18px;text-align:center;max-width:280px}
+.hcell{font-size:10px;text-align:center;padding:6px 2px;border-radius:4px;color:var(--color-text-primary)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div style="padding:0.5rem 0 0;">
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">chrome</span><span class="title">Provenance bar — trust at a glance</span></div></div>
+  <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:9px 14px;font-size:12px;color:var(--color-text-secondary);">
+    <span><span class="pdot live" style="background:#1D9E75;"></span>Price live · NSE</span>
+    <span><span class="pdot" style="background:#378ADD;"></span>Financials FY25 · filed Apr 2026</span>
+    <span><span class="pdot" style="background:#7F77DD;"></span>Model updated 11 Jun 2026</span>
+    <span style="margin-left:auto;">Computed 2h ago · <span style="color:var(--color-text-info);cursor:pointer;">recompute</span></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap;">
+    <span class="muted" style="white-space:nowrap;">52-week range</span>
+    <div style="flex:1;min-width:220px;position:relative;height:26px;">
+      <div style="position:absolute;top:11px;left:0;right:0;height:4px;border-radius:2px;background:var(--color-background-secondary);"></div>
+      <div id="dbFill" style="position:absolute;top:11px;left:0;width:0;height:4px;border-radius:2px;background:var(--color-border-secondary);transition:width 1s cubic-bezier(.22,1,.36,1);"></div>
+      <span style="position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:50%;background:var(--color-text-secondary);"></span>
+      <span style="position:absolute;right:0;top:9px;width:8px;height:8px;border-radius:50%;background:var(--color-text-secondary);"></span>
+      <span id="dbNow" style="position:absolute;left:0;top:6px;width:14px;height:14px;border-radius:50%;background:var(--color-text-primary);border:2.5px solid var(--color-background-primary);transition:left 1s cubic-bezier(.22,1,.36,1);"></span>
+    </div>
+    <span class="muted" style="white-space:nowrap;">₹1,363 — <b style="color:var(--color-text-primary);font-weight:500;">₹1,684</b> — ₹1,794</span>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">§1</span><span class="title">Confidence — tap to see why</span></div>
+    <button id="cfBtn" class="rib rib-hi" style="border:none;cursor:pointer;"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence · why?</button>
+  </div>
+  <div id="cfPanel" style="overflow:hidden;max-height:0;transition:max-height .4s ease;">
+    <div id="cfRows" style="padding:2px 0 6px;"></div>
+    <div class="muted" style="font-size:11.5px;border-top:0.5px solid var(--color-border-tertiary);padding-top:8px;">Five pillars, scored 1–5. The same breakdown sits behind every section's confidence chip — one engine, shown where you need it.</div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">§7</span><span class="title">Ownership &amp; voice — full depth</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence</span></div>
+  <div class="two">
+    <div>
+      <div class="subh">Who's buying — 8-quarter flow</div>
+      <svg id="stream" viewBox="0 0 360 170" width="100%" role="img" aria-label="Stacked ownership flow over eight quarters: FII slid from 49.2 to 45.8 percent then recovered to 47; DII rose steadily to 34 percent."></svg>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--color-text-secondary);margin-top:6px;">
+        <span><span class="pdot" style="background:#378ADD;"></span>FII <b style="color:#0F6E56;font-weight:500;">+120bps qoq</b></span>
+        <span><span class="pdot" style="background:#1D9E75;"></span>DII −30bps</span>
+        <span><span class="pdot" style="background:#B4B2A9;"></span>Public</span>
+      </div>
+    </div>
+    <div>
+      <div class="subh">Insider &amp; big-money activity — 12 months</div>
+      <svg id="swim" viewBox="0 0 360 150" width="100%" role="img" aria-label="Swimlane timeline: no promoter activity since the company is widely held; director buys in November and March, one sale in August; a 450 crore block deal in January."></svg>
+      <div class="muted" style="font-size:11px;">▲ purchase · ▼ sale · ◆ block/bulk deal · marker size = value</div>
+    </div>
+  </div>
+  <div class="subh" style="margin-top:16px;">Held by 41 mutual-fund schemes</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <span class="mfchip">ICICI Pru Bluechip <b style="font-weight:500;">4.2%</b></span>
+    <span class="mfchip">SBI Nifty 50 ETF <b style="font-weight:500;">3.9%</b></span>
+    <span class="mfchip">HDFC Flexi Cap <b style="font-weight:500;">3.1%</b></span>
+    <span class="mfchip">UTI Nifty ETF <b style="font-weight:500;">2.8%</b></span>
+    <span class="mfchip" style="color:var(--color-text-info);cursor:pointer;">+37 more</span>
+  </div>
+  <div class="subh" style="margin-top:16px;">Management voice — Q1 FY26 call <span style="font-weight:400;color:var(--color-text-secondary);">· AI summary from transcript</span></div>
+  <div class="two" style="gap:10px;">
+    <div class="qcard"><i class="ti ti-quote" aria-hidden="true" style="color:var(--color-text-secondary);font-size:15px;"></i> Deposit growth will lead loan growth; margins normalise as high-cost borrowings reprice.<div class="muted" style="font-size:11px;margin-top:6px;">— CFO, earnings call</div></div>
+    <div class="qcard"><i class="ti ti-microphone-2" aria-hidden="true" style="color:var(--color-text-secondary);font-size:15px;"></i> Most-asked on the call: the credit-deposit glide path — 6 of 14 analyst questions.<div class="muted" style="font-size:11px;margin-top:6px;">— from the Q&amp;A, AI-tallied</div></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">§9</span><span class="title">What's happening — news &amp; catalysts</span></div><span class="rib" style="background:var(--color-background-info);color:var(--color-text-info);"><i class="ti ti-bolt" aria-hidden="true" style="font-size:13px;"></i>3 catalysts ahead</span></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+    <span class="catchip"><i class="ti ti-calendar-event" aria-hidden="true" style="color:var(--color-text-info);"></i>Results · 19 Jul</span>
+    <span class="catchip"><i class="ti ti-coin" aria-hidden="true" style="color:var(--color-text-success);"></i>Ex-dividend (est) · 24 Jul</span>
+    <span class="catchip"><i class="ti ti-users-group" aria-hidden="true" style="color:var(--color-text-secondary);"></i>AGM · Aug</span>
+  </div>
+  <div class="two">
+    <div id="feed"></div>
+    <div>
+      <div class="subh">Community read <span style="font-weight:400;color:var(--color-text-secondary);">· 412 votes</span></div>
+      <div style="display:flex;height:26px;border-radius:7px;overflow:hidden;font-size:11.5px;font-weight:500;">
+        <div id="comA" style="width:50%;background:var(--color-background-success);color:var(--color-text-success);display:flex;align-items:center;padding-left:10px;transition:width 1s cubic-bezier(.22,1,.36,1);">62% below FV</div>
+        <div id="comB" style="width:50%;background:var(--color-background-warning);color:var(--color-text-warning);display:flex;align-items:center;justify-content:flex-end;padding-right:10px;transition:width 1s cubic-bezier(.22,1,.36,1);">38%</div>
+      </div>
+      <div class="muted" style="margin-top:10px;">Source tiers: <span class="tierchip t1">T1 exchange filing</span> <span class="tierchip t2">T2 national press</span> <span class="tierchip t3">T3 aggregator</span> — ranked so filings outrank rumours.</div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">§8</span><span class="title">Why we changed — model flags on the chart</span></div></div>
+  <svg id="flagchart" viewBox="0 0 560 180" width="100%" role="img" aria-label="Six-month fair value versus price chart with two model-change flags: bank residual income deepening in April and the warm-path estimator coverage fix on 11 June, marked today."></svg>
+  <div class="muted" style="margin-top:6px;">Every model change is stamped where it happened — tap a flag for the plain-English changelog entry. No silent revisions, ever.</div>
+</div>
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">tier</span><span class="title">Pro lock — full preview, never a hole</span></div><span class="rib" style="background:var(--color-background-warning);color:var(--color-text-warning);"><i class="ti ti-key" aria-hidden="true" style="font-size:13px;"></i>design language</span></div>
+  <div class="two" style="align-items:center;">
+    <div class="lockwrap">
+      <div style="opacity:.4;pointer-events:none;">
+        <div class="muted" style="font-size:11px;text-align:center;margin-bottom:6px;">Sensitivity — growth × discount</div>
+        <div id="lockheat" style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px;"></div>
+      </div>
+      <div class="lockveil">
+        <div class="lockcard">
+          <i class="ti ti-lock" aria-hidden="true" style="font-size:22px;color:var(--color-text-warning);"></i>
+          <div style="font-size:13.5px;font-weight:500;color:var(--color-text-primary);margin:6px 0 4px;">Stress-test the fair value yourself</div>
+          <div class="muted" style="font-size:11.5px;margin-bottom:10px;">Live sliders · 25-cell sensitivity · reverse DCF</div>
+          <button style="font-size:12.5px;border-color:var(--color-border-warning);color:var(--color-text-warning);">Unlock with Pro</button>
+        </div>
+      </div>
+    </div>
+    <div class="muted">The rule: <b style="font-weight:500;color:var(--color-text-primary);">locked features stay fully designed and visibly previewed</b> — a veil and a one-line value pitch, never a missing section or an empty shell.<br><br>Free keeps the whole answer (verdict, Spectrum, thesis, statements, history). Pro unlocks the <i>tools</i>: DCF sliders, sensitivity, forecast horizons, insider history beyond 2 events, full AR &amp; concall archives, peer overlays, multi-alerts.</div>
+  </div>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var NS='http://www.w3.org/2000/svg';
+  function eo(p){return 1-Math.pow(1-p,3);}
+  function back(x){var c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2);}
+  function tw(dur,fn,done){if(rm){fn(1);if(done)done();return;}var s=null;(function st(t){if(!s)s=t;var p=Math.min((t-s)/dur,1);fn(p);if(p<1)requestAnimationFrame(st);else if(done)done();})(performance.now());}
+
+  requestAnimationFrame(function(){requestAnimationFrame(function(){document.getElementById('dbFill').style.width='74.5%';document.getElementById('dbNow').style.left='calc(74.5% - 7px)';});});
+
+  var PIL=[['Data quality',5,'Exchange-filed statements, 10y depth, zero gaps'],['Model fit',4,'Bank residual-income engine, backtested ±9%'],['Valuation stability',4,'Fair value moved under 3% in the last 90 days'],['Sensitivity',3,'±1pt terminal growth swings fair value ~13%'],['Estimator agreement',4,'5 of 8 methods land within ±12% of each other']];
+  var cfRows=document.getElementById('cfRows');
+  PIL.forEach(function(p){var r=document.createElement('div');r.className='cdrow';var dots='';for(var i=0;i<5;i++){dots+='<span class="cdot" data-on="'+(i<p[1]?1:0)+'"></span>';}r.innerHTML='<span class="nm">'+p[0]+'</span><span style="display:flex;gap:3px;flex-shrink:0;">'+dots+'</span><span class="muted" style="font-size:11.5px;">'+p[2]+'</span>';cfRows.appendChild(r);});
+  var cfOpen=false,cfPanel=document.getElementById('cfPanel');
+  document.getElementById('cfBtn').onclick=function(){cfOpen=!cfOpen;cfPanel.style.maxHeight=cfOpen?'300px':'0';
+    if(cfOpen){var ds=cfPanel.querySelectorAll('.cdot[data-on="1"]');ds.forEach(function(d,i){setTimeout(function(){d.classList.add('f');},rm?0:i*45);});}};
+  document.getElementById('cfBtn').click();
+
+  var FII=[49.2,48.6,48.0,47.1,46.4,45.9,45.8,47.0],DII=[30.0,30.8,31.6,32.5,33.2,33.8,34.3,34.0];
+  var QL=['Q2F24','Q3F24','Q4F24','Q1F25','Q2F25','Q3F25','Q4F25','Q1F26'];
+  var sv=document.getElementById('stream'),SW=360,sT=12,sB=132;
+  function sx(i){return 18+i/7*(SW-36);}
+  function sy(v){return sT+(100-v)/100*(sB-sT)*1.55-38;}
+  var d1=document.createElementNS(NS,'defs');d1.innerHTML='<clipPath id="stClip"><rect id="stClipR" x="0" y="0" width="0" height="170"/></clipPath>';sv.appendChild(d1);
+  var sg=document.createElementNS(NS,'g');sg.setAttribute('clip-path','url(#stClip)');sv.appendChild(sg);
+  function band(lo,hi,col,op){var pts='';for(var i=0;i<8;i++){pts+=sx(i).toFixed(1)+','+sy(hi[i]).toFixed(1)+' ';}for(var j=7;j>=0;j--){pts+=sx(j).toFixed(1)+','+sy(lo[j]).toFixed(1)+' ';}var p=document.createElementNS(NS,'polygon');p.setAttribute('points',pts.trim());p.setAttribute('fill',col);p.setAttribute('fill-opacity',op);sg.appendChild(p);}
+  var zero=FII.map(function(){return 0;}),fd=FII.map(function(v,i){return v+DII[i];}),hun=FII.map(function(){return 100;});
+  band(zero,FII,'#378ADD',0.45);band(FII,fd,'#1D9E75',0.4);band(fd,hun,'#B4B2A9',0.3);
+  for(var qi=0;qi<8;qi+=2){var t=document.createElementNS(NS,'text');t.setAttribute('x',sx(qi));t.setAttribute('y',164);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','9');t.setAttribute('fill','var(--color-text-secondary)');t.textContent=QL[qi];sv.appendChild(t);}
+  var fl=document.createElementNS(NS,'text');fl.setAttribute('x',sx(7)-4);fl.setAttribute('y',sy(FII[7]/2)+4);fl.setAttribute('text-anchor','end');fl.setAttribute('font-size','10.5');fl.setAttribute('font-weight','500');fl.setAttribute('fill','#0C447C');fl.textContent='FII 47.0';sv.appendChild(fl);
+  var dl=document.createElementNS(NS,'text');dl.setAttribute('x',sx(7)-4);dl.setAttribute('y',sy(FII[7]+DII[7]/2)+4);dl.setAttribute('text-anchor','end');dl.setAttribute('font-size','10.5');dl.setAttribute('font-weight','500');dl.setAttribute('fill','#085041');dl.textContent='DII 34.0';sv.appendChild(dl);
+  tw(1200,function(p){document.getElementById('stClipR').setAttribute('width',(SW*eo(p)).toFixed(1));});
+
+  var sw=document.getElementById('swim');
+  var LANES=[['Promoter',36],['Directors & KMP',72],['Bulk / block',108]];
+  LANES.forEach(function(l){var ln=document.createElementNS(NS,'line');ln.setAttribute('x1',110);ln.setAttribute('x2',350);ln.setAttribute('y1',l[1]);ln.setAttribute('y2',l[1]);ln.setAttribute('stroke','var(--color-border-tertiary)');sw.appendChild(ln);
+    var t=document.createElementNS(NS,'text');t.setAttribute('x',104);t.setAttribute('y',l[1]+3.5);t.setAttribute('text-anchor','end');t.setAttribute('font-size','10');t.setAttribute('fill','var(--color-text-secondary)');t.textContent=l[0];sw.appendChild(t);});
+  var pn=document.createElementNS(NS,'text');pn.setAttribute('x',230);pn.setAttribute('y',30);pn.setAttribute('text-anchor','middle');pn.setAttribute('font-size','9.5');pn.setAttribute('fill','var(--color-text-secondary)');pn.textContent='none — zero promoter holding (widely held)';sw.appendChild(pn);
+  ['Jul 25','Oct 25','Jan 26','Apr 26'].forEach(function(m,i){var t=document.createElementNS(NS,'text');t.setAttribute('x',122+i*70);t.setAttribute('y',140);t.setAttribute('font-size','9');t.setAttribute('fill','var(--color-text-secondary)');t.textContent=m;sw.appendChild(t);});
+  var EV=[[150,72,'sell','Director sale · ₹0.9 cr · Aug 25',7],[222,72,'buy','Director purchase · ₹1.4 cr · Nov 25',8],[318,72,'buy','KMP purchase · ₹2.1 cr · Mar 26',9],[262,108,'block','Block deal · ₹450 cr · Jan 26',10],[182,108,'buy','Bulk purchase · ₹210 cr · Sep 25',8]];
+  EV.forEach(function(e,i){var g=document.createElementNS(NS,'g');var s=e[4];var shape;
+    if(e[2]==='block'){shape=document.createElementNS(NS,'rect');shape.setAttribute('x',-s*0.7);shape.setAttribute('y',-s*0.7);shape.setAttribute('width',s*1.4);shape.setAttribute('height',s*1.4);shape.setAttribute('transform','rotate(45)');shape.setAttribute('fill','#888780');}
+    else{shape=document.createElementNS(NS,'polygon');var up=e[2]==='buy';shape.setAttribute('points',up?('0,'+(-s)+' '+s+','+s+' '+(-s)+','+s):('0,'+s+' '+s+','+(-s)+' '+(-s)+','+(-s)));shape.setAttribute('fill',up?'#1D9E75':'#D85A30');}
+    shape.setAttribute('opacity','0.9');g.appendChild(shape);
+    var ti=document.createElementNS(NS,'title');ti.textContent=e[3];g.appendChild(ti);
+    g.setAttribute('transform','translate('+e[0]+','+e[1]+') scale(0)');sw.appendChild(g);
+    setTimeout(function(){tw(450,function(p){g.setAttribute('transform','translate('+e[0]+','+e[1]+') scale('+back(p).toFixed(2)+')');});},rm?0:200+i*130);});
+
+  var FEED=[['T1','t1','Board approves ₹50,000 cr infra bond raise','Exchange filing · 2d','#1D9E75'],['T2','t2','Q1 deposits up 16% yoy; advances up 10%','National daily · 5d','#378ADD'],['T2','t2','RBI holds repo; bank margins steady','Wire · 1w','#378ADD'],['T3','t3','Brokerages raise targets after Q1','Aggregator · 1w','#B4B2A9']];
+  var feed=document.getElementById('feed');
+  FEED.forEach(function(f,i){var d=document.createElement('div');d.className='feeditem';d.style.opacity='0';d.style.transform='translateY(8px)';d.style.transition='opacity .45s, transform .45s';
+    d.innerHTML=(i<FEED.length-1?'<div class="feedrail"></div>':'')+'<div class="feeddot" style="background:'+f[4]+';"></div><div style="flex:1;"><div style="font-size:12.5px;color:var(--color-text-primary);line-height:1.45;">'+f[2]+'</div><div style="display:flex;gap:8px;align-items:center;margin-top:3px;"><span class="tierchip '+f[1]+'">'+f[0]+'</span><span class="muted" style="font-size:11px;">'+f[3]+'</span></div></div>';
+    feed.appendChild(d);
+    setTimeout(function(){d.style.opacity='1';d.style.transform='none';},rm?0:250+i*140);});
+  requestAnimationFrame(function(){requestAnimationFrame(function(){document.getElementById('comA').style.width='62%';document.getElementById('comB').style.width='38%';});});
+
+  function mb(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
+  var rnd=mb(5),N=130,FV2=[],PX2=[];
+  for(var i2=0;i2<N;i2++){var f2=i2/(N-1);var tr2=1560+f2*(1684-1560);if(i2===0)PX2.push(1562);else PX2.push(PX2[i2-1]+(tr2-PX2[i2-1])*0.08+(rnd()*2-1)*13);FV2.push(1930+f2*(2010-1930)+4*Math.sin(i2*0.07));}
+  var fc=document.getElementById('flagchart'),fT=14,fB=140,fL=36,fR=530;
+  function fx2(i){return fL+i/(N-1)*(fR-fL);}
+  function fy2(v){return fT+(2080-v)/(2080-1480)*(fB-fT);}
+  var fpx=PX2.map(function(v,i){return fx2(i).toFixed(1)+','+fy2(v).toFixed(1);}).join(' ');
+  var ffv=FV2.map(function(v,i){return fx2(i).toFixed(1)+','+fy2(v).toFixed(1);}).join(' ');
+  fc.innerHTML='<polyline points="'+ffv+'" fill="none" stroke="#888780" stroke-width="1.3" stroke-dasharray="6 5"/><polyline id="fpx" points="'+fpx+'" fill="none" stroke="#1D9E75" stroke-width="1.6"/>'
+    +'<text x="'+fL+'" y="158" font-size="9.5" fill="var(--color-text-secondary)">Dec 25</text><text x="'+fR+'" y="158" text-anchor="end" font-size="9.5" fill="var(--color-text-secondary)">Jun 26</text>';
+  var FLAGS=[[0.62,'Bank residual income deepened','Apr 26',0],[0.985,'Estimator coverage fix — composite now blends multiples','11 Jun 26 · today',1]];
+  FLAGS.forEach(function(F,i){var x=fL+F[0]*(fR-fL);var g=document.createElementNS(NS,'g');g.setAttribute('opacity','0');g.style.transition='opacity .5s';
+    var vl=document.createElementNS(NS,'line');vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('y1',fT);vl.setAttribute('y2',fB);vl.setAttribute('stroke','#7F77DD');vl.setAttribute('stroke-width',F[3]?'1.8':'1.2');vl.setAttribute('stroke-dasharray','3 3');g.appendChild(vl);
+    var pole=document.createElementNS(NS,'line');pole.setAttribute('x1',x);pole.setAttribute('x2',x);pole.setAttribute('y1',fT-2);pole.setAttribute('y2',fT+10);pole.setAttribute('stroke','#534AB7');pole.setAttribute('stroke-width','2');g.appendChild(pole);
+    var fl2=document.createElementNS(NS,'polygon');fl2.setAttribute('points',x+','+(fT-2)+' '+(x+(F[3]?-13:13))+','+(fT+2.5)+' '+x+','+(fT+7));fl2.setAttribute('fill',F[3]?'#7F77DD':'#AFA9EC');g.appendChild(fl2);
+    var ti=document.createElementNS(NS,'title');ti.textContent=F[1]+' — '+F[2];g.appendChild(ti);
+    var lx=F[3]?x-16:x+16,anch=F[3]?'end':'start';
+    var t1=document.createElementNS(NS,'text');t1.setAttribute('x',lx);t1.setAttribute('y',fT+8);t1.setAttribute('text-anchor',anch);t1.setAttribute('font-size','9.5');t1.setAttribute('font-weight','500');t1.setAttribute('fill','#534AB7');t1.textContent=F[2];g.appendChild(t1);
+    fc.appendChild(g);
+    setTimeout(function(){g.setAttribute('opacity','1');},rm?0:900+i*350);});
+  var fpxEl=document.getElementById('fpx');
+  if(!rm){try{var L=fpxEl.getTotalLength();fpxEl.style.strokeDasharray=L;fpxEl.style.strokeDashoffset=L;requestAnimationFrame(function(){fpxEl.style.transition='stroke-dashoffset 1.3s ease';fpxEl.style.strokeDashoffset='0';});}catch(e){}}
+
+  var lh=document.getElementById('lockheat');
+  for(var c=0;c<25;c++){var d2=document.createElement('div');d2.className='hcell';var v=1700+((c%5)-(c/5|0))*60+c*8;var m=(v-1684)/v;d2.style.background=m>=0?'rgba(29,158,117,'+(0.15+Math.min(Math.abs(m)*2,0.4))+')':'rgba(216,90,48,'+(0.15+Math.min(Math.abs(m)*2,0.4))+')';d2.textContent='₹'+(Math.round(v/10)*10);lh.appendChild(d2);}
+})();
+</script>
