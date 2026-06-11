@@ -1,0 +1,136 @@
+<!-- Mockup: yieldiq_forecast_fan_quarterly_earnings (locked 2026-06-11)
+     New blocks: §5b forecast fan (after Valuation step 3) and §4b quarterly results (end of Financials) -->
+<style>
+.sec{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem;margin-bottom:14px;transition:border-color .2s,transform .2s}
+.sec:hover{border-color:var(--color-border-secondary);transform:translateY(-1px)}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.st{display:flex;align-items:center;gap:10px}
+.numc{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--color-text-info);background:var(--color-background-info)}
+.title{font-size:16px;font-weight:500;color:var(--color-text-primary)}
+.rib{font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.rib-mid{background:var(--color-background-warning);color:var(--color-text-warning)}
+.rib-hi{background:var(--color-background-success);color:var(--color-text-success)}
+.muted{color:var(--color-text-secondary);font-size:12.5px;line-height:1.6}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;align-items:start}
+.subh{font-size:13px;font-weight:500;margin:2px 0 10px;color:var(--color-text-primary)}
+.kl{font-size:11.5px;color:var(--color-text-secondary)}
+.kv{font-size:18px;font-weight:500;color:var(--color-text-primary);margin-top:1px}
+.kpi{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+.hchip{flex:1;text-align:center;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 6px}
+.hchip b{display:block;font-size:15px;font-weight:500;margin-top:1px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div style="padding:0.5rem 0 0;">
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">5b</span><span class="title">Forecast — where the model sees fair value going</span></div><span class="rib rib-mid"><i class="ti ti-circle-dashed" aria-hidden="true" style="font-size:13px;"></i>Projection, not a promise</span></div>
+  <svg id="fan" viewBox="0 0 560 248" width="100%" role="img" aria-label="Fair-value projection fan: from 2010 rupees today the base path reaches about 3390 in five years, the bull path about 4040 and the bear path about 2690; current price is 1684."></svg>
+  <div style="display:flex;align-items:center;gap:10px;margin:10px 0 8px;">
+    <label style="font-size:12.5px;color:var(--color-text-secondary);white-space:nowrap;">Horizon</label>
+    <input type="range" id="hz" min="1" max="5" step="1" value="3" style="flex:1;"/>
+    <span id="hzO" style="font-size:12.5px;font-weight:500;min-width:30px;">3y</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div class="hchip"><span class="kl">Bear</span><b id="hzBear" style="color:#993C1D;">₹2,394</b></div>
+    <div class="hchip"><span class="kl">Base</span><b id="hzBase" style="color:#0F6E56;">₹2,749</b></div>
+    <div class="hchip"><span class="kl">Bull</span><b id="hzBull" style="color:#085041;">₹3,057</b></div>
+    <div class="hchip" style="flex:1.6;"><span class="kl">Implied pace to base</span><b id="hzCagr" style="color:var(--color-text-primary);">~17.7% / yr</b></div>
+  </div>
+  <div class="muted" style="font-size:11.5px;margin-top:8px;">Fan = the model's fair-value paths under bear (6%), base (11%) and bull (15%) growth. "Implied pace" is arithmetic — what reaching the base path from today's ₹1,684 would equal per year — not a price forecast.</div>
+</div>
+
+<div class="sec">
+  <div class="sh"><div class="st"><span class="numc">4b</span><span class="title">Quarterly results &amp; earnings</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>6 of 8 beats</span></div>
+  <div class="two">
+    <div>
+      <div class="subh">Profit vs estimates — last 8 quarters <span style="font-weight:400;color:var(--color-text-secondary);">· dot above the line = beat</span></div>
+      <svg id="qline" viewBox="0 0 560 178" width="100%" role="img" aria-label="Beat and miss timeline: six beats and two misses across the last eight quarters, latest quarter beat estimates by 1.8 percent."></svg>
+      <div class="subh" style="margin-top:12px;">Last quarter — Q1 FY26 scorecard</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div class="kpi" style="flex:1;"><div class="kl">NII</div><div class="kv" style="font-size:15px;">₹31.4k cr <span style="font-size:11px;color:var(--color-text-success);font-weight:400;">est 30.8 ✓</span></div></div>
+        <div class="kpi" style="flex:1;"><div class="kl">Net profit</div><div class="kv" style="font-size:15px;">₹17.2k cr <span style="font-size:11px;color:var(--color-text-success);font-weight:400;">est 16.9 ✓</span></div></div>
+        <div class="kpi" style="flex:1;"><div class="kl">NIM</div><div class="kv" style="font-size:15px;">3.6% <span style="font-size:11px;color:var(--color-text-secondary);font-weight:400;">est 3.6 —</span></div></div>
+      </div>
+    </div>
+    <div>
+      <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:14px 16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:40px;height:40px;border-radius:9px;background:var(--color-background-info);display:flex;align-items:center;justify-content:center;"><i class="ti ti-calendar-event" aria-hidden="true" style="font-size:21px;color:var(--color-text-info);"></i></div>
+          <div><div style="font-size:13.5px;font-weight:500;color:var(--color-text-primary);">Q2 FY26 results</div><div class="kl">Saturday, 19 July 2026</div></div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:12px;"><span id="cdN" style="font-size:30px;font-weight:500;color:var(--color-text-primary);">0</span><span class="muted">days to go</span></div>
+        <div style="display:flex;gap:8px;">
+          <button style="flex:1;font-size:12px;"><i class="ti ti-bell-plus" aria-hidden="true"></i> Remind me</button>
+          <button style="flex:1;font-size:12px;"><i class="ti ti-eye" aria-hidden="true"></i> What to watch</button>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:10px;"><i class="ti ti-microphone" aria-hidden="true" style="font-size:14px;vertical-align:-2px;margin-right:4px;"></i>Watch for: deposit growth vs credit (the CD-ratio thread), NIM direction as borrowings reprice, and any word on subsidiary value-unlock.</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var NS='http://www.w3.org/2000/svg',price=1684;
+  function rupee(n){return '₹'+Math.round(n).toLocaleString('en-IN');}
+  function eo(p){return 1-Math.pow(1-p,3);}
+  function tw(dur,fn,done){if(rm){fn(1);if(done)done();return;}var s=null;(function st(t){if(!s)s=t;var p=Math.min((t-s)/dur,1);fn(p);if(p<1)requestAnimationFrame(st);else if(done)done();})(performance.now());}
+
+  var FV0=2010,RB={bear:0.06,base:0.11,bull:0.15};
+  function path(r,t){return FV0*Math.pow(1+r,t);}
+  var fan=document.getElementById('fan');
+  function fxX(t){return 80+t/5*430;}
+  function fxY(v){return 18+(4200-v)/2700*186;}
+  var defs=document.createElementNS(NS,'defs');defs.innerHTML='<clipPath id="fanClip"><rect id="fanClipR" x="80" y="0" width="0" height="248"/></clipPath>';fan.appendChild(defs);
+  [2000,3000,4000].forEach(function(v){var l=document.createElementNS(NS,'line');l.setAttribute('x1',80);l.setAttribute('x2',516);l.setAttribute('y1',fxY(v));l.setAttribute('y2',fxY(v));l.setAttribute('stroke','var(--color-border-tertiary)');l.setAttribute('stroke-dasharray','2 5');fan.appendChild(l);
+    var t=document.createElementNS(NS,'text');t.setAttribute('x',522);t.setAttribute('y',fxY(v)+3);t.setAttribute('font-size','9.5');t.setAttribute('fill','var(--color-text-secondary)');t.textContent='₹'+(v/1000).toFixed(0)+'k';fan.appendChild(t);});
+  for(var yr=0;yr<=5;yr++){var t2=document.createElementNS(NS,'text');t2.setAttribute('x',fxX(yr));t2.setAttribute('y',226);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','10');t2.setAttribute('fill','var(--color-text-secondary)');t2.textContent=yr===0?'now':'+'+yr+'y';fan.appendChild(t2);}
+  var STEPS=40,bullPts=[],bearPts=[],basePts=[];
+  for(var i=0;i<=STEPS;i++){var t3=i/STEPS*5;bullPts.push(fxX(t3).toFixed(1)+','+fxY(path(RB.bull,t3)).toFixed(1));bearPts.push(fxX(t3).toFixed(1)+','+fxY(path(RB.bear,t3)).toFixed(1));basePts.push(fxX(t3).toFixed(1)+','+fxY(path(RB.base,t3)).toFixed(1));}
+  var g=document.createElementNS(NS,'g');g.setAttribute('clip-path','url(#fanClip)');fan.appendChild(g);
+  var poly=document.createElementNS(NS,'polygon');poly.setAttribute('points',bullPts.join(' ')+' '+bearPts.slice().reverse().join(' '));poly.setAttribute('fill','rgba(29,158,117,0.12)');g.appendChild(poly);
+  function mkLine(pts,col,w,dash){var pl=document.createElementNS(NS,'polyline');pl.setAttribute('points',pts.join(' '));pl.setAttribute('fill','none');pl.setAttribute('stroke',col);pl.setAttribute('stroke-width',w);if(dash)pl.setAttribute('stroke-dasharray',dash);g.appendChild(pl);return pl;}
+  mkLine(bullPts,'#5DCAA5',1.8);mkLine(bearPts,'#F0997B',1.8);mkLine(basePts,'#1D9E75',2.5,'7 5');
+  var lbB=document.createElementNS(NS,'text');lbB.setAttribute('x',498);lbB.setAttribute('y',fxY(path(RB.bull,4.82))-6);lbB.setAttribute('text-anchor','end');lbB.setAttribute('font-size','10');lbB.setAttribute('fill','#085041');lbB.textContent='Bull 15%';g.appendChild(lbB);
+  var lbM=document.createElementNS(NS,'text');lbM.setAttribute('x',498);lbM.setAttribute('y',fxY(path(RB.base,4.82))-6);lbM.setAttribute('text-anchor','end');lbM.setAttribute('font-size','10');lbM.setAttribute('font-weight','500');lbM.setAttribute('fill','#0F6E56');lbM.textContent='Base 11%';g.appendChild(lbM);
+  var lbW=document.createElementNS(NS,'text');lbW.setAttribute('x',498);lbW.setAttribute('y',fxY(path(RB.bear,4.82))+13);lbW.setAttribute('text-anchor','end');lbW.setAttribute('font-size','10');lbW.setAttribute('fill','#993C1D');lbW.textContent='Bear 6%';g.appendChild(lbW);
+  var pDot=document.createElementNS(NS,'circle');pDot.setAttribute('cx',fxX(0));pDot.setAttribute('cy',fxY(price));pDot.setAttribute('r','4.5');pDot.setAttribute('fill','var(--color-text-primary)');fan.appendChild(pDot);
+  var pTx=document.createElementNS(NS,'text');pTx.setAttribute('x',fxX(0)-6);pTx.setAttribute('y',fxY(price)+14);pTx.setAttribute('font-size','10.5');pTx.setAttribute('font-weight','500');pTx.setAttribute('fill','var(--color-text-primary)');pTx.textContent='Price ₹1,684';fan.appendChild(pTx);
+  var fDot=document.createElementNS(NS,'circle');fDot.setAttribute('cx',fxX(0));fDot.setAttribute('cy',fxY(FV0));fDot.setAttribute('r','4');fDot.setAttribute('fill','#1D9E75');fan.appendChild(fDot);
+  var fTx=document.createElementNS(NS,'text');fTx.setAttribute('x',fxX(0)-6);fTx.setAttribute('y',fxY(FV0)-8);fTx.setAttribute('font-size','10.5');fTx.setAttribute('fill','#0F6E56');fTx.textContent='FV ₹2,010';fan.appendChild(fTx);
+  var scrub=document.createElementNS(NS,'g');
+  var scL=document.createElementNS(NS,'line');scL.setAttribute('y1',14);scL.setAttribute('y2',210);scL.setAttribute('stroke','var(--color-text-secondary)');scL.setAttribute('stroke-dasharray','3 3');scrub.appendChild(scL);
+  var scB=document.createElementNS(NS,'circle');scB.setAttribute('r','3.5');scB.setAttribute('fill','#1D9E75');scrub.appendChild(scB);
+  fan.appendChild(scrub);
+  tw(1100,function(p){document.getElementById('fanClipR').setAttribute('width',(436*eo(p)).toFixed(1));});
+  var hz=document.getElementById('hz');
+  function updHz(){var h=+hz.value;document.getElementById('hzO').textContent=h+'y';
+    var be=path(RB.bear,h),ba=path(RB.base,h),bu=path(RB.bull,h);
+    document.getElementById('hzBear').textContent=rupee(be);
+    document.getElementById('hzBase').textContent=rupee(ba);
+    document.getElementById('hzBull').textContent=rupee(bu);
+    var cagr=(Math.pow(ba/price,1/h)-1)*100;
+    document.getElementById('hzCagr').textContent='~'+cagr.toFixed(1)+'% / yr';
+    var x=fxX(h);scL.setAttribute('x1',x);scL.setAttribute('x2',x);scB.setAttribute('cx',x);scB.setAttribute('cy',fxY(ba));}
+  hz.addEventListener('input',updHz);updHz();
+
+  var Q=[['Q2 F24',2.1],['Q3 F24',1.4],['Q4 F24',-0.8],['Q1 F25',3.2],['Q2 F25',0.6],['Q3 F25',-1.2],['Q4 F25',2.4],['Q1 F26',1.8]];
+  var ql=document.getElementById('qline'),ZY=84;
+  var zl=document.createElementNS(NS,'line');zl.setAttribute('x1',30);zl.setAttribute('x2',540);zl.setAttribute('y1',ZY);zl.setAttribute('y2',ZY);zl.setAttribute('stroke','var(--color-border-secondary)');ql.appendChild(zl);
+  var zt=document.createElementNS(NS,'text');zt.setAttribute('x',30);zt.setAttribute('y',ZY-8);zt.setAttribute('font-size','9.5');zt.setAttribute('fill','var(--color-text-secondary)');zt.textContent='met estimates';ql.appendChild(zt);
+  Q.forEach(function(q,i){
+    var x=58+i*66,off=q[1]/4*52,y=ZY-off,beat=q[1]>=0;
+    var stem=document.createElementNS(NS,'line');stem.setAttribute('x1',x);stem.setAttribute('x2',x);stem.setAttribute('y1',ZY);stem.setAttribute('y2',ZY);stem.setAttribute('stroke',beat?'#1D9E75':'#D85A30');stem.setAttribute('stroke-width','1.6');stem.setAttribute('opacity','0.55');ql.appendChild(stem);
+    var c=document.createElementNS(NS,'circle');c.setAttribute('cx',x);c.setAttribute('cy',ZY);c.setAttribute('r','0');c.setAttribute('fill',beat?'#1D9E75':'#D85A30');ql.appendChild(c);
+    var ti=document.createElementNS(NS,'title');ti.textContent=q[0]+' — profit '+(beat?'beat estimates by ':'missed estimates by ')+Math.abs(q[1]).toFixed(1)+'%';c.appendChild(ti);
+    var vt=document.createElementNS(NS,'text');vt.setAttribute('x',x);vt.setAttribute('y',y+(beat?-12:20));vt.setAttribute('text-anchor','middle');vt.setAttribute('font-size','9.5');vt.setAttribute('font-weight','500');vt.setAttribute('fill',beat?'#0F6E56':'#993C1D');vt.setAttribute('opacity','0');vt.style.transition='opacity .4s';vt.textContent=(beat?'+':'')+q[1].toFixed(1)+'%';ql.appendChild(vt);
+    var qt=document.createElementNS(NS,'text');qt.setAttribute('x',x);qt.setAttribute('y',164);qt.setAttribute('text-anchor','middle');qt.setAttribute('font-size','9');qt.setAttribute('fill','var(--color-text-secondary)');qt.textContent=q[0];ql.appendChild(qt);
+    setTimeout(function(){tw(450,function(p){var yy=ZY-off*eo(p);c.setAttribute('cy',yy.toFixed(1));c.setAttribute('r',(3+Math.abs(q[1])*1.4).toFixed(1));stem.setAttribute('y2',yy.toFixed(1));},function(){vt.setAttribute('opacity','1');});},rm?0:150+i*110);
+  });
+  tw(1100,function(p){document.getElementById('cdN').textContent=Math.round(38*p);});
+})();
+</script>

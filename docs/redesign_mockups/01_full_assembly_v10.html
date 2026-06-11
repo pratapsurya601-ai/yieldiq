@@ -1,0 +1,552 @@
+<!-- Mockup: yieldiq_analysis_page_full_assembly_v10 (locked 2026-06-11)
+     The canonical full-page assembly: chrome + decision box (sequenced FV bar + Spectrum)
+     + sections 1-8 + action rail. §3 Business / §4 profit bridge / §5 Valuation are
+     SUPERSEDED by 02_refined_business_bridge_valuation.html; add 03 (5b/4b) and 04
+     (provenance, confidence matrix, §7 depth, §9 news, flags, tier) on top. -->
+<style>
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.nav{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:var(--color-background-tertiary);border-radius:var(--border-radius-md);margin-bottom:14px}
+.chip{font-size:12px;color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);border-radius:999px;padding:5px 11px;cursor:pointer;transition:background .15s,color .15s}
+.chip:hover{background:var(--color-background-info);color:var(--color-text-info)}
+.sec{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem;margin-bottom:14px;transition:border-color .2s,transform .2s}
+.sec:hover{border-color:var(--color-border-secondary);transform:translateY(-1px)}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.st{display:flex;align-items:center;gap:10px}
+.numc{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--color-text-info);background:var(--color-background-info)}
+.title{font-size:16px;font-weight:500;color:var(--color-text-primary)}
+.rib{font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.rib-hi{background:var(--color-background-success);color:var(--color-text-success)}
+.rib-mid{background:var(--color-background-warning);color:var(--color-text-warning)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px}
+.kpi{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;transition:transform .15s}
+.kpi:hover{transform:translateY(-2px)}
+.kl{font-size:11.5px;color:var(--color-text-secondary)}
+.kv{font-size:18px;font-weight:500;color:var(--color-text-primary);margin-top:1px}
+.kv small{font-size:11px;font-weight:400}
+.muted{color:var(--color-text-secondary);font-size:12.5px;line-height:1.6}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;align-items:center}
+.lnk{font-size:12px;color:var(--color-text-info);cursor:pointer}
+.subh{font-size:13px;font-weight:500;margin:2px 0 10px;color:var(--color-text-primary)}
+.erow{cursor:pointer;border-radius:6px;padding:4px 6px;margin:1px -6px;transition:background .15s}
+.erow:hover{background:var(--color-background-secondary)}
+.tg{font-size:12.5px;padding:6px 14px;border-radius:999px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-secondary);cursor:pointer;transition:all .15s}
+.tg.on{background:var(--color-background-info);color:var(--color-text-info);border-color:var(--color-border-info)}
+.hcell{font-size:10px;text-align:center;padding:6px 2px;border-radius:4px;cursor:pointer;color:var(--color-text-primary);transition:transform .1s}
+.hcell:hover{transform:scale(1.08)}
+.hhdr{font-size:10px;text-align:center;color:var(--color-text-secondary);padding:4px 0}
+.gb{transition:height .9s cubic-bezier(.22,1,.36,1)}
+.tile{border-radius:6px;display:flex;align-items:flex-end;padding:8px 10px;font-size:12px;font-weight:500;transform:scale(.88);opacity:0;transition:transform .5s cubic-bezier(.22,1,.36,1),opacity .5s}
+.tile.in{transform:scale(1);opacity:1}
+.wcell{width:12px;height:12px;border-radius:2.5px;background:var(--color-background-secondary)}
+table.cmp{width:100%;border-collapse:collapse;min-width:430px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--color-text-success);margin-right:5px;vertical-align:middle;animation:lp 1.9s ease-in-out infinite}
+@keyframes lp{0%,100%{opacity:1}50%{opacity:.3}}
+.leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--color-text-secondary);margin-top:8px}
+.leg span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:9px;height:9px;border-radius:2px;display:inline-block}
+.bseg{height:22px;flex:1;border-radius:4px;border:1px solid var(--color-border-secondary);overflow:hidden;position:relative}
+.bseg>i{position:absolute;left:0;top:0;bottom:0;width:0;background:#1D9E75;transition:width .3s ease;display:block}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div style="padding:0.5rem 0 0;">
+
+<div class="nav" id="nav"></div>
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:2px 4px 16px;">
+  <div style="width:46px;height:46px;border-radius:var(--border-radius-md);background:var(--color-background-info);color:var(--color-text-info);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;">HB</div>
+  <div style="flex:1;min-width:200px;">
+    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;"><span style="font-size:18px;font-weight:500;color:var(--color-text-primary);">HDFC Bank Ltd</span><span style="font-size:11px;color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:2px 7px;">HDFCBANK · NSE</span></div>
+    <div class="muted" style="margin-top:2px;">Private sector bank · Financials · Large cap</div>
+  </div>
+  <div style="text-align:right;"><div style="font-size:22px;font-weight:500;color:var(--color-text-primary);"><span class="dot" aria-hidden="true"></span>₹1,684<span style="font-size:13px;color:var(--color-text-success);font-weight:400;margin-left:7px;">+0.8%</span></div><div class="muted">Market cap ₹12.8 lakh cr</div></div>
+</div>
+
+<div class="sec" style="border:2px solid var(--color-border-info);">
+  <div class="two" style="align-items:start;">
+    <div>
+      <div style="display:inline-flex;align-items:center;gap:7px;background:var(--color-background-success);color:var(--color-text-success);font-size:13px;padding:4px 12px;border-radius:999px;margin-bottom:10px;"><i class="ti ti-trending-up" aria-hidden="true" style="font-size:15px;"></i>Undervalued</div>
+      <div style="display:flex;align-items:baseline;gap:8px;"><span id="mosNum" style="font-size:40px;font-weight:500;color:var(--color-text-success);line-height:1;">0%</span><span class="muted">below fair value</span></div>
+      <div style="margin:16px 0 6px;position:relative;height:30px;border-radius:8px;background:var(--color-background-secondary);overflow:hidden;">
+        <div id="hbBlue" style="position:absolute;left:0;top:0;bottom:0;width:0;background:var(--color-background-info);transition:width 1.05s cubic-bezier(.22,1,.36,1);"></div>
+        <div id="hbGreen" style="position:absolute;left:83.8%;top:0;bottom:0;width:16.2%;background:var(--color-background-success);transform:scaleX(0);transform-origin:left center;transition:transform .55s cubic-bezier(.22,1,.36,1);"></div>
+        <div id="hbMark" style="position:absolute;left:83.8%;top:0;bottom:0;width:2px;background:var(--color-text-primary);opacity:0;transition:opacity .4s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);"><span><span style="color:var(--color-text-primary);font-weight:500;">₹1,684</span> price</span><span><span style="color:var(--color-text-success);font-weight:500;">₹2,010</span> fair value</span></div>
+      <div style="margin-top:14px;display:flex;align-items:center;gap:10px;"><label style="font-size:12.5px;color:var(--color-text-secondary);white-space:nowrap;">Alert at</label><input type="range" id="mos" min="10" max="35" step="1" value="20" style="flex:1;"/><span id="mosout" style="font-size:12.5px;font-weight:500;min-width:34px;">20%</span></div>
+      <div class="muted" id="alertline" style="margin-top:5px;font-size:12px;">Notify me when price falls to ₹1,608.</div>
+      <div id="spInsp" style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px;margin-top:14px;min-height:96px;border-left:3px solid transparent;transition:border-color .2s;"></div>
+    </div>
+    <div style="text-align:center;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;">
+        <span class="subh" style="margin:0;">YieldIQ Spectrum</span>
+        <button id="spPeer" style="font-size:11px;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);border-radius:999px;padding:3px 10px;cursor:pointer;">+ ICICIBANK</button>
+      </div>
+      <svg id="spSvg" viewBox="0 0 560 432" width="100%" style="max-width:470px" role="img" aria-label="Spectrum refraction: pulse 5.4, quality 7.2, moat 8.5, safety 7.9, growth 6.0, value 7.8, overall 7.2 in the value region."></svg>
+      <div style="display:flex;justify-content:center;gap:16px;font-size:11px;color:var(--color-text-secondary);"><span><span style="display:inline-block;width:2px;height:10px;background:var(--color-text-secondary);vertical-align:-2px;margin-right:5px;opacity:.7;"></span>sector median</span><span id="legPeer" style="display:none;"><span style="display:inline-block;width:16px;height:0;border-top:1.5px dashed var(--color-text-secondary);vertical-align:3px;margin-right:5px;"></span>ICICIBANK</span></div>
+      <div id="spNarr" style="font-size:12px;color:var(--color-text-primary);opacity:0;transition:opacity .6s;margin-top:4px;">Moat leads (8.5) while Pulse lags (5.4) — uneven across pillars.</div>
+    </div>
+  </div>
+</div>
+
+<div class="sec" id="sec-1">
+  <div class="sh"><div class="st"><span class="numc">1</span><span class="title">The answer — where price sits</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence</span></div>
+  <div class="two">
+    <div style="text-align:center;">
+      <div class="subh">Valuation gauge</div>
+      <svg viewBox="0 0 170 112" width="100%" style="max-width:240px" role="img" aria-label="Valuation gauge needle settling in the undervalued zone.">
+        <path d="M15,85 A70,70 0 0 1 63.4,18.4" fill="none" stroke="#D85A30" stroke-width="12" stroke-linecap="round" opacity="0.8"/>
+        <path d="M63.4,18.4 A70,70 0 0 1 106.6,18.4" fill="none" stroke="#EF9F27" stroke-width="12"/>
+        <path id="gArc" d="M106.6,18.4 A70,70 0 0 1 155,85" fill="none" stroke="#1D9E75" stroke-width="12" stroke-linecap="round"/>
+        <line id="gNeedle" x1="85" y1="85" x2="25" y2="85" stroke="var(--color-text-primary)" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="85" cy="85" r="5" fill="var(--color-text-primary)"/>
+        <text id="gLabel" x="85" y="106" text-anchor="middle" font-size="12" font-weight="500" fill="#0F6E56" opacity="0">16% undervalued</text>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-secondary);max-width:240px;margin:0 auto;padding:0 8px;"><span>Overvalued</span><span>Fair</span><span>Undervalued</span></div>
+    </div>
+    <div style="text-align:center;">
+      <div class="subh">Price ladder</div>
+      <svg viewBox="0 0 240 238" width="100%" style="max-width:250px" role="img" aria-label="Vertical price ladder from bear 1420 through price 1684 and fair value 2010 to bull 2460.">
+        <line x1="70" y1="18" x2="70" y2="220" stroke="var(--color-border-secondary)" stroke-width="2"/>
+        <rect x="64" y="108.8" width="12" height="50.1" rx="3" fill="rgba(29,158,117,0.25)"/>
+        <line x1="58" y1="39.5" x2="82" y2="39.5" stroke="#9FE1CB" stroke-width="3"/><text x="92" y="43" font-size="11.5" fill="var(--color-text-secondary)">Bull ₹2,460</text>
+        <line x1="58" y1="108.8" x2="82" y2="108.8" stroke="#1D9E75" stroke-width="3.5"/><text x="92" y="112" font-size="12" font-weight="500" fill="#0F6E56">Fair ₹2,010</text>
+        <line x1="58" y1="199.5" x2="82" y2="199.5" stroke="#F0997B" stroke-width="3"/><text x="92" y="203" font-size="11.5" fill="var(--color-text-secondary)">Bear ₹1,420</text>
+        <g id="ladMark"><circle cx="70" cy="218" r="6" fill="var(--color-text-primary)"/><text x="58" y="222" font-size="12" font-weight="500" fill="var(--color-text-primary)" text-anchor="end">Now ₹1,684</text></g>
+      </svg>
+      <div class="muted" style="font-size:11.5px;">The shaded rung gap is your 16% margin of safety.</div>
+    </div>
+  </div>
+  <div class="muted" style="margin-top:8px;">5 of 8 estimators agree within ±12%. <span class="lnk" data-target="sec-5">Method breakdown →</span></div>
+</div>
+
+<div class="sec" id="sec-2">
+  <div class="sh"><div class="st"><span class="numc">2</span><span class="title">Thesis — the argument</span></div><span class="rib rib-mid"><i class="ti ti-circle-dashed" aria-hidden="true" style="font-size:13px;"></i>Mixed</span></div>
+  <div style="text-align:center;">
+    <svg viewBox="0 0 560 132" width="100%" style="max-width:560px" role="img" aria-label="Balance beam tilting toward the bull side, 58 to 42.">
+      <g id="beam">
+        <line x1="130" y1="62" x2="430" y2="62" stroke="var(--color-text-secondary)" stroke-width="3" stroke-linecap="round"/>
+        <g><rect x="108" y="26" width="86" height="30" rx="7" fill="var(--color-background-success)"/><text x="151" y="45" text-anchor="middle" font-size="12.5" font-weight="500" fill="#0F6E56">Bull 58%</text><line x1="151" y1="56" x2="151" y2="62" stroke="var(--color-text-secondary)" stroke-width="2"/></g>
+        <g><rect x="366" y="26" width="86" height="30" rx="7" fill="var(--color-background-warning)"/><text x="409" y="45" text-anchor="middle" font-size="12.5" font-weight="500" fill="#854F0B">Bear 42%</text><line x1="409" y1="56" x2="409" y2="62" stroke="var(--color-text-secondary)" stroke-width="2"/></g>
+      </g>
+      <polygon points="266,96 294,96 280,64" fill="var(--color-text-tertiary)"/>
+      <line x1="180" y1="96" x2="380" y2="96" stroke="var(--color-border-secondary)" stroke-width="1.5"/>
+      <text x="280" y="122" text-anchor="middle" font-size="12" fill="var(--color-text-secondary)">Net read — undervalued; deposit growth is the swing factor</text>
+    </svg>
+  </div>
+  <div class="muted" style="font-size:11.5px;margin:10px 0 4px;">Bars show each point's impact · tap a point for why it matters</div>
+  <div class="two" style="align-items:stretch;">
+    <div style="border-radius:var(--border-radius-md);background:var(--color-background-secondary);padding:10px 14px 12px;">
+      <div style="font-size:13px;font-weight:500;color:var(--color-text-success);margin-bottom:4px;">Bull case</div>
+      <div class="muted" style="margin-bottom:6px;">A scaling deposit franchise and sector-leading capital compound mid-teens returns — at a 16% discount to intrinsic value.</div>
+      <div id="rewList"></div>
+    </div>
+    <div style="border-radius:var(--border-radius-md);background:var(--color-background-secondary);padding:10px 14px 12px;">
+      <div style="font-size:13px;font-weight:500;color:var(--color-text-warning);margin-bottom:4px;">Bear case</div>
+      <div class="muted" style="margin-bottom:6px;">A near-100% credit-deposit ratio and post-merger margin dilution cap growth until deposits catch up.</div>
+      <div id="riskList"></div>
+    </div>
+  </div>
+  <div style="margin-top:12px;padding:10px 12px;border:0.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12.5px;line-height:1.55;"><span style="font-weight:500;">Where we're honest —</span> <span style="color:var(--color-text-secondary);">most confident in the deposit franchise and capital adequacy; least confident in near-term margins and terminal growth while merger integration completes.</span></div>
+</div>
+
+<div class="sec" id="sec-3">
+  <div class="sh"><div class="st"><span class="numc">3</span><span class="title">Business — how it makes money</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence</span></div>
+  <div class="two">
+    <div>
+      <div class="subh">Revenue map</div>
+      <div style="display:flex;gap:6px;height:170px;">
+        <div class="tile" id="t1" style="flex:62;background:rgba(55,138,221,0.16);color:#185FA5;" title="Retail banking · 62% of revenue">Retail 62%</div>
+        <div style="flex:38;display:flex;flex-direction:column;gap:6px;">
+          <div class="tile" id="t2" style="flex:26;background:rgba(136,135,128,0.16);color:var(--color-text-primary);" title="Wholesale banking · 26%">Wholesale 26%</div>
+          <div class="tile" id="t3" style="flex:12;background:rgba(239,159,39,0.18);color:#854F0B;" title="Treasury · 12%">Treasury 12%</div>
+        </div>
+      </div>
+    </div>
+    <div class="muted">India's largest private bank by assets — net interest income plus fees across retail, wholesale and treasury.<br><br>Moat: distribution scale and a low-cost deposit base built over three decades. <span class="lnk" data-target="sec-4">Full statements →</span></div>
+  </div>
+</div>
+
+<div class="sec" id="sec-4">
+  <div class="sh"><div class="st"><span class="numc">4</span><span class="title">Financials — statements in order</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence</span></div>
+  <div class="kpis" style="margin-bottom:14px;">
+    <div class="kpi"><div class="kl">Net interest income</div><div class="kv">₹1.21L cr <small style="color:var(--color-text-success);">+9%</small></div></div>
+    <div class="kpi"><div class="kl">Net profit</div><div class="kv">₹66k cr <small style="color:var(--color-text-success);">+11%</small></div></div>
+    <div class="kpi"><div class="kl">Net interest margin</div><div class="kv">3.6%</div></div>
+    <div class="kpi"><div class="kl">Cost / income</div><div class="kv">40%</div></div>
+  </div>
+  <div class="subh">Income &amp; earnings — 5-year trend (₹ '000 cr)</div>
+  <div id="incBars" style="display:flex;align-items:flex-end;gap:14px;height:140px;padding:0 4px;"></div>
+  <div class="leg"><span><span class="sw" style="background:#378ADD;"></span>NII</span><span><span class="sw" style="background:#1D9E75;"></span>Net profit</span><span style="margin-left:auto;color:var(--color-text-secondary);">Profit CAGR — 3y 18% · 5y 16% · 10y 19%</span></div>
+  <div class="subh" style="margin-top:18px;">Profit bridge — FY25 (₹ '000 cr)</div>
+  <svg viewBox="0 0 320 166" width="100%" style="max-width:520px" role="img" aria-label="Profit bridge from net interest income to net profit.">
+    <rect x="12" y="51.6" width="38" height="98.4" rx="3" fill="#378ADD"/><rect x="62" y="15" width="38" height="36.6" rx="3" fill="#5DCAA5"/><rect x="112" y="15" width="38" height="53.7" rx="3" fill="#EF9F27"/><rect x="162" y="68.7" width="38" height="8.9" rx="3" fill="#EF9F27"/><rect x="212" y="77.6" width="38" height="18.7" rx="3" fill="#EF9F27"/><rect x="262" y="96.3" width="38" height="53.7" rx="3" fill="#639922"/>
+    <g font-size="9.5" fill="var(--color-text-secondary)" text-anchor="middle"><text x="31" y="161">NII</text><text x="81" y="161">+Other</text><text x="131" y="161">−Opex</text><text x="181" y="161">−Prov</text><text x="231" y="161">−Tax</text><text x="281" y="161">Profit</text></g>
+  </svg>
+  <div class="subh" style="margin-top:18px;">Balance sheet &amp; asset quality</div>
+  <div class="kpis">
+    <div class="kpi"><div class="kl">Deposits</div><div class="kv">₹25.6L cr</div></div>
+    <div class="kpi"><div class="kl">Credit-deposit</div><div class="kv" style="color:var(--color-text-warning);">99%</div></div>
+    <div class="kpi"><div class="kl">CASA</div><div class="kv">38%</div></div>
+    <div class="kpi"><div class="kl">Capital adequacy</div><div class="kv" style="color:var(--color-text-success);">18.8%</div></div>
+    <div class="kpi"><div class="kl">Gross NPA</div><div class="kv">1.30%</div></div>
+    <div class="kpi"><div class="kl">Provision coverage</div><div class="kv">71%</div></div>
+  </div>
+  <div class="two" style="margin-top:18px;">
+    <div>
+      <div class="subh">Return on equity vs peers</div>
+      <svg id="lolli" viewBox="0 0 560 180" width="100%" role="img" aria-label="Lollipop chart of return on equity across five banks; HDFC Bank highlighted at 16.1 percent."></svg>
+    </div>
+    <div>
+      <div class="subh">YieldIQ quality score</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div id="battery" style="display:flex;gap:4px;flex:1;"></div>
+        <div style="text-align:right;"><div style="font-size:24px;font-weight:500;color:var(--color-text-primary);" id="batNum">0</div><div class="kl">sector 64</div></div>
+      </div>
+      <div class="muted" style="margin-top:10px;">Business-quality sub-signal — distinct from the valuation verdict above.</div>
+    </div>
+  </div>
+  <div class="subh" style="margin-top:18px;"><i class="ti ti-coin" aria-hidden="true" style="font-size:15px;vertical-align:-2px;margin-right:4px;"></i>Dividends &amp; capital allocation</div>
+  <div class="two">
+    <div>
+      <div class="muted" style="margin-bottom:4px;">Dividend per share — raised 5 years straight</div>
+      <svg viewBox="0 0 330 130" width="100%" style="max-width:380px" role="img" aria-label="Dividend staircase rising from 6.5 rupees in FY21 to 22 rupees in FY25.">
+        <path id="stair" d="M30,83 H95 V53 H160 V42 H225 V40 H290 V32 h20" fill="none" stroke="#1D9E75" stroke-width="2.5" stroke-linejoin="round"/>
+        <g font-size="10" fill="var(--color-text-secondary)" text-anchor="middle"><text x="30" y="122">FY21</text><text x="95" y="122">FY22</text><text x="160" y="122">FY23</text><text x="225" y="122">FY24</text><text x="290" y="122">FY25</text></g>
+        <g font-size="10.5" font-weight="500" fill="#0F6E56" text-anchor="middle"><text x="30" y="74">₹6.5</text><text x="95" y="44">₹15.5</text><text x="160" y="33">₹19</text><text x="225" y="31">₹19.5</text><text x="290" y="23">₹22</text></g>
+        <g fill="#1D9E75"><circle cx="30" cy="83" r="3.5"/><circle cx="95" cy="53" r="3.5"/><circle cx="160" cy="42" r="3.5"/><circle cx="225" cy="40" r="3.5"/><circle cx="290" cy="32" r="3.5"/></g>
+      </svg>
+    </div>
+    <div class="kpis" style="grid-template-columns:repeat(2,1fr);">
+      <div class="kpi"><div class="kl">Dividend yield</div><div class="kv">1.1% <small>sector 0.7%</small></div></div>
+      <div class="kpi"><div class="kl">Payout ratio</div><div class="kv">22%</div></div>
+      <div class="kpi"><div class="kl">Years of growth</div><div class="kv">5</div></div>
+      <div class="kpi"><div class="kl">Earnings cover</div><div class="kv" style="color:var(--color-text-success);">4.5×</div></div>
+    </div>
+  </div>
+  <div style="margin-top:14px;"><button id="ftoggle" style="font-size:12.5px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-secondary);border-radius:var(--border-radius-md);padding:6px 13px;cursor:pointer;"><i class="ti ti-table" aria-hidden="true" style="font-size:13px;vertical-align:-2px;"></i> <span id="ftoggleT">Show 5-year P&amp;L</span></button>
+  <div id="ftblwrap" style="overflow:hidden;max-height:0;"><div style="overflow-x:auto;margin-top:12px;"><table class="cmp" style="font-size:12px;"><thead><tr id="fthead" style="color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-secondary);"></tr></thead><tbody id="ftbody"></tbody></table></div></div></div>
+</div>
+
+<div class="sec" id="sec-5">
+  <div class="sh"><div class="st"><span class="numc">5</span><span class="title">Valuation — how we got the number</span></div><span class="rib rib-mid"><i class="ti ti-circle-dashed" aria-hidden="true" style="font-size:13px;"></i>Mixed (assumptions)</span></div>
+  <div class="subh">Where each method lands <span style="font-weight:400;color:var(--color-text-secondary);">— dot size = weight in the blend</span></div>
+  <svg id="forest" viewBox="0 0 560 215" width="100%" role="img" aria-label="Forest plot of five valuation estimators with the composite at 2010 rupees and price at 1684."></svg>
+  <div style="margin-top:14px;border-top:0.5px solid var(--color-border-tertiary);padding-top:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="subh" style="margin:0;"><i class="ti ti-adjustments-horizontal" aria-hidden="true" style="font-size:14px;vertical-align:-2px;margin-right:4px;"></i>DCF playground</div>
+      <div style="display:flex;gap:6px;"><button class="tg on" id="tgFwd">Forward DCF</button><button class="tg" id="tgRev">Reverse DCF</button></div>
+    </div>
+    <div id="panelFwd">
+      <div class="two" style="align-items:start;">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;"><label style="font-size:12.5px;color:var(--color-text-secondary);width:104px;">Terminal growth</label><input type="range" id="grw" min="3" max="7" step="0.5" value="5" style="flex:1;"/><span id="grwO" style="font-size:12.5px;font-weight:500;min-width:40px;">5.0%</span></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;"><label style="font-size:12.5px;color:var(--color-text-secondary);width:104px;">Discount rate</label><input type="range" id="dsc" min="10" max="14" step="0.5" value="12" style="flex:1;"/><span id="dscO" style="font-size:12.5px;font-weight:500;min-width:40px;">12.0%</span></div>
+          <div style="margin-top:14px;display:flex;align-items:baseline;gap:10px;"><div><div class="kl">Fair value</div><div id="fvOut" style="font-size:28px;font-weight:500;color:var(--color-text-primary);">₹2,010</div></div><div id="fvVerdict" style="font-size:13px;padding:3px 10px;border-radius:999px;background:var(--color-background-success);color:var(--color-text-success);">16% undervalued</div></div>
+        </div>
+        <div>
+          <div class="kl" style="margin-bottom:6px;text-align:center;">Sensitivity — growth (rows) × discount (cols) · click a cell</div>
+          <div id="heat" style="display:grid;grid-template-columns:34px repeat(5,1fr);gap:3px;"></div>
+        </div>
+      </div>
+    </div>
+    <div id="panelRev" style="display:none;">
+      <div class="two" style="align-items:center;">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><label style="font-size:12.5px;color:var(--color-text-secondary);width:104px;">Price you'd pay</label><input type="range" id="rpr" min="1300" max="2400" step="20" value="1684" style="flex:1;"/><span id="rprO" style="font-size:12.5px;font-weight:500;min-width:54px;">₹1,684</span></div>
+          <div style="margin-top:8px;"><div class="kl">Market-implied terminal growth</div><div id="rgOut" style="font-size:28px;font-weight:500;color:var(--color-text-primary);">3.0%</div></div>
+          <div id="revNote" class="muted" style="margin-top:6px;"></div>
+        </div>
+        <div class="muted">Drag the price to see what growth the market is paying for at that level, versus our 5.0% base case.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec" id="sec-6">
+  <div class="sh"><div class="st"><span class="numc">6</span><span class="title">Risk — what could break the thesis</span></div><span class="rib rib-mid"><i class="ti ti-circle-dashed" aria-hidden="true" style="font-size:13px;"></i>Mixed</span></div>
+  <div class="two" style="align-items:start;">
+    <div>
+      <div class="subh">Risk map — likelihood × impact</div>
+      <svg id="riskmap" viewBox="0 0 350 235" width="100%" style="max-width:380px" role="img" aria-label="Risk matrix plotting likelihood against impact; credit-deposit ratio sits highest."></svg>
+    </div>
+    <div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;"><span style="font-size:24px;font-weight:500;color:var(--color-text-warning);" id="worryNum">0</span><span class="muted">worry index · low-moderate</span></div>
+      <div class="muted" style="line-height:1.9;">
+        <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#D85A30;margin-right:6px;"></span>Credit-deposit ratio near 100% — the main swing factor</div>
+        <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EF9F27;margin-right:6px;"></span>CASA mix down ~600bps since the merger</div>
+        <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#888780;margin-right:6px;"></span>Subsidiary value-unlock pending — upside, not base case</div>
+        <div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1D9E75;margin-right:6px;"></span>Governance clean — no pledges, widely held</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec" id="sec-7">
+  <div class="sh"><div class="st"><span class="numc">7</span><span class="title">Ownership &amp; voice</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence</span></div>
+  <div class="two">
+    <div>
+      <div class="subh">Who owns it — each square is 1%</div>
+      <div id="waffle" style="display:grid;grid-template-columns:repeat(10,12px);gap:3px;"></div>
+      <div class="leg" style="margin-top:10px;"><span><span class="sw" style="background:#378ADD;"></span>FII 47%</span><span><span class="sw" style="background:#1D9E75;"></span>DII 34%</span><span><span class="sw" style="background:#B4B2A9;"></span>Public 19%</span></div>
+    </div>
+    <div>
+      <div class="muted" style="margin-bottom:10px;">Held across 41 mutual-fund schemes · FII stake +120bps qoq · zero promoter holding (widely held).</div>
+      <div style="padding:10px 12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:13px;"><i class="ti ti-microphone" aria-hidden="true" style="font-size:14px;color:var(--color-text-secondary);vertical-align:-2px;margin-right:6px;"></i>Q1 FY26 concall — management guided to deposit-led growth and gradual NIM recovery as borrowings reprice.</div>
+    </div>
+  </div>
+</div>
+
+<div class="sec" id="sec-8">
+  <div class="sh"><div class="st"><span class="numc">8</span><span class="title">Peers &amp; track record</span></div><span class="rib rib-hi"><i class="ti ti-circle-check" aria-hidden="true" style="font-size:13px;"></i>High confidence</span></div>
+  <div class="subh">Compare with peers <span style="font-weight:400;color:var(--color-text-secondary);">— tap a column to sort, hover a row to find it on the map</span></div>
+  <div style="overflow-x:auto;"><table class="cmp"><thead id="peerHead"></thead><tbody id="peerBody"></tbody></table></div>
+  <div class="subh" style="margin-top:20px;">Value vs quality map</div>
+  <svg viewBox="0 0 560 206" width="100%" role="img" aria-label="Value versus quality quadrant map of five banks.">
+    <rect x="50" y="20" width="303" height="77.3" fill="rgba(29,158,117,0.08)"/><text x="58" y="34" font-size="10" fill="#0F6E56">Better value · higher quality</text>
+    <line x1="50" y1="180" x2="548" y2="180" stroke="var(--color-border-tertiary)"/><line x1="50" y1="20" x2="50" y2="180" stroke="var(--color-border-tertiary)"/>
+    <line x1="353" y1="20" x2="353" y2="180" stroke="var(--color-border-secondary)" stroke-dasharray="4 3"/><line x1="50" y1="97.3" x2="548" y2="97.3" stroke="var(--color-border-secondary)" stroke-dasharray="4 3"/>
+    <text x="300" y="200" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">← lower P/B (better value)        higher P/B →</text>
+    <text x="13" y="100" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)" transform="rotate(-90 13 100)">higher ROE ↑</text>
+    <circle id="pb_ICICIBANK" cx="470" cy="46.7" r="14" fill="#378ADD" opacity="0.5"><title>ICICIBANK · 3.1x P/B · 18.0% ROE · 9% below FV</title></circle><text x="470" y="32" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">ICICI</text>
+    <circle id="pb_KOTAKBANK" cx="400" cy="148" r="10" fill="#888780" opacity="0.5"><title>KOTAKBANK · 2.8x P/B · 14.2% ROE · 2% below FV</title></circle><text x="400" y="167" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">KOTAK</text>
+    <circle id="pb_AXISBANK" cx="213" cy="110.7" r="11" fill="#888780" opacity="0.5"><title>AXISBANK · 2.0x P/B · 15.6% ROE · 12% below FV</title></circle><text x="213" y="129" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">AXIS</text>
+    <circle id="pb_SBIN" cx="120" cy="70.7" r="15" fill="#888780" opacity="0.5"><title>SBIN · 1.6x P/B · 17.1% ROE · 14% below FV</title></circle><text x="120" y="51" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">SBIN</text>
+    <circle id="pb_HDFCBANK" cx="353" cy="97.3" r="16" fill="#1D9E75" opacity="0.78"><title>HDFCBANK · 2.6x P/B · 16.1% ROE · 16% below FV</title></circle><text x="353" y="118" text-anchor="middle" font-size="10" font-weight="500" fill="#0F6E56">HDFCBANK</text>
+  </svg>
+  <div class="subh" style="margin-top:20px;">Track record — fair value vs price (24 months) <span style="font-weight:400;color:var(--color-text-secondary);">— hover the chart</span></div>
+  <div id="histWrap"></div>
+  <div class="leg"><span><span class="sw" style="background:#1D9E75;"></span>Price — green below fair value</span><span><span style="width:16px;height:0;border-top:1.5px dashed #888780;display:inline-block;"></span>Fair value</span></div>
+  <div id="histStats" class="kpis" style="margin-top:14px;"></div>
+</div>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 2px 8px;">
+  <button><i class="ti ti-star" aria-hidden="true"></i> Watchlist</button><button><i class="ti ti-bell" aria-hidden="true"></i> Alert</button><button><i class="ti ti-note" aria-hidden="true"></i> Note</button><button><i class="ti ti-share" aria-hidden="true"></i> Share</button><button><i class="ti ti-download" aria-hidden="true"></i> Export</button>
+  <button style="margin-left:auto;border-color:var(--color-border-info);color:var(--color-text-info);"><i class="ti ti-message-chatbot" aria-hidden="true"></i> Ask YieldIQ</button>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var price=1684,fairBase=2010,NS='http://www.w3.org/2000/svg';
+  function gv(n,fb){var x=getComputedStyle(document.body).getPropertyValue(n).trim();return x||fb;}
+  function rupee(n){return '₹'+Math.round(n).toLocaleString('en-IN');}
+  function eo(p){return 1-Math.pow(1-p,3);}
+  function back(x){var c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2);}
+  function tw(dur,fn,done){if(rm){fn(1);if(done)done();return;}var s=null;(function st(t){if(!s)s=t;var p=Math.min((t-s)/dur,1);fn(p);if(p<1)requestAnimationFrame(st);else if(done)done();})(performance.now());}
+
+  var nav=document.getElementById('nav');
+  [['sec-1','Answer'],['sec-2','Thesis'],['sec-3','Business'],['sec-4','Financials'],['sec-5','Valuation'],['sec-6','Risk'],['sec-7','Ownership'],['sec-8','Peers']].forEach(function(it){var b=document.createElement('button');b.className='chip';b.textContent=it[1];b.onclick=function(){var e=document.getElementById(it[0]);if(e)e.scrollIntoView({behavior:'smooth',block:'start'});};nav.appendChild(b);});
+  document.querySelectorAll('[data-target]').forEach(function(el){el.onclick=function(){var t=document.getElementById(el.getAttribute('data-target'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'});};});
+
+  var blue=document.getElementById('hbBlue'),green=document.getElementById('hbGreen'),mark=document.getElementById('hbMark');
+  tw(1200,function(p){document.getElementById('mosNum').textContent=Math.round(16*eo(p))+'%';});
+  if(rm){blue.style.width='83.8%';green.style.transform='scaleX(1)';mark.style.opacity='1';}
+  else requestAnimationFrame(function(){requestAnimationFrame(function(){blue.style.width='83.8%';setTimeout(function(){green.style.transform='scaleX(1)';mark.style.opacity='1';},1000);});});
+  var mosS=document.getElementById('mos');
+  mosS.addEventListener('input',function(){var v=parseInt(mosS.value,10);document.getElementById('mosout').textContent=v+'%';document.getElementById('alertline').textContent='Notify me when price falls to '+rupee(fairBase*(1-v/100))+'.';});
+
+  var SCX=300,SMAXW=360,SBH=26,SROW0=78,SGAP=52;
+  var SAX=[
+    {k:'PULSE',s:5.4,peer:6.8,m:5.0,c:'#378ADD',d:'#185FA5',lab:'Neutral',chip:'In line with peers',why:'12-month price momentum near the sector median — pace, not shape.'},
+    {k:'QUALITY',s:7.2,peer:7.8,m:5.5,c:'#1D9E75',d:'#0F6E56',lab:'Strong',chip:'Above sector median',why:'ROE 16.1% with GNPA 1.3% — both above the cohort median.'},
+    {k:'MOAT',s:8.5,peer:7.6,m:5.2,c:'#5DCAA5',d:'#085041',lab:'Strong',chip:'Top decile vs peers',why:'Distribution scale plus a three-decade low-cost deposit franchise.'},
+    {k:'SAFETY',s:7.9,peer:7.2,m:6.0,c:'#85B7EB',d:'#0C447C',lab:'Strong',chip:'Above sector median',why:'CRAR 18.8% vs ~11.5% floor; provision coverage 71%; zero pledge.'},
+    {k:'GROWTH',s:6.0,peer:7.0,m:5.8,c:'#EF9F27',d:'#854F0B',lab:'Moderate',chip:'In line with peers',why:'Profit up ~11% yoy; deposit growth pacing credit is the constraint.'},
+    {k:'VALUE',s:7.8,peer:6.5,m:5.0,c:'#D85A30',d:'#712B13',lab:'Strong',chip:'Strong discount · 81st pctile of 41 bank peers',why:'Below sector median P/B with a 16% margin of safety. Cohort: tight (n=41).'}
+  ];
+  var spSvg=document.getElementById('spSvg');
+  function sRowY(i){return SROW0+i*SGAP;}
+  function trap(cx,y,w){var bw=w*0.82;return 'M'+(cx-w/2).toFixed(1)+','+y.toFixed(1)+' L'+(cx+w/2).toFixed(1)+','+y.toFixed(1)+' L'+(cx+bw/2).toFixed(1)+','+(y+SBH).toFixed(1)+' L'+(cx-bw/2).toFixed(1)+','+(y+SBH).toFixed(1)+' Z';}
+  var sRaw=document.createElementNS(NS,'line');sRaw.setAttribute('x1',60);sRaw.setAttribute('y1',44);sRaw.setAttribute('x2',60);sRaw.setAttribute('y2',44);sRaw.setAttribute('stroke','var(--color-border-secondary)');sRaw.setAttribute('stroke-width','2.5');spSvg.appendChild(sRaw);
+  var sRawT=document.createElementNS(NS,'text');sRawT.setAttribute('x',60);sRawT.setAttribute('y',34);sRawT.setAttribute('font-size','9.5');sRawT.setAttribute('letter-spacing','2');sRawT.setAttribute('fill','var(--color-text-secondary)');sRawT.textContent='RAW';spSvg.appendChild(sRawT);
+  var sPr=document.createElementNS(NS,'rect');sPr.setAttribute('x',SCX-9);sPr.setAttribute('y',35);sPr.setAttribute('width',18);sPr.setAttribute('height',18);sPr.setAttribute('rx',3);sPr.setAttribute('transform','rotate(45 '+SCX+' 44)');sPr.setAttribute('fill','var(--color-background-primary)');sPr.setAttribute('stroke','var(--color-border-primary)');sPr.setAttribute('stroke-width','1.5');spSvg.appendChild(sPr);
+  var sThread=document.createElementNS(NS,'line');sThread.setAttribute('x1',SCX);sThread.setAttribute('y1',53);sThread.setAttribute('x2',SCX);sThread.setAttribute('y2',53);sThread.setAttribute('stroke','var(--color-text-secondary)');sThread.setAttribute('stroke-width','1.2');sThread.setAttribute('opacity','0.55');spSvg.appendChild(sThread);
+  var sBands=[],sPeer=[],sTicks=[],sLabL=[],sLabR=[];
+  SAX.forEach(function(a,i){
+    var pp=document.createElementNS(NS,'path');pp.setAttribute('fill','none');pp.setAttribute('stroke','var(--color-text-secondary)');pp.setAttribute('stroke-width','1.2');pp.setAttribute('stroke-dasharray','4 3');pp.setAttribute('opacity','0');pp.style.transition='opacity .4s';pp.setAttribute('d',trap(SCX,sRowY(i),a.peer/10*SMAXW));spSvg.appendChild(pp);sPeer.push(pp);
+    var p=document.createElementNS(NS,'path');p.setAttribute('fill',a.c);p.setAttribute('fill-opacity','0.55');p.setAttribute('stroke',a.c);p.setAttribute('stroke-width','1.5');p.setAttribute('stroke-linejoin','round');p.style.cursor='pointer';p.style.transition='fill-opacity .2s';p.setAttribute('d',trap(SCX,sRowY(i),0.5));spSvg.appendChild(p);sBands.push(p);
+    var tt=document.createElementNS(NS,'title');tt.textContent=a.k+' — sector median '+a.m.toFixed(1);p.appendChild(tt);
+    var mx=SCX+(a.m/10*SMAXW)/2;
+    var tk=document.createElementNS(NS,'line');tk.setAttribute('x1',mx);tk.setAttribute('y1',sRowY(i)+3);tk.setAttribute('x2',mx);tk.setAttribute('y2',sRowY(i)+SBH-3);tk.setAttribute('stroke','var(--color-text-secondary)');tk.setAttribute('stroke-width','2');tk.setAttribute('opacity','0');tk.style.transition='opacity .5s';spSvg.appendChild(tk);sTicks.push(tk);
+    var lt=document.createElementNS(NS,'text');lt.setAttribute('x',104);lt.setAttribute('y',sRowY(i)+SBH/2+4);lt.setAttribute('text-anchor','end');lt.setAttribute('font-size','11');lt.setAttribute('letter-spacing','1.5');lt.setAttribute('font-weight','500');lt.setAttribute('fill',a.d);lt.style.cursor='pointer';lt.setAttribute('opacity','0');lt.style.transition='opacity .4s';lt.textContent=a.k;spSvg.appendChild(lt);sLabL.push(lt);
+    var rt=document.createElementNS(NS,'text');rt.setAttribute('x',498);rt.setAttribute('y',sRowY(i)+SBH/2+4);rt.setAttribute('font-size','12.5');rt.setAttribute('font-weight','500');rt.setAttribute('fill','var(--color-text-primary)');rt.setAttribute('opacity','0');rt.style.transition='opacity .4s';rt.textContent=a.s.toFixed(1)+' /10';spSvg.appendChild(rt);sLabR.push(rt);
+    function sel(){spSelect(i);}p.addEventListener('click',sel);lt.addEventListener('click',sel);
+    p.addEventListener('mouseenter',function(){sBands.forEach(function(b,j){b.setAttribute('fill-opacity',j===i?'0.8':'0.32');});});
+    p.addEventListener('mouseleave',function(){sBands.forEach(function(b,j){b.setAttribute('fill-opacity',spSel===j?'0.8':'0.55');});});
+  });
+  var sCoreY=SROW0+5*SGAP+SBH+28;
+  var sDot=document.createElementNS(NS,'circle');sDot.setAttribute('cx',SCX);sDot.setAttribute('cy',sCoreY);sDot.setAttribute('r','4');sDot.setAttribute('fill','#1D9E75');sDot.setAttribute('opacity','0');sDot.style.transition='opacity .4s';spSvg.appendChild(sDot);
+  var sN=document.createElementNS(NS,'text');sN.setAttribute('x',SCX);sN.setAttribute('y',sCoreY+36);sN.setAttribute('text-anchor','middle');sN.setAttribute('font-size','30');sN.setAttribute('font-weight','500');sN.setAttribute('fill','var(--color-text-primary)');spSvg.appendChild(sN);
+  var sL=document.createElementNS(NS,'text');sL.setAttribute('x',SCX);sL.setAttribute('y',sCoreY+56);sL.setAttribute('text-anchor','middle');sL.setAttribute('font-size','11');sL.setAttribute('letter-spacing','2.5');sL.setAttribute('font-weight','500');sL.setAttribute('fill','#0F6E56');sL.setAttribute('opacity','0');sL.style.transition='opacity .5s';sL.textContent='VALUE REGION';spSvg.appendChild(sL);
+  var spInsp=document.getElementById('spInsp'),spSel=-1,spPeerOn=false;
+  function spSelect(i){spSel=i;var a=SAX[i];
+    sBands.forEach(function(b,j){b.setAttribute('fill-opacity',j===i?'0.8':'0.55');b.setAttribute('stroke-width',j===i?'2.4':'1.5');});
+    spInsp.style.borderLeftColor=a.c;
+    var bb=a.lab==='Strong'?['var(--color-background-success)','var(--color-text-success)']:['var(--color-background-warning)','var(--color-text-warning)'];
+    spInsp.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;"><span style="font-size:13px;font-weight:500;letter-spacing:1px;color:var(--color-text-primary);">'+a.k+'</span><span style="font-size:16px;font-weight:500;color:'+a.d+';">'+a.s.toFixed(1)+'</span><span style="font-size:10.5px;padding:2px 8px;border-radius:999px;background:'+bb[0]+';color:'+bb[1]+';">'+a.lab+'</span></div>'
+      +'<div style="font-size:11px;color:var(--color-text-info);background:var(--color-background-info);display:inline-block;padding:2px 9px;border-radius:999px;margin-bottom:7px;">'+a.chip+'</div>'
+      +'<div style="font-size:12px;line-height:1.55;color:var(--color-text-secondary);">'+a.why+'</div>';}
+  var spBtn=document.getElementById('spPeer');
+  spBtn.onclick=function(){spPeerOn=!spPeerOn;sPeer.forEach(function(p){p.setAttribute('opacity',spPeerOn?'0.8':'0');});document.getElementById('legPeer').style.display=spPeerOn?'inline':'none';spBtn.style.background=spPeerOn?'var(--color-background-info)':'transparent';spBtn.style.color=spPeerOn?'var(--color-text-info)':'var(--color-text-secondary)';};
+  function spRun(){
+    if(rm){SAX.forEach(function(a,i){sBands[i].setAttribute('d',trap(SCX,sRowY(i),a.s/10*SMAXW));});sRaw.setAttribute('x2',SCX);sThread.setAttribute('y2',sCoreY);sN.textContent='7.2';sDot.setAttribute('opacity','1');sL.setAttribute('opacity','1');sTicks.forEach(function(t){t.setAttribute('opacity','0.7');});sLabL.concat(sLabR).forEach(function(l){l.setAttribute('opacity','1');});document.getElementById('spNarr').style.opacity='1';spSelect(5);return;}
+    tw(450,function(p){sRaw.setAttribute('x2',60+(SCX-60)*eo(p));});
+    SAX.forEach(function(a,i){setTimeout(function(){
+      tw(700,function(p){sBands[i].setAttribute('d',trap(SCX,sRowY(i),Math.max(0.5,a.s/10*SMAXW*back(p))));},function(){sBands[i].setAttribute('d',trap(SCX,sRowY(i),a.s/10*SMAXW));sLabL[i].setAttribute('opacity','1');sLabR[i].setAttribute('opacity','1');sTicks[i].setAttribute('opacity','0.7');});
+      var ty=sRowY(i)+SBH+10;tw(300,function(p){var y0=parseFloat(sThread.getAttribute('y2'));sThread.setAttribute('y2',Math.max(y0,53+(ty-53)*p));});
+    },450+i*150);});
+    setTimeout(function(){
+      tw(350,function(p){sThread.setAttribute('y2',(sRowY(5)+SBH+10)+(sCoreY-(sRowY(5)+SBH+10))*eo(p));},function(){sDot.setAttribute('opacity','1');});
+      tw(600,function(p){sN.textContent=(7.2*eo(p)).toFixed(1);},function(){sL.setAttribute('opacity','1');document.getElementById('spNarr').style.opacity='1';if(spSel<0)spSelect(5);});
+    },450+6*150+550);
+  }
+  spRun();
+  if(!rm){(function br(t){var o=0.55+0.1*(1+Math.sin((t||0)/900))/2;if(spSel!==0)sBands[0].setAttribute('fill-opacity',o.toFixed(3));requestAnimationFrame(br);})();}
+
+  var needle=document.getElementById('gNeedle'),arc=document.getElementById('gArc'),gl=document.getElementById('gLabel');
+  function setN(v){var a=Math.PI-v/100*Math.PI;needle.setAttribute('x2',(85+60*Math.cos(a)).toFixed(1));needle.setAttribute('y2',(85-60*Math.sin(a)).toFixed(1));}
+  if(rm){setN(70);gl.setAttribute('opacity','1');}
+  else tw(1300,function(p){setN(70*back(p));},function(){arc.style.transition='stroke-width .16s';arc.style.strokeWidth='16';setTimeout(function(){arc.style.transition='stroke-width .4s';arc.style.strokeWidth='12';},170);gl.setAttribute('opacity','1');});
+  var lm=document.getElementById('ladMark');
+  tw(1300,function(p){lm.setAttribute('transform','translate(0,'+(-(218-158.9)*eo(p)).toFixed(1)+')');});
+  var beam=document.getElementById('beam');
+  tw(1500,function(p){beam.setAttribute('transform','rotate('+(-6*back(p)).toFixed(2)+' 280 62)');});
+  ['t1','t2','t3'].forEach(function(id,i){setTimeout(function(){document.getElementById(id).classList.add('in');},rm?0:200+i*150);});
+
+  function impMeter(level,color){var h='<span style="display:inline-flex;gap:2px;align-items:center;margin-left:8px;flex-shrink:0;">';for(var i=0;i<3;i++){h+='<span style="width:5px;height:12px;border-radius:1px;background:'+color+';opacity:'+(i<level?1:0.22)+';"></span>';}return h+'</span>';}
+  function buildList(id,data,icon,color){var c=document.getElementById(id);data.forEach(function(d){var row=document.createElement('div');row.className='erow';row.innerHTML='<div style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.4;"><i class="ti '+icon+'" style="color:'+color+';font-size:16px;margin-top:1px;flex-shrink:0;" aria-hidden="true"></i><span style="flex:1;">'+d[0]+'</span>'+impMeter(d[1],color)+'</div><div class="muted" style="font-size:11.5px;max-height:0;overflow:hidden;transition:max-height .25s;padding-left:24px;">'+d[2]+'</div>';var det=row.lastChild;row.onclick=function(){det.style.maxHeight=det.style.maxHeight&&det.style.maxHeight!=='0px'?'0px':'52px';};c.appendChild(row);});}
+  buildList('rewList',[['Trades 16% below estimated fair value',3,'Five of eight methods agree — the core of the read.'],['ROE 16.1% — above private-bank median',2,'Mid-teens returns support the quality being paid for.'],['Capital adequacy 18.8%',2,'Wide buffer over the ~11.5% regulatory floor.'],['Earnings grew ~11% last year',1,'Steady compounding, not a catalyst by itself.']],'ti-circle-check',gv('--color-text-success','#0f6e56'));
+  buildList('riskList',[['Credit-deposit ratio near 100%',3,'Caps loan growth until deposits catch up — main swing factor.'],['CASA mix down ~600bps post-merger',2,'Pressures margin; eases as rates fall.'],['Dividend yield modest at ~1.1%',1,'Total return leans on price, not income.'],['Subsidiary value-unlock pending',1,'Optional upside, not in the base case.']],'ti-alert-triangle',gv('--color-text-warning','#854f0b'));
+
+  var YR=['FY21','FY22','FY23','FY24','FY25'],NII=[65,72,87,108,121],NP=[31,37,44,61,66];
+  var inc=document.getElementById('incBars');
+  YR.forEach(function(y,i){var g=document.createElement('div');g.style.cssText='flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;';g.innerHTML='<div style="display:flex;align-items:flex-end;gap:4px;height:115px;"><div class="gb" data-h="'+(NII[i]*0.9)+'" style="width:15px;height:0;background:#378ADD;border-radius:3px 3px 0 0;" title="NII '+y+'"></div><div class="gb" data-h="'+(NP[i]*0.9)+'" style="width:15px;height:0;background:#1D9E75;border-radius:3px 3px 0 0;" title="Net profit '+y+'"></div></div><div style="font-size:11px;color:var(--color-text-secondary);">'+y+'</div>';inc.appendChild(g);});
+  requestAnimationFrame(function(){requestAnimationFrame(function(){document.querySelectorAll('.gb').forEach(function(b){b.style.height=b.getAttribute('data-h')+'px';});});});
+
+  var LP=[['HDFCBANK',16.1,'#1D9E75',1],['ICICIBANK',18.0,'#888780'],['KOTAKBANK',14.2,'#888780'],['AXISBANK',15.6,'#888780'],['SBIN',17.1,'#888780']];
+  var lolli=document.getElementById('lolli');
+  function lx(v){return 130+(v-13)/6*400;}
+  [14,16,18].forEach(function(v){var g=document.createElementNS(NS,'line');g.setAttribute('x1',lx(v));g.setAttribute('x2',lx(v));g.setAttribute('y1',16);g.setAttribute('y2',158);g.setAttribute('stroke','var(--color-border-tertiary)');g.setAttribute('stroke-dasharray','2 5');lolli.appendChild(g);var t=document.createElementNS(NS,'text');t.setAttribute('x',lx(v));t.setAttribute('y',174);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','10');t.setAttribute('fill','var(--color-text-secondary)');t.textContent=v+'%';lolli.appendChild(t);});
+  LP.forEach(function(p,i){var y=30+i*30;
+    var nm=document.createElementNS(NS,'text');nm.setAttribute('x',122);nm.setAttribute('y',y+4);nm.setAttribute('text-anchor','end');nm.setAttribute('font-size','11');nm.setAttribute('font-weight',p[3]?'500':'400');nm.setAttribute('fill',p[3]?'#0F6E56':'var(--color-text-secondary)');nm.textContent=p[0];lolli.appendChild(nm);
+    var ln=document.createElementNS(NS,'line');ln.setAttribute('x1',130);ln.setAttribute('y1',y);ln.setAttribute('x2',130);ln.setAttribute('y2',y);ln.setAttribute('stroke',p[2]);ln.setAttribute('stroke-width','2');lolli.appendChild(ln);
+    var c=document.createElementNS(NS,'circle');c.setAttribute('cx',130);c.setAttribute('cy',y);c.setAttribute('r',p[3]?6:4.5);c.setAttribute('fill',p[2]);lolli.appendChild(c);
+    var vt=document.createElementNS(NS,'text');vt.setAttribute('y',y+4);vt.setAttribute('font-size','11');vt.setAttribute('font-weight','500');vt.setAttribute('fill','var(--color-text-primary)');vt.setAttribute('opacity','0');lolli.appendChild(vt);
+    setTimeout(function(){tw(800,function(pp){var x=130+(lx(p[1])-130)*eo(pp);ln.setAttribute('x2',x.toFixed(1));c.setAttribute('cx',x.toFixed(1));},function(){vt.setAttribute('x',(lx(p[1])+12).toFixed(1));vt.textContent=p[1]+'%';vt.setAttribute('opacity','1');});},rm?0:i*100);});
+
+  var bat=document.getElementById('battery');
+  for(var bi=0;bi<10;bi++){var seg=document.createElement('div');seg.className='bseg';seg.innerHTML='<i></i>';bat.appendChild(seg);}
+  var segs=bat.querySelectorAll('.bseg>i');
+  tw(1200,function(p){var f=72*p;segs.forEach(function(s,i){var fill=Math.max(0,Math.min(1,f/10-i));s.style.width=(fill*100)+'%';});document.getElementById('batNum').textContent=Math.round(72*p);});
+
+  var stair=document.getElementById('stair');
+  if(!rm){try{var L=stair.getTotalLength();stair.style.strokeDasharray=L;stair.style.strokeDashoffset=L;requestAnimationFrame(function(){stair.style.transition='stroke-dashoffset 1.4s ease';stair.style.strokeDashoffset='0';});}catch(e){}}
+
+  document.getElementById('fthead').innerHTML='<th style="text-align:left;font-weight:500;padding:6px 8px;">₹ \'000 cr</th>'+YR.map(function(y){return '<th style="font-weight:500;padding:6px 8px;text-align:right;">'+y+'</th>';}).join('');
+  [['Net interest income',[65,72,87,108,121]],['Other income',[25,28,31,40,45]],['Total income',[90,100,118,148,166],1],['Operating expense',[33,37,46,60,66]],['Pre-provision profit',[57,63,72,88,100],1],['Provisions',[15,13,12,11,11]],['Profit before tax',[42,50,60,77,89],1],['Tax',[11,13,16,16,23]],['Net profit',[31,37,44,61,66],1]].forEach(function(r){var tr=document.createElement('tr');tr.style.cssText='border-top:0.5px solid var(--color-border-tertiary);'+(r[2]?'font-weight:500;':'');tr.innerHTML='<td style="padding:6px 8px;color:'+(r[2]?'var(--color-text-primary)':'var(--color-text-secondary)')+';">'+r[0]+'</td>'+r[1].map(function(v){return '<td style="padding:6px 8px;text-align:right;color:var(--color-text-primary);">'+v+'</td>';}).join('');document.getElementById('ftbody').appendChild(tr);});
+  var fw=document.getElementById('ftblwrap'),fo=false;
+  document.getElementById('ftoggle').onclick=function(){fo=!fo;fw.style.transition='max-height .3s';fw.style.maxHeight=fo?'460px':'0';document.getElementById('ftoggleT').textContent=fo?'Hide 5-year P&L':'Show 5-year P&L';};
+
+  var EST=[['Residual income',2060,35,'Equity × (ROE − cost of equity), faded over 10 years'],['Excess-return DCF',1980,25,'Free cash flow to equity at 12% discount'],['P/B multiple',1910,20,'Sector median 1.7× on book value'],['Dividend discount',2040,12,'Two-stage dividend growth, 5% terminal'],['Analyst average',2090,8,'Mean of 32 sell-side targets']];
+  var fr=document.getElementById('forest');
+  function fx(v){return 130+(v-1650)/500*410;}
+  var cl=document.createElementNS(NS,'line');cl.setAttribute('x1',fx(2010));cl.setAttribute('x2',fx(2010));cl.setAttribute('y1',14);cl.setAttribute('y2',172);cl.setAttribute('stroke','#1D9E75');cl.setAttribute('stroke-width','2');fr.appendChild(cl);
+  var ct=document.createElementNS(NS,'text');ct.setAttribute('x',fx(2010));ct.setAttribute('y',188);ct.setAttribute('text-anchor','middle');ct.setAttribute('font-size','10.5');ct.setAttribute('font-weight','500');ct.setAttribute('fill','#0F6E56');ct.textContent='Composite ₹2,010';fr.appendChild(ct);
+  var pl=document.createElementNS(NS,'line');pl.setAttribute('x1',fx(1684));pl.setAttribute('x2',fx(1684));pl.setAttribute('y1',14);pl.setAttribute('y2',172);pl.setAttribute('stroke','var(--color-text-secondary)');pl.setAttribute('stroke-dasharray','4 4');fr.appendChild(pl);
+  var pt2=document.createElementNS(NS,'text');pt2.setAttribute('x',fx(1684));pt2.setAttribute('y',206);pt2.setAttribute('text-anchor','middle');pt2.setAttribute('font-size','10.5');pt2.setAttribute('fill','var(--color-text-secondary)');pt2.textContent='Price ₹1,684';fr.appendChild(pt2);
+  EST.forEach(function(e,i){var y=30+i*30;
+    var nm=document.createElementNS(NS,'text');nm.setAttribute('x',122);nm.setAttribute('y',y+4);nm.setAttribute('text-anchor','end');nm.setAttribute('font-size','11');nm.setAttribute('fill','var(--color-text-secondary)');nm.textContent=e[0];fr.appendChild(nm);
+    var gd=document.createElementNS(NS,'line');gd.setAttribute('x1',130);gd.setAttribute('x2',540);gd.setAttribute('y1',y);gd.setAttribute('y2',y);gd.setAttribute('stroke','var(--color-border-tertiary)');fr.appendChild(gd);
+    var c=document.createElementNS(NS,'circle');c.setAttribute('cx',fx(e[1]));c.setAttribute('cy',y);c.setAttribute('r','0');c.setAttribute('fill','rgba(55,138,221,0.8)');fr.appendChild(c);
+    var ti2=document.createElementNS(NS,'title');ti2.textContent=e[0]+' · '+rupee(e[1])+' · weight '+e[2]+'% — '+e[3];c.appendChild(ti2);
+    var r=4.5+e[2]*0.17;
+    setTimeout(function(){tw(550,function(p){c.setAttribute('r',(r*back(p)).toFixed(1));});},rm?0:150+i*120);});
+
+  var rk=document.getElementById('riskmap');
+  rk.innerHTML='<rect x="185" y="20" width="135" height="85" rx="4" fill="rgba(216,90,48,0.08)"/><rect x="50" y="105" width="135" height="85" rx="4" fill="rgba(29,158,117,0.07)"/>'
+    +'<line x1="50" y1="190" x2="320" y2="190" stroke="var(--color-border-tertiary)"/><line x1="50" y1="20" x2="50" y2="190" stroke="var(--color-border-tertiary)"/>'
+    +'<text x="185" y="212" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">likelihood →</text>'
+    +'<text x="34" y="105" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)" transform="rotate(-90 34 105)">impact →</text>'
+    +'<text x="312" y="34" text-anchor="end" font-size="9.5" fill="#993C1D">watch zone</text>';
+  [[252,54,'#D85A30','CD ratio ~100%',9],[212,96,'#EF9F27','CASA −600bps',7.5],[293,148,'#EF9F27','Yield ~1.1%',6],[144,114,'#888780','Subsidiary unlock',6.5],[90,164,'#1D9E75','Governance clean',6]].forEach(function(d,i){
+    var c=document.createElementNS(NS,'circle');c.setAttribute('cx',d[0]);c.setAttribute('cy',d[1]);c.setAttribute('r','0');c.setAttribute('fill',d[2]);c.setAttribute('opacity','0.85');rk.appendChild(c);
+    var ti3=document.createElementNS(NS,'title');ti3.textContent=d[3];c.appendChild(ti3);
+    var t=document.createElementNS(NS,'text');t.setAttribute('x',d[0]);t.setAttribute('y',d[1]-12);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','9.5');t.setAttribute('fill','var(--color-text-secondary)');t.textContent=d[3];rk.appendChild(t);
+    setTimeout(function(){tw(450,function(p){c.setAttribute('r',(d[4]*back(p)).toFixed(1));});},rm?0:200+i*130);});
+  tw(1100,function(p){document.getElementById('worryNum').textContent=Math.round(38*p);});
+
+  var wf=document.getElementById('waffle');
+  for(var wi=0;wi<100;wi++){var ce=document.createElement('div');ce.className='wcell';wf.appendChild(ce);}
+  var cells=wf.querySelectorAll('.wcell');
+  (function paintW(i){if(i>=100)return;cells[i].style.background=i<47?'#378ADD':(i<81?'#1D9E75':'#B4B2A9');if(!rm)setTimeout(function(){paintW(i+1);},9);else paintW(i+1);})(0);
+
+  var PEERS=[{t:'HDFCBANK',px:1684,mos:16,pb:2.6,roe:16.1,dy:1.1,mc:12.8,me:1},{t:'ICICIBANK',px:1290,mos:9,pb:3.1,roe:18.0,dy:0.8,mc:9.1},{t:'SBIN',px:820,mos:14,pb:1.6,roe:17.1,dy:1.6,mc:7.3},{t:'KOTAKBANK',px:1810,mos:2,pb:2.8,roe:14.2,dy:0.1,mc:3.6},{t:'AXISBANK',px:1170,mos:12,pb:2.0,roe:15.6,dy:0.1,mc:3.6}];
+  var COLS=[['t','Company'],['px','Price'],['mos','Below FV'],['pb','P/B'],['roe','ROE'],['dy','Div yld'],['mc','Mkt cap']];
+  var sortKey='mos',sortDir=-1;
+  function pf(k,v){if(k==='t')return v;if(k==='px')return '₹'+v.toLocaleString('en-IN');if(k==='mos')return '+'+v+'%';if(k==='pb')return v.toFixed(1)+'x';if(k==='roe'||k==='dy')return v.toFixed(1)+'%';return '₹'+v+'L cr';}
+  function renderPeers(){var head=document.getElementById('peerHead');head.innerHTML='';var tr=document.createElement('tr');COLS.forEach(function(c){var th=document.createElement('th');th.textContent=c[1]+(sortKey===c[0]?(sortDir<0?' ▾':' ▴'):'');th.style.cssText='text-align:'+(c[0]==='t'?'left':'right')+';padding:7px 8px;font-weight:500;color:var(--color-text-secondary);cursor:pointer;white-space:nowrap;font-size:12px;border-bottom:0.5px solid var(--color-border-secondary);';th.onclick=function(){if(sortKey===c[0])sortDir*=-1;else{sortKey=c[0];sortDir=c[0]==='t'?1:-1;}renderPeers();};tr.appendChild(th);});head.appendChild(tr);
+    var body=document.getElementById('peerBody');body.innerHTML='';
+    PEERS.slice().sort(function(a,b){var x=a[sortKey],y=b[sortKey];if(sortKey==='t')return (x<y?-1:1)*sortDir;return (x-y)*sortDir;}).forEach(function(p){var tr=document.createElement('tr');tr.style.cssText='border-top:0.5px solid var(--color-border-tertiary);'+(p.me?'background:var(--color-background-info);':'');
+      tr.onmouseenter=function(){var c=document.getElementById('pb_'+p.t);if(c){c.style.stroke='var(--color-text-primary)';c.style.strokeWidth='2.5';}if(!p.me)tr.style.background='var(--color-background-secondary)';};
+      tr.onmouseleave=function(){var c=document.getElementById('pb_'+p.t);if(c)c.style.stroke='none';tr.style.background=p.me?'var(--color-background-info)':'';};
+      COLS.forEach(function(c){var td=document.createElement('td');td.style.cssText='padding:7px 8px;text-align:'+(c[0]==='t'?'left':'right')+';font-size:12.5px;white-space:nowrap;'+(c[0]==='mos'?'color:var(--color-text-success);font-weight:500;':'color:var(--color-text-primary);');if(c[0]==='t'){td.style.fontWeight='500';td.innerHTML=(p.me?'<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--color-text-info);margin-right:6px;vertical-align:middle;"></span>':'')+p.t;}else td.textContent=pf(c[0],p[c[0]]);tr.appendChild(td);});
+      body.appendChild(tr);});}
+  renderPeers();
+
+  function mb(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
+  var rnd=mb(9),N=260,HFV=[],HPX=[];
+  for(var i2=0;i2<N;i2++){var f2=i2/(N-1);var dip=58*Math.exp(-Math.pow((i2-86)/24,2));var tr2=1490+f2*(1684-1490)-dip;if(i2===0)HPX.push(1492);else HPX.push(HPX[i2-1]+(tr2-HPX[i2-1])*0.07+(rnd()*2-1)*15);HFV.push(1760+f2*(2010-1760)+7*Math.sin(i2*0.045));}
+  var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],months=[],yy=2024,mm=5;
+  for(var z=0;z<25;z++){months.push(MN[mm]+" '"+(yy%100));mm++;if(mm>11){mm=0;yy++;}}
+  var pL=44,pRX=666,pT=16,pBY=262;
+  function mx2(i){return pL+i/(N-1)*(pRX-pL);}
+  function my2(v){return pT+(2120-v)/720*(pBY-pT);}
+  var pxPts=HPX.map(function(v,i){return mx2(i).toFixed(1)+','+my2(v).toFixed(1);}).join(' ');
+  var fvPts=HFV.map(function(v,i){return mx2(i).toFixed(1)+','+my2(v).toFixed(1);}).join(' ');
+  var area=pxPts+' '+mx2(N-1).toFixed(1)+','+pBY+' '+mx2(0).toFixed(1)+','+pBY;
+  var grid='',xlab='';[2100,1800,1500].forEach(function(v){grid+='<line x1="'+pL+'" y1="'+my2(v).toFixed(1)+'" x2="'+pRX+'" y2="'+my2(v).toFixed(1)+'" stroke="var(--color-border-tertiary)" stroke-dasharray="2 5"/><text x="672" y="'+(my2(v)+3).toFixed(1)+'" font-size="10" fill="var(--color-text-secondary)">'+v.toLocaleString('en-IN')+'</text>';});
+  [0,6,12,18,24].forEach(function(mi){xlab+='<text x="'+mx2(Math.round(mi/24*(N-1))).toFixed(1)+'" y="284" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">'+months[mi]+'</text>';});
+  document.getElementById('histWrap').innerHTML='<svg id="histSvg" viewBox="0 0 720 300" width="100%" style="display:block;cursor:crosshair;" role="img" aria-label="Price versus fair value over 24 months."><defs><linearGradient id="pxg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1D9E75" stop-opacity="0.16"/><stop offset="100%" stop-color="#1D9E75" stop-opacity="0"/></linearGradient></defs>'+grid+xlab
+    +'<polygon id="vhArea" points="'+area+'" fill="url(#pxg)" opacity="0"/><polyline id="vhFv" points="'+fvPts+'" fill="none" stroke="#888780" stroke-width="1.4" stroke-dasharray="6 5" opacity="0"/><polyline id="vhPx" points="'+pxPts+'" fill="none" stroke="#1D9E75" stroke-width="1.6" stroke-linejoin="round"/>'
+    +'<g id="vhScrub" opacity="0"><line id="vhLn" y1="'+pT+'" y2="'+pBY+'" stroke="var(--color-text-secondary)" stroke-dasharray="3 3" opacity="0.6"/><circle id="vhDf" r="3.5" fill="#888780" stroke="var(--color-background-primary)" stroke-width="1.5"/><circle id="vhDp" r="4" fill="#1D9E75" stroke="var(--color-background-primary)" stroke-width="1.5"/>'
+    +'<g id="vhTp"><rect width="98" height="46" rx="6" fill="var(--color-background-primary)" stroke="var(--color-border-secondary)"/><text x="10" y="15" font-size="10" fill="var(--color-text-secondary)">Price</text><text id="vhTpv" x="10" y="29" font-size="12.5" font-weight="500" fill="var(--color-text-primary)"></text><text id="vhTps" x="10" y="41" font-size="10" fill="#0F6E56"></text></g>'
+    +'<g id="vhTf"><rect width="98" height="46" rx="6" fill="var(--color-background-primary)" stroke="var(--color-border-secondary)"/><text x="10" y="15" font-size="10" fill="var(--color-text-secondary)">Fair value</text><text id="vhTfv" x="10" y="29" font-size="12.5" font-weight="500" fill="var(--color-text-primary)"></text><text id="vhTfs" x="10" y="41" font-size="10" fill="var(--color-text-secondary)"></text></g></g></svg>';
+  var hs2=document.getElementById('histSvg');
+  hs2.addEventListener('mousemove',function(e){var r=hs2.getBoundingClientRect();var i=Math.max(0,Math.min(N-1,Math.round((e.clientX-r.left)/r.width*(N-1))));var x=mx2(i),yf=my2(HFV[i]),yp=my2(HPX[i]),mo=Math.round((HFV[i]-HPX[i])/HFV[i]*100);
+    document.getElementById('vhLn').setAttribute('x1',x);document.getElementById('vhLn').setAttribute('x2',x);
+    document.getElementById('vhDf').setAttribute('cx',x);document.getElementById('vhDf').setAttribute('cy',yf);
+    document.getElementById('vhDp').setAttribute('cx',x);document.getElementById('vhDp').setAttribute('cy',yp);
+    document.getElementById('vhTpv').textContent=rupee(HPX[i]);document.getElementById('vhTps').textContent=mo+'% below FV';
+    document.getElementById('vhTfv').textContent=rupee(HFV[i]);document.getElementById('vhTfs').textContent=months[Math.round(i/(N-1)*24)];
+    var tx=Math.max(pL,Math.min(x-106,pRX-98));
+    document.getElementById('vhTf').setAttribute('transform','translate('+tx+','+Math.max(pT,yf-50).toFixed(1)+')');
+    document.getElementById('vhTp').setAttribute('transform','translate('+tx+','+Math.min(pBY-46,yp+6).toFixed(1)+')');
+    document.getElementById('vhScrub').setAttribute('opacity','1');});
+  hs2.addEventListener('mouseleave',function(){document.getElementById('vhScrub').setAttribute('opacity','0');});
+  var vp=document.getElementById('vhPx');
+  if(!rm){try{var VL=vp.getTotalLength();vp.style.strokeDasharray=VL;vp.style.strokeDashoffset=VL;requestAnimationFrame(function(){vp.style.transition='stroke-dashoffset 1.7s ease';vp.style.strokeDashoffset='0';document.getElementById('vhFv').style.transition='opacity 1.1s';document.getElementById('vhFv').setAttribute('opacity','1');setTimeout(function(){document.getElementById('vhArea').style.transition='opacity 1s';document.getElementById('vhArea').setAttribute('opacity','1');},600);});}catch(e){}}
+  else{document.getElementById('vhFv').setAttribute('opacity','1');document.getElementById('vhArea').setAttribute('opacity','1');}
+  [['Fair value led price','22 of 24 mo'],['Average discount','14%'],['2-year total return','+11%'],['Model tracking','±9%']].forEach(function(s){var d=document.createElement('div');d.className='kpi';d.innerHTML='<div class="kl">'+s[0]+'</div><div class="kv" style="font-size:17px;">'+s[1]+'</div>';document.getElementById('histStats').appendChild(d);});
+
+  function fdcf(g,d){var f=2010*(1+0.08*(g-5))*(1-0.09*(d-12));return Math.max(1200,Math.min(2800,f));}
+  function near(arr,v){return arr.reduce(function(a,b){return Math.abs(b-v)<Math.abs(a-v)?b:a;});}
+  var GR=[3,4,5,6,7],DI=[10,11,12,13,14],grw=document.getElementById('grw'),dsc=document.getElementById('dsc');
+  var heat=document.getElementById('heat');
+  heat.appendChild(Object.assign(document.createElement('div'),{className:'hhdr',innerHTML:'g\\d'}));
+  DI.forEach(function(d){heat.appendChild(Object.assign(document.createElement('div'),{className:'hhdr',textContent:d+'%'}));});
+  GR.slice().reverse().forEach(function(g){heat.appendChild(Object.assign(document.createElement('div'),{className:'hhdr',textContent:g+'%'}));DI.forEach(function(d){var c=document.createElement('div');c.className='hcell';c.id='h_'+g+'_'+d;c.onclick=function(){grw.value=g;dsc.value=d;updFwd();};heat.appendChild(c);});});
+  function updFwd(){var g=+grw.value,d=+dsc.value;document.getElementById('grwO').textContent=g.toFixed(1)+'%';document.getElementById('dscO').textContent=d.toFixed(1)+'%';var f=fdcf(g,d);document.getElementById('fvOut').textContent=rupee(f);var mo=Math.round((f-price)/f*100);var v=document.getElementById('fvVerdict');if(mo>=0){v.textContent=mo+'% undervalued';v.style.background=gv('--color-background-success','#e1f5ee');v.style.color=gv('--color-text-success','#0f6e56');}else{v.textContent=Math.abs(mo)+'% overvalued';v.style.background=gv('--color-background-warning','#faeeda');v.style.color=gv('--color-text-warning','#854f0b');}
+    GR.forEach(function(gg){DI.forEach(function(dd){var c=document.getElementById('h_'+gg+'_'+dd);if(!c)return;var fv=fdcf(gg,dd),m2=(fv-price)/fv;c.style.background=m2>=0?'rgba(29,158,117,'+(0.12+Math.min(m2*1.8,0.5))+')':'rgba(216,90,48,'+(0.12+Math.min(-m2*1.8,0.5))+')';c.textContent='₹'+(Math.round(fv/10)*10);c.style.outline='none';});});
+    var cur=document.getElementById('h_'+near(GR,g)+'_'+near(DI,d));if(cur){cur.style.outline='2px solid var(--color-text-primary)';cur.style.outlineOffset='-2px';}}
+  grw.addEventListener('input',updFwd);dsc.addEventListener('input',updFwd);updFwd();
+  var rpr=document.getElementById('rpr');
+  function updRev(){var p=+rpr.value;document.getElementById('rprO').textContent=rupee(p);var g=Math.max(0,Math.min(12,5+((p/2010)-1)/0.08));document.getElementById('rgOut').textContent=g.toFixed(1)+'%';document.getElementById('revNote').textContent='At '+rupee(p)+' the market prices ~'+g.toFixed(1)+'% terminal growth — '+(g<5?'below our 5.0% base case, which is why HDFCBANK reads undervalued.':(g>5?'above our 5.0% base case.':'in line with our base case.'));}
+  rpr.addEventListener('input',updRev);updRev();
+  var tgF=document.getElementById('tgFwd'),tgR=document.getElementById('tgRev');
+  tgF.onclick=function(){tgF.classList.add('on');tgR.classList.remove('on');document.getElementById('panelFwd').style.display='';document.getElementById('panelRev').style.display='none';};
+  tgR.onclick=function(){tgR.classList.add('on');tgF.classList.remove('on');document.getElementById('panelRev').style.display='';document.getElementById('panelFwd').style.display='none';};
+})();
+</script>
