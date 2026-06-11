@@ -31,6 +31,8 @@ import type {
 } from "@/lib/api"
 import { useQuery } from "@tanstack/react-query"
 import { getFinancials } from "@/lib/api"
+import { formatCrore, formatPct as formatPctCanonical } from "@/lib/formatNumbers"
+import NumberContext from "@/components/common/NumberContext"
 
 type Period = "annual" | "quarterly" | "ttm"
 
@@ -72,32 +74,22 @@ const METRICS: MetricSpec[] = [
 // ─── formatters ─────────────────────────────────────────────────────
 
 /**
- * Format an Indian-rupee amount expressed in Crore (₹1 Cr = 10M) into
- * a compact display string. ≥ 1L Cr renders as "Lakh Cr", otherwise
- * Cr with Indian digit grouping.
+ * Crore amounts route through the canonical formatter
+ * (lib/formatNumbers.formatCrore) — same tiering as before
+ * ("₹2.40 Lakh Cr" / "₹14,400 Cr" / "₹850.4 Cr"), single source of
+ * truth for thresholds + em-dash fallback.
  */
-function formatCroreCompact(cr: number | null): string {
-  if (cr == null || !Number.isFinite(cr)) return "—"
-  const abs = Math.abs(cr)
-  const sign = cr < 0 ? "-" : ""
-  if (abs >= 100_000) return `${sign}₹${(abs / 100_000).toFixed(2)} Lakh Cr`
-  if (abs >= 1_000) return `${sign}₹${Math.round(abs).toLocaleString("en-IN")} Cr`
-  if (abs >= 1) return `${sign}₹${abs.toFixed(1)} Cr`
-  return `${sign}₹${abs.toFixed(2)} Cr`
-}
+const formatCroreCompact = (cr: number | null): string => formatCrore(cr)
 
-/** EPS (per-share) — never compacted to Cr. */
+/** EPS (per-share) — never compacted to Cr; fixed 2 decimals. */
 function formatEps(v: number | null, currency?: string | null): string {
   if (v == null || !Number.isFinite(v)) return "—"
   const sym = currency && currency.toUpperCase() === "USD" ? "$" : "₹"
   return `${sym}${v.toFixed(2)}`
 }
 
-function formatPctSigned(p: number | null): string {
-  if (p == null || !Number.isFinite(p)) return "—"
-  const sign = p > 0 ? "+" : ""
-  return `${sign}${p.toFixed(1)}%`
-}
+const formatPctSigned = (p: number | null): string =>
+  formatPctCanonical(p, { signed: true })
 
 // ─── derivations ────────────────────────────────────────────────────
 
@@ -177,6 +169,24 @@ export function deriveMetric(
   }
 }
 
+/**
+ * Mean of the last (up to) `n` points in the sparkline series — the
+ * "5y avg" context caption on each KPI card. Needs at least 3 numeric
+ * periods so one filing can't pose as a five-year norm. Derived from
+ * the same financials series that draws the bars — no new data.
+ */
+export function avgOfLastN(
+  spark: { value: number }[],
+  n: number,
+): number | null {
+  const vals = spark
+    .slice(-n)
+    .map(p => p.value)
+    .filter(v => Number.isFinite(v))
+  if (vals.length < 3) return null
+  return vals.reduce((s, v) => s + v, 0) / vals.length
+}
+
 // ─── card ───────────────────────────────────────────────────────────
 
 interface CardProps {
@@ -184,6 +194,8 @@ interface CardProps {
   derived: DerivedMetric
   currency?: string | null
   hasData: boolean
+  /** Pre-formatted 5-year average ("₹9,610 Cr"); null hides the caption. */
+  fiveYearAvgLabel?: string | null
 }
 
 function trendTone(yoy: number | null): "up" | "down" | "neutral" {
@@ -193,7 +205,7 @@ function trendTone(yoy: number | null): "up" | "down" | "neutral" {
   return "neutral"
 }
 
-function KpiCard({ spec, derived, currency, hasData }: CardProps) {
+function KpiCard({ spec, derived, currency, hasData, fiveYearAvgLabel }: CardProps) {
   const tone = trendTone(derived.yoy)
   const trendColor =
     tone === "up" ? "text-tone-good-fg bg-tone-good-bg"
@@ -237,6 +249,11 @@ function KpiCard({ spec, derived, currency, hasData }: CardProps) {
         <span className="text-3xl font-bold tabular-nums text-ink" data-testid={`kpi-value-${spec.key}`}>
           {valueStr}
         </span>
+        <NumberContext
+          label="5y avg"
+          value={fiveYearAvgLabel}
+          className="block mt-0.5"
+        />
       </div>
 
       <div className="mt-3 h-6 w-full">
@@ -352,6 +369,15 @@ export default function FinancialsKpiGrid({
         {METRICS.map(m => {
           const d = derivedByKey[m.key]
           const hasData = d.spark.length > 0
+          // "5y avg" context only makes sense on annual-shaped series;
+          // the quarterly toggle would average 5 quarters, not 5 years.
+          const avg = period === "quarterly" ? null : avgOfLastN(d.spark, 5)
+          const avgLabel =
+            avg == null
+              ? null
+              : m.isPerShare
+                ? formatEps(avg, currency)
+                : formatCroreCompact(avg)
           return (
             <KpiCard
               key={m.key}
@@ -359,6 +385,7 @@ export default function FinancialsKpiGrid({
               derived={d}
               currency={currency}
               hasData={hasData}
+              fiveYearAvgLabel={avgLabel}
             />
           )
         })}

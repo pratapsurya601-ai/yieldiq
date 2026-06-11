@@ -27,10 +27,10 @@ import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
 import {
   cn,
   formatCurrency,
-  formatPct,
   formatCompanyName,
   verdictDisplayLabel,
 } from "@/lib/utils"
+import { formatMultiple, formatPct } from "@/lib/formatNumbers"
 import { metricToneClass } from "@/lib/metricTone"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
@@ -108,15 +108,11 @@ function compareString(a: string, b: string, dir: SortDir): number {
   return dir === "asc" ? diff : -diff
 }
 
-function fmtRatio(v: number | null): string {
-  if (v == null || !Number.isFinite(v)) return "—"
-  return `${v.toFixed(1)}x`
-}
+/* Canonical formatters (lib/formatNumbers) — identical output to the
+   old local toFixed() helpers. */
+const fmtRatio = (v: number | null): string => formatMultiple(v)
 
-function fmtPctValue(v: number | null): string {
-  if (v == null || !Number.isFinite(v)) return "—"
-  return `${v.toFixed(1)}%`
-}
+const fmtPctValue = (v: number | null): string => formatPct(v)
 
 interface HeaderProps {
   label: string
@@ -391,9 +387,7 @@ export default function InlinePeerComparison({
                   </span>
                 </span>
                 <span className={cn("text-xs font-mono tabular-nums", mosToneClass(row.mos_pct))}>
-                  {row.mos_pct != null && Number.isFinite(row.mos_pct)
-                    ? formatPct(row.mos_pct)
-                    : "—"}
+                  {formatPct(row.mos_pct, { signed: true })}
                 </span>
               </div>
               <p className="text-[11px] text-caption truncate mb-2">
@@ -518,9 +512,7 @@ export default function InlinePeerComparison({
                       mosToneClass(row.mos_pct),
                     )}
                   >
-                    {row.mos_pct != null && Number.isFinite(row.mos_pct)
-                      ? formatPct(row.mos_pct)
-                      : "—"}
+                    {formatPct(row.mos_pct, { signed: true })}
                   </td>
                   <td
                     className={cn(

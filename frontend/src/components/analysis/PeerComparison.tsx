@@ -8,6 +8,7 @@ import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
 import { formatMarketCap } from "@/lib/formatters"
+import { formatMultiple, formatPct } from "@/lib/formatNumbers"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface Props {
@@ -40,21 +41,14 @@ function truncate(s: string, max: number): string {
   return s.slice(0, max - 1) + "…"
 }
 
-function fmtRatio(v: number | null): string {
-  if (v === null || v === undefined) return "—"
-  return `${v.toFixed(1)}x`
-}
+/* Canonical formatters (lib/formatNumbers) — identical output to the
+   old local toFixed() helpers, one source of truth for decimals,
+   signing, and the em-dash fallback. */
+const fmtRatio = (v: number | null): string => formatMultiple(v)
 
-function fmtPct(v: number | null): string {
-  if (v === null || v === undefined) return "—"
-  return `${v.toFixed(1)}%`
-}
+const fmtPct = (v: number | null): string => formatPct(v)
 
-function fmtMoS(v: number | null): string {
-  if (v === null || v === undefined) return "—"
-  const sign = v > 0 ? "+" : ""
-  return `${sign}${v.toFixed(1)}%`
-}
+const fmtMoS = (v: number | null): string => formatPct(v, { signed: true })
 
 function fmtMarketCap(cr: number | null, currency: string | null | undefined, ticker?: string): string {
   if (cr === null || cr === undefined) return "\u2014"

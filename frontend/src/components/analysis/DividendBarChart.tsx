@@ -29,6 +29,7 @@ import {
   Legend,
 } from "recharts"
 import { currencySymbol } from "@/lib/currency"
+import { formatPct } from "@/lib/formatNumbers"
 import type { DividendData } from "@/types/api"
 
 interface Props {
@@ -201,7 +202,7 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props) 
                     )}
                     {payoutOverlay !== null && (
                       <p className="text-gray-300 mt-0.5">
-                        Payout (latest): {payoutOverlay.toFixed(0)}%
+                        Payout (latest): {formatPct(payoutOverlay, { decimals: 0 })}
                       </p>
                     )}
                   </div>
@@ -234,7 +235,7 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props) 
                   yAxisId="payout"
                   type="monotone"
                   dataKey="payout"
-                  name={`Payout ratio (latest ${payoutOverlay.toFixed(0)}%)`}
+                  name={`Payout ratio (latest ${formatPct(payoutOverlay, { decimals: 0 })})`}
                   stroke="#F59E0B"
                   strokeDasharray="4 4"
                   dot={false}

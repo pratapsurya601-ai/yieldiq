@@ -30,6 +30,11 @@ const eslintConfig = defineConfig([
     ignores: [
       "src/lib/utils.ts",
       "src/lib/currency.ts",
+      // 2026-06-11: canonical number-comprehension formatter layer
+      // (formatINR / formatCrore / formatPct / formatMultiple /
+      // formatCompactCount). Same exemption class as lib/utils.ts —
+      // it IS the formatter components must route through.
+      "src/lib/formatNumbers.ts",
       "src/**/*.test.{ts,tsx}",
       "src/**/*.spec.{ts,tsx}",
     ],

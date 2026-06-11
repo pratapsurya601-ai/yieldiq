@@ -51,6 +51,7 @@ import * as React from "react"
 
 import { SummaryCard } from "@/components/cards"
 import { cn, formatCurrency } from "@/lib/utils"
+import { formatPct } from "@/lib/formatNumbers"
 
 /* ─── public API types ────────────────────────────────────────────── */
 
@@ -94,7 +95,9 @@ function isFiniteNumber(v: unknown): v is number {
 
 function pctFormat(weight: number): string {
   if (!isFiniteNumber(weight) || weight <= 0) return "0%"
-  return `${(weight * 100).toFixed(0)}%`
+  // Weights arrive as 0-1 decimals; canonical percent formatter at
+  // zero decimals keeps the output identical to the old toFixed(0).
+  return formatPct(weight * 100, { decimals: 0 })
 }
 
 function pctDeltaFormat(nominal: number, effective: number): string | null {
