@@ -234,15 +234,56 @@ export default function FinancialsChartPanel({ ticker, currency, sector }: Props
       )}
 
       {period === "annual" && isError && (
-        <p className="text-sm text-caption text-center py-10">
-          Financial history unavailable for this ticker.
-        </p>
+        // P0 empty-state fix (2026-06-11 continuation of PR #901) —
+        // previously a single-line text orphaned the "FINANCIAL
+        // STATEMENTS — 10-YEAR" CollapsibleSection header on tickers
+        // where the financials endpoint 5xx'd. Now we render a full
+        // empty-state card with a recovery hint so the slot never
+        // reads as broken.
+        <div
+          role="status"
+          className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center"
+          data-testid="financials-chart-error"
+        >
+          <p className="text-sm font-medium text-ink mb-1">
+            Financial history is being computed
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            We pull income statement and cash flow rows from BSE / NSE XBRL
+            filings and merge them with yfinance fall-backs. The endpoint
+            returned an error for this ticker — refresh in a few moments,
+            or check the calibration page for ingestion-coverage details.
+          </p>
+        </div>
       )}
 
       {period === "annual" && !isError && !hasRows && (
-        <p className="text-sm text-caption text-center py-10">
-          Financial history unavailable for this ticker.
-        </p>
+        // P0 empty-state fix (2026-06-11) — the cache-warm path may
+        // leave a ticker without any FY rows during a recompute window
+        // (POWERGRID + similar utility names hit this between
+        // CACHE_VERSION bumps). Upgraded from a single-line italic to
+        // a full empty-state card matching the rest of the section
+        // empty-state vocabulary.
+        <div
+          role="status"
+          className="rounded-xl border border-dashed border-border bg-surface/40 p-5 text-center"
+          data-testid="financials-chart-empty"
+        >
+          <p className="text-sm font-medium text-ink mb-1">
+            10-year history will appear here as we backfill
+          </p>
+          <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+            Most NIFTY 500 names already have a full 10-year window. Newer
+            listings, ADRs, and a handful of utilities are still being
+            backfilled from BSE XBRL filings.
+          </p>
+          <a
+            href="/calibration"
+            className="inline-flex items-center mt-3 px-3 py-1.5 text-[11px] font-semibold text-brand bg-brand-50 dark:bg-brand/10 rounded-full hover:opacity-90 transition"
+          >
+            See coverage on the calibration page &rarr;
+          </a>
+        </div>
       )}
 
       {period === "annual" && hasRows && (

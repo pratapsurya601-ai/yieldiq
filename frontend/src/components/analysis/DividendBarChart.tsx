@@ -72,18 +72,61 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props) 
       ? dividend.payout_ratio_pct
       : null
 
-  const noHistory = !dividend?.has_dividends || rows.length === 0
+  const hasDividends = !!dividend?.has_dividends
+  const noHistory = !hasDividends || rows.length === 0
 
   if (noHistory) {
+    // P0 empty-state fix (2026-06-11 continuation of PR #901) — the
+    // previous two-line empty state read as "section is broken" on
+    // tickers that ARE known payers but whose fy_history slice is
+    // still being backfilled (POWERGRID, NTPC, regulated utilities
+    // hit this between manifest entries). Upgraded to a full
+    // explanatory card matching the rest of the section empty-state
+    // vocabulary set by PR #901. Two-track copy: known-payer with
+    // pending-backfill copy, vs. genuine no-payments copy.
+    const isKnownPayer =
+      hasDividends ||
+      (dividend?.consecutive_years ?? 0) > 0 ||
+      dividend?.current_yield_pct != null ||
+      dividend?.dividend_rate_per_share != null
     return (
-      <div className="bg-surface rounded-2xl border border-border p-4">
+      <div
+        role="status"
+        className="bg-surface rounded-2xl border border-border p-4"
+        data-testid="dividend-bar-chart-empty"
+      >
         <h3 className="text-sm font-semibold text-ink">
           Dividend per share — 10 year history
         </h3>
-        <p className="mt-2 text-xs text-caption">
-          No dividend history available — this stock has not paid
-          dividends in our window.
-        </p>
+        <div className="mt-3 rounded-xl border border-dashed border-border bg-bg p-5 text-center">
+          {isKnownPayer ? (
+            <>
+              <p className="text-sm font-medium text-ink mb-1">
+                Per-share history is being backfilled
+              </p>
+              <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+                {ticker
+                  ? `${ticker.replace(".NS", "").replace(".BO", "")} `
+                  : "This name "}
+                pays dividends — the current yield and payout ratio are
+                surfaced above. We&rsquo;re indexing the per-FY DPS series
+                from BSE corporate-actions filings; coverage typically
+                lands within a few hours of a CACHE_VERSION bump.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-ink mb-1">
+                No dividend history in our window
+              </p>
+              <p className="text-xs text-caption max-w-md mx-auto leading-relaxed">
+                We see no dividend payments for this ticker in the
+                trailing 10 years of BSE corporate-actions data.
+                Growth-stage and ADR names commonly fall in this bucket.
+              </p>
+            </>
+          )}
+        </div>
       </div>
     )
   }
