@@ -143,6 +143,7 @@ import MetricVsSectorChip from "@/components/analysis/MetricVsSectorChip"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
+import DemoPreviewChip from "@/components/analysis/DemoPreviewChip"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { usePaygStore } from "@/store/paygStore"
@@ -2197,6 +2198,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             after the user picks a style. Self-hides for users without
             a style and after dismissal. */}
         <PersonalizationBanner style={activeStyle} />
+        <DemoPreviewChip />
 
         {wasAliased && (
           <div className="text-xs text-brand bg-brand-50 border border-border rounded-lg px-3 py-2">
