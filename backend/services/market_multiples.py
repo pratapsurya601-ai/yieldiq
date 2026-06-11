@@ -64,12 +64,29 @@ def _coerce_pos(v) -> Optional[float]:
 
 
 def _canonical(ticker: str) -> str:
-    """Match the `market_metrics.ticker` keying — suffixed symbol."""
+    """Cache / result keying — suffixed symbol (HDFCBANK.NS)."""
     s = (ticker or "").strip().upper()
     if not s:
         return ""
     if "." not in s:
         s = f"{s}.NS"
+    return s
+
+
+def _bare(ticker: str) -> str:
+    """`market_metrics.ticker` keying — BARE symbol (HDFCBANK).
+
+    The table stores exchange-suffix-free tickers (verified live:
+    ``SELECT ticker FROM market_metrics WHERE ticker ILIKE
+    '%HDFCBANK%'`` returns ``HDFCBANK``, never ``HDFCBANK.NS``).
+    Querying with suffixed symbols silently matches zero rows, which
+    is exactly the bug this module exists to fix — so the SQL below
+    must always be fed bare symbols.
+    """
+    s = (ticker or "").strip().upper()
+    for suffix in (".NS", ".BO", ".NSE", ".BSE"):
+        if s.endswith(suffix):
+            return s[: -len(suffix)]
     return s
 
 
@@ -106,6 +123,12 @@ def _fetch_rows(tickers: list[str]) -> dict[str, dict[str, Optional[float]]]:
     }
     if not tickers:
         return out
+    # The table keys BARE symbols; requests/results key canonical
+    # (suffixed) symbols. Build the reverse map so each DB row lands
+    # on every canonical alias that asked for it.
+    bare_to_canon: dict[str, list[str]] = {}
+    for t in tickers:
+        bare_to_canon.setdefault(_bare(t), []).append(t)
     sess = _get_session()
     if sess is None:
         return out
@@ -123,16 +146,18 @@ def _fetch_rows(tickers: list[str]) -> dict[str, dict[str, Optional[float]]]:
                          mm.trade_date DESC
                 """
             ),
-            {"tickers": tickers},
+            {"tickers": [b for b in bare_to_canon if b]},
         ).fetchall()
         for row in rows:
             try:
                 ticker, pe, pb = row[0], row[1], row[2]
             except Exception:
                 continue
-            key = _canonical(str(ticker))
-            if key in out:
-                out[key] = {"pe": _coerce_pos(pe), "pb": _coerce_pos(pb)}
+            for key in bare_to_canon.get(_bare(str(ticker)), ()):
+                if key in out:
+                    out[key] = {
+                        "pe": _coerce_pos(pe), "pb": _coerce_pos(pb),
+                    }
     except Exception as exc:
         logger.warning("market_multiples: fetch failed: %s", exc)
     finally:

@@ -30,6 +30,11 @@ from backend.routers.analysis import (
 )
 from backend.services.multiples_fv import compute_multiples_fv
 
+# Bound at import time, BEFORE the autouse `_no_db` fixture patches the
+# module attribute — lets the bare-keying regression test exercise the
+# real implementation.
+from backend.services.market_multiples import _fetch_rows as _real_fetch_rows
+
 
 # ─────────────────────────────────────────────────────────────────
 # Fixtures
@@ -126,6 +131,21 @@ class TestBankResidualIncomeWarmPath:
         # SEBI-safe + jargon-free: no raw slugs, no advisory verbs.
         assert "_" not in reason
         assert "nim_pct" not in reason
+
+    def test_inject_stamps_honest_reason_despite_preseeded_none(self):
+        # Regression: `_inject_sector_specific_dict` pre-seeds
+        # `sector_specific_reason` with None as a defensive default
+        # BEFORE the resolver runs. A setdefault inside the resolver
+        # therefore no-ops on every warm dict path and the user saw a
+        # silent dash (reason=None) instead of the honest sentence —
+        # verified live on the cached HDFCBANK payload, where NIM is
+        # genuinely absent from every source. The reason write must
+        # survive the pre-seeded key.
+        payload = _warm_bank_payload(with_nim=False)
+        _inject_sector_specific_dict(payload)
+        assert payload["sector_specific_fv"] is None
+        reason = payload.get("sector_specific_reason") or ""
+        assert "net interest margin" in reason.lower()
 
     def test_snapshot_block_still_wins_when_present(self):
         # Forward-compat: an explicit computation_inputs.bank_deepened
@@ -237,6 +257,39 @@ class TestMultiplesFvFallback:
         payload = {"quality": {}, "valuation": {"current_price": 100.0}}
         fv, method = compute_multiples_fv(payload, {"pe": None, "pb": None})
         assert fv is None and method is None
+
+    def test_fetch_rows_queries_bare_and_keys_canonical(self, monkeypatch):
+        # Regression: `market_metrics.ticker` stores BARE symbols
+        # (HDFCBANK), while callers and the TTL cache key canonical
+        # suffixed symbols (HDFCBANK.NS). Querying the table with
+        # suffixed symbols silently matches ZERO rows — verified live:
+        # every PE/PB lookup returned None despite the table carrying
+        # pe 16.7 / pb 1.96 for HDFCBANK. The SQL params must be bare
+        # and the result must come back keyed canonical.
+        from backend.services import market_multiples
+
+        captured: dict = {}
+
+        class _FakeResult:
+            def fetchall(self):
+                # DB rows key BARE tickers, like the real table.
+                return [("HDFCBANK", 16.7, 1.96)]
+
+        class _FakeSession:
+            def execute(self, _sql, params):
+                captured.update(params)
+                return _FakeResult()
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(
+            market_multiples, "_get_session", lambda: _FakeSession(),
+        )
+        out = _real_fetch_rows(["HDFCBANK.NS"])
+        assert captured["tickers"] == ["HDFCBANK"]      # bare to the DB
+        assert out["HDFCBANK.NS"]["pe"] == pytest.approx(16.7)
+        assert out["HDFCBANK.NS"]["pb"] == pytest.approx(1.96)
 
     def test_cohort_medians_come_from_market_metrics(self, monkeypatch):
         from backend.services import sector_medians_for_ticker as smt

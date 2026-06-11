@@ -1664,12 +1664,19 @@ def _resolve_sector_primary_fv(
             # instead of a silent dash. Mirrors the gate's machine
             # reason ("NIM data unavailable — deepened engine adds no
             # signal over P/B") in user-readable form.
-            payload.setdefault(
-                "sector_specific_reason",
-                "Net interest margin data is not yet available for "
-                "this lender, so the bank residual-income estimate is "
-                "not computed.",
-            )
+            #
+            # NOTE: explicit assignment, not setdefault —
+            # `_inject_sector_specific_dict` pre-seeds the key with
+            # None as a defensive default before calling this resolver,
+            # so a setdefault here would silently no-op on every warm
+            # dict path (verified live: HDFCBANK rendered a silent dash
+            # with reason=None).
+            if not payload.get("sector_specific_reason"):
+                payload["sector_specific_reason"] = (
+                    "Net interest margin data is not yet available for "
+                    "this lender, so the bank residual-income estimate "
+                    "is not computed."
+                )
     except Exception:
         pass
 
