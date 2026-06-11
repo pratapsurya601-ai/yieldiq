@@ -158,11 +158,25 @@ import {
   formatCompanyName,
   formatRelativeTime,
 } from "@/lib/utils"
+// feat/alphaspread-style-opening — icon tab nav + dark identity band.
+// Tab/nav icons are decorative (aria-hidden inside the pill/tab
+// buttons); nseMarketStatus drives the "Market Open/Closed" pill in
+// the dark band (NSE regular hours, holiday blind spot disclosed).
+import {
+  BadgeCheck,
+  BarChart3,
+  Calculator,
+  ClipboardList,
+  History as HistoryIcon,
+  Sparkles,
+  Users,
+} from "lucide-react"
+import { nseMarketStatus } from "@/lib/marketHours"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import type { PrismData } from "@/components/prism/types"
-import type { AnalysisResponse, Verdict } from "@/types/api"
+import type { AnalysisResponse } from "@/types/api"
 
 // Code-split the Time Machine modal — ~12kb of scrubber + capture code that
 // only loads when the user actually clicks the ⏱ button.
@@ -1377,6 +1391,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     {
       key: "summary",
       label: "Summary",
+      icon: ClipboardList,
       content: (
         // Sprint B.2 (2026-06-10) density audit: tightened from
         // space-y-16 md:space-y-20 -> space-y-8 md:space-y-10. With
@@ -1435,7 +1450,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               the page. Forcing news open joins it to the top-5 honest
               triad as content the user sees without an extra click. */}
           {renderableSections.map((key, idx) => {
-            const number = idx + 1
+            // feat/alphaspread-style-opening: "1. INTRINSIC VALUE" (the
+            // restyled hero verdict area above the tab bar) now owns
+            // section number 1, so the Summary-tab map continues at 2.
+            const number = idx + 2
             const defaultExpanded = idx < 5 || key === "news"
             const explainer =
               config?.showSectionExplainers ? SECTION_EXPLAINERS[key] : null
@@ -1484,6 +1502,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     {
       key: "valuation",
       label: "Valuation",
+      icon: Calculator,
       content: (
         <div className="space-y-4">
           {/* Competitor audit #4 (2026-06-10) — quick AI prompt cards
@@ -1674,6 +1693,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     {
       key: "quality",
       label: "Quality",
+      icon: BadgeCheck,
       content: (
         <div className="space-y-4">
           <InsightCards
@@ -1843,6 +1863,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     {
       key: "financials",
       label: "Financials",
+      icon: BarChart3,
       content: financialsEmpty ? (
         <EmptyFinancials onRefresh={() => financialsQuery.refetch()} />
       ) : (
@@ -1983,6 +2004,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     {
       key: "history",
       label: "History",
+      icon: HistoryIcon,
       content: (
         // T6.3 (2026-06-10): scope a TimeMachineProvider to the History
         // tab. The scrubber writes the selected date here; opt-in
@@ -2076,19 +2098,68 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     {
       key: "peers",
       label: "Peers",
+      icon: Users,
       content: <PeerComparison ticker={ticker} currency={company.currency} />,
     },
   ]
 
   const exchange = (company.exchange || "NSE").toUpperCase() as "NSE" | "BSE"
 
-  // Manifesto Rule 9 — verdict-driven color cascade. Computed once so the
-  // sticky 4px page-top bar and the StockHeroImage agree on tier.
+  // Manifesto Rule 9 — verdict-driven color cascade. Computed once for
+  // the sticky 4px page-top bar (the dark identity band itself is
+  // verdict-neutral by design — verdict lives in section 1 only).
   const heroVerdictTier = verdictTierFromMos(
     valuation.margin_of_safety,
     valuation.verdict,
   )
   const heroVerdictPalette = VERDICT_COLORS[heroVerdictTier]
+
+  /* feat/alphaspread-style-opening — headline-FV derivations hoisted
+     out of the former render IIFE so the EditorialHeroBand below the
+     composite panel keeps reading the exact same clamped numbers.
+
+     FV-clamp consistency (NOIDATOLL-class bug, 2026-04-27): when the
+     backend router clamped fair_value to a plausible bound it
+     overwrites valuation.fair_value / margin_of_safety while leaving
+     scenarios.base.iv / mos_pct untouched. When the clamp marker is
+     present in data_issues, promote the base-case scenario's iv /
+     mos_pct to the headline so every surface agrees.
+
+     ROOT CAUSE #1 (2026-06-10): prefer the backend-stamped
+     `headline_fair_value` (composite-IV-preferred), falling back to
+     composite_intrinsic_value then valuation.fair_value for legacy
+     cached payloads.
+
+     fix/mos-clamp-enforce (2026-05-26): hard-cap headline MoS to
+     ±200% as defense in depth (WIPRO 321% / KALYANI 829% class). */
+  const fvClamped = (data.data_issues ?? []).some((s) =>
+    typeof s === "string" && s.includes("Fair value clamped"),
+  )
+  const baseScenario = data.scenarios?.base
+  const canonicalHeadline =
+    data.headline_fair_value != null && data.headline_fair_value > 0
+      ? data.headline_fair_value
+      : data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
+        ? data.composite_intrinsic_value
+        : valuation.fair_value
+  const HARD_MOS_CAP = 200
+  const candidateHeadlineMos =
+    fvClamped && baseScenario && Number.isFinite(baseScenario.mos_pct)
+      ? baseScenario.mos_pct
+      : valuation.margin_of_safety
+  const displayFairValue =
+    fvClamped && baseScenario && baseScenario.iv > 0
+      ? baseScenario.iv
+      : canonicalHeadline
+  const displayMos = Number.isFinite(candidateHeadlineMos)
+    ? Math.max(-HARD_MOS_CAP, Math.min(HARD_MOS_CAP, candidateHeadlineMos))
+    : valuation.margin_of_safety
+  const displayPrice = valuation.current_price
+
+  // NSE regular-hours pill for the dark identity band. Recomputed per
+  // render (the analysis query refetches every 60s, so the pill tracks
+  // session boundaries closely enough without a dedicated timer).
+  const marketStatus = nseMarketStatus()
 
   return (
     <FormulasProvider value={data.formulas}>
@@ -2186,21 +2257,74 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </div>
         )}
 
-        {/* Company name header — Stage-2 redesign §3 rows C3 / C4: the
-            Breadcrumb classification-chips row and the Share/Compare
-            buttons row are CUT. Breadcrumb data already lives in the
-            ticker row + EditorialHeroBand; Compare migrates into the
-            AnalysisTabs adjacent slot (cluster C will rewire), and Share
-            already lives in the StickyHeader icon set. */}
-        <div className="min-w-0 space-y-1.5">
-          <h1 className="font-editorial text-2xl md:text-3xl font-semibold text-ink leading-tight">
-            {formatCompanyName(company.company_name)}
-          </h1>
-          <p className="text-xs text-caption truncate flex items-center gap-2 flex-wrap">
-            <span>{company.ticker}</span>
-            <UnlockBadge ticker={company.ticker} size="sm" />
-          </p>
-        </div>
+        {/* feat/alphaspread-style-opening — DARK IDENTITY BAND. Replaces
+            the plain company-name h1 block AND the former mid-page
+            photo-hero mount of StockHeroImage. Top row: delayed price +
+            NSE regular-hours pill + quote-age stamp (left), compact
+            market cap (right). Identity row inside the same band: 48px
+            TickerAvatar + company-name h1 + EXCHANGE:TICKER + bordered
+            WatchlistButton. UnlockBadge rides the identityExtra slot. */}
+        <StockHeroImage
+          ticker={data.ticker}
+          displayTicker={company.ticker}
+          companyName={formatCompanyName(company.company_name)}
+          sector={company.sector}
+          exchange={exchange}
+          currentPrice={displayPrice}
+          currency={company.currency}
+          marketCapCr={marketCapCr}
+          asOf={
+            data.as_of ??
+            valuation.as_of ??
+            valuation.current_price_as_of ??
+            null
+          }
+          marketOpen={marketStatus.open}
+          marketStatusCaption={marketStatus.caption}
+          identityExtra={<UnlockBadge ticker={company.ticker} size="sm" />}
+        />
+
+        {/* Icon section nav — moved up from below the hero so the page
+            reads dark band → nav → "1. INTRINSIC VALUE" (AlphaSpread
+            order). The hero-pass anchor sits at the band's bottom edge
+            so the nav picks up its glass treatment after the band
+            scrolls away. Behavior (controlled-tab drive + smooth
+            scroll + TOC rescan) is unchanged. */}
+        <div id="section-hero-anchor" data-hero-anchor aria-hidden />
+        <StickyAnalysisNav
+          sections={[
+            { id: "section-summary", label: "Summary", icon: ClipboardList },
+            { id: "section-valuation", label: "Valuation", icon: Calculator },
+            { id: "section-quality", label: "Quality", icon: BadgeCheck },
+            { id: "section-financials", label: "Financials", icon: BarChart3 },
+            { id: "section-history", label: "History", icon: HistoryIcon },
+            { id: "section-peers", label: "Peers", icon: Users },
+            { id: "section-ai", label: "AI", icon: Sparkles },
+          ]}
+          heroSelector="[data-hero-anchor]"
+          defaultActive={`section-${activeTabKey}`}
+          onSelect={(id) => {
+            // section-<tabKey> -> drive the controlled tab. The "ai"
+            // anchor scrolls to the ELI15 thesis panel without flipping
+            // the tab so the user stays inside whichever deep-dive they
+            // were reading.
+            const key = id.replace(/^section-/, "")
+            if (key === "ai") return
+            const tabKey = key as AnalysisTabKey
+            setActiveTabKey(tabKey)
+            setOpenedTabs((prev) => new Set(prev).add(tabKey))
+            // Sprint B.2: the right-rail TOC mirrors whatever Summary-
+            // tab cards are mounted. Tab swap remounts the panel under
+            // an AnimatePresence; force a TOC rescan on the next frame
+            // so the navigator picks up the new section ids without
+            // waiting for the user to scroll.
+            if (typeof window !== "undefined") {
+              requestAnimationFrame(() => {
+                window.dispatchEvent(new CustomEvent("toc-sections-changed"))
+              })
+            }
+          }}
+        />
 
         {/* Stage-2 redesign (spec §1 / §1.1): HonestHero is the new above-
             the-fold hero. Single source of truth for verdict / FV / discount
@@ -2342,218 +2466,51 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         {/* Demoted editorial band — Prism-driven. Uses the server-
             rendered prism payload when available; when the Prism
             endpoint is unreachable the band is simply omitted and
-            HonestHero (above) carries the page on its own.
-
-            FV-clamp consistency fix (NOIDATOLL-class bug, 2026-04-27): when
-            the backend router clamped fair_value to a plausible bound
-            (FV/PX outside [0.1, 3.0] OR |MoS| ≥ 95% — see
-            backend/routers/analysis.py FV bound-clamp block), it overwrites
-            valuation.fair_value / margin_of_safety with the clamped numbers
-            while leaving scenarios.base.iv / mos_pct untouched. The
-            ScenarioGrid, AI summary, and AnalyticalNotes panel then all
-            reference the unclamped base case (₹7.36 / +95.2% on NOIDATOLL),
-            but the headline FAIR VALUE card showed the clamped derivative
-            (₹11.31 / +200%). Three contradictory FVs on one screen.
-
-            Resolution: when the clamp marker is present in data_issues
-            (single source of truth — emitted by the same code path that
-            does the clamp), promote the base-case scenario's iv/mos_pct
-            to the headline so all four surfaces agree. The "Analytical
-            notes" caution chip already explains *why* the headline differs
-            from any naive (FV − P) / P arithmetic, so users aren't left
-            with an unexplained jump. */}
-        {(() => {
-          const fvClamped = (data.data_issues ?? []).some((s) =>
-            typeof s === "string" && s.includes("Fair value clamped"),
-          )
-          const baseScenario = data.scenarios?.base
-          // ROOT CAUSE #1 (2026-06-10): the canonical headline FV.
-          // Prefer the backend-stamped `headline_fair_value` field
-          // (composite-IV-preferred) so this hero band agrees with
-          // HonestHero, the side-rail summary, the AI Why paragraph,
-          // the Quality FAQ, and the peer comparison table. The
-          // clamp-fallback still overrides when the backend signals
-          // a clamp (that path runs at the engine layer BEFORE the
-          // composite, so headline_fair_value reflects the clamped
-          // value already — but we keep the explicit promotion of
-          // baseScenario.iv as defense in depth for legacy payloads).
-          const canonicalHeadline =
-            data.headline_fair_value != null && data.headline_fair_value > 0
-              ? data.headline_fair_value
-              : data.composite_intrinsic_value != null && data.composite_intrinsic_value > 0
-                ? data.composite_intrinsic_value
-                : valuation.fair_value
-          const headlineFairValue =
-            fvClamped && baseScenario && baseScenario.iv > 0
-              ? baseScenario.iv
-              : canonicalHeadline
-          // fix/mos-clamp-enforce (2026-05-26): NEVER let a raw
-          // base-scenario MoS (which is uncapped — `base_unclamped`-class
-          // numbers like WIPRO 321% / KALYANI 829%) reach the hero.
-          // Prefer the backend's already-clamped valuation.margin_of_safety
-          // and hard-cap to ±200% as defense in depth. When fv_clamped is
-          // true and the unclamped base scenario MoS would overflow,
-          // collapse to the clamped headline rather than promote an
-          // implausible value to the hero.
-          const HARD_MOS_CAP = 200
-          const candidateHeadlineMos =
-            fvClamped && baseScenario && Number.isFinite(baseScenario.mos_pct)
-              ? baseScenario.mos_pct
-              : valuation.margin_of_safety
-          const headlineMos = Number.isFinite(candidateHeadlineMos)
-            ? Math.max(-HARD_MOS_CAP, Math.min(HARD_MOS_CAP, candidateHeadlineMos))
-            : valuation.margin_of_safety
-
-          // Step B (2026-05-17): the buffett_mos_pct passthrough into
-          // the retired EditorialHero "Margin of Safety (Buffett)" chip
-          // is dropped — EditorialHeroBand intentionally does not
-          // re-emit MoS-class numbers (HonestHero owns the triad).
-          // When HonestHero needs a Buffett-MoS chip in the future,
-          // read `valuation.buffett_mos_pct` here and plumb it into
-          // <HonestHero> directly.
-
-          // task-#218 (2026-05-26): removed dead asOfData snapshot-
-          // replay overrides. The hero now renders the live headline
-          // values directly. See the state declaration near the top of
-          // this component for re-wire notes when the Time Machine
-          // chip needs to drive a historical view.
-          const displayFairValue = headlineFairValue
-          const displayMos = headlineMos
-          const displayPrice = valuation.current_price
-          const displayVerdict: Verdict = valuation.verdict
-
-          return (
-            <>
-              {/* PR-B (chassis): compact Time Machine chip aligned
-                  right, near the hero price card. Chip opens the
-                  PrismTimeMachine popover (unchanged). Rendered on
-                  both Prism-resolved and Prism-unavailable paths. */}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setTimeMachineOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-3 py-1 text-xs text-body hover:text-ink hover:bg-surface transition"
-                  aria-label="Open Time Machine"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
-                  </svg>
-                  Time Machine
-                </button>
-              </div>
-              {/* Manifesto Rule 9 — verdict-colored full-bleed hero
-                  image. Sits BELOW HonestHero's triad (HonestHero owns
-                  the verdict pill itself); this is brand-texture
-                  imagery only, no verdict-class data emission.
-                  Reuses headlineMos/headlineFairValue so the verdict
-                  tier agrees with the headline number even under FV
-                  clamp. */}
-              <StockHeroImage
-                ticker={data.ticker}
-                displayTicker={company.ticker}
-                companyName={formatCompanyName(company.company_name)}
-                sector={company.sector}
-                exchange={exchange}
-                currentPrice={displayPrice}
-                currency={company.currency}
-                marginOfSafetyPct={displayMos}
-                verdict={displayVerdict}
-                marketCapCr={marketCapCr}
-                asOf={
-                  data.as_of ??
-                  valuation.as_of ??
-                  valuation.current_price_as_of ??
-                  null
-                }
-              />
-              {/* PR-3: EditorialHero (full 3-column hero) is RETIRED
-                  from the analysis page render path. Demoted to
-                  <EditorialHeroBand> per spec §5 hybrid — Prism
-                  imagery + Signature/Spectrum toggle + counter chips
-                  + MosAlertChip ("Notify me when discount reaches…").
-                  No verdict / FV / discount / score data is re-emitted
-                  here — HonestHero above is the single source of truth.
-                  When the Prism endpoint is unreachable (prismResolved
-                  is null) the band is simply omitted; HonestHero
-                  remains, so the page never goes blank. The legacy
-                  AnalysisHero fallback in this slot is deleted (dead
-                  code — file removed in this PR).
-                  Read-only `headlineBuffettMos` reference retained to
-                  keep the destructured display values consistent and
-                  to document the data path for a future Buffett-MoS
-                  chip in HonestHero. */}
-              {prismResolved ? (
-                <EditorialHeroBand
-                  data={prismResolved}
-                  fairValue={displayFairValue}
-                  currentPrice={displayPrice}
-                  marginOfSafety={displayMos}
-                  currency={company.currency}
-                  redFlags={insights?.red_flags_structured ?? []}
-                  dataLimited={dataLimited}
-                />
-              ) : null}
-            </>
-          )
-        })()}
-
-        {/* Premium Feel R1: sticky horizontal pill-nav. Sits directly
-            below the hero so users always have a 1-click route to the
-            section they care about. The nav drives AnalysisTabs via the
-            controlled `active` prop and scrolls to the target section's
-            id (#section-<tab> emitted by AnalysisTabs, #section-ai for
-            the ELI15 thesis block). data-hero-anchor on the hero band
-            below tells the nav when to attach the glass background.
-
-            Sprint B.2 (2026-06-10): the StickyTableOfContents below
-            adds a right-rail navigator on >= 2xl (1536px) viewports
-            and a floating "Sections" button below 2xl (down to phone
-            sizes). The desktop right-rail is suppressed at 1280-1535px
-            because the HonestHero sticky side rail (Score / Grade /
-            Moat / Red flags / Worry) already occupies the right edge
-            of the centered max-w-6xl content container in that range;
-            the floating button keeps the navigator reachable without
-            overlap. The existing horizontal pill nav still owns
-            navigation at 768-1535px and stays visible on every viewport
-            (it cross-deck-links to the 6 tabs; the right-rail TOC
-            focuses on Summary-tab sections).
-            See fix/sticky-toc-overlap-with-side-rail (2026-06-11). */}
-        <div id="section-hero-anchor" data-hero-anchor aria-hidden />
-        <StickyAnalysisNav
-          sections={[
-            { id: "section-summary", label: "Summary" },
-            { id: "section-valuation", label: "Valuation" },
-            { id: "section-quality", label: "Quality" },
-            { id: "section-financials", label: "Financials" },
-            { id: "section-history", label: "History" },
-            { id: "section-peers", label: "Peers" },
-            { id: "section-ai", label: "AI" },
-          ]}
-          heroSelector="[data-hero-anchor]"
-          defaultActive={`section-${activeTabKey}`}
-          onSelect={(id) => {
-            // section-<tabKey> -> drive the controlled tab. The "ai"
-            // anchor scrolls to the ELI15 thesis panel without flipping
-            // the tab so the user stays inside whichever deep-dive they
-            // were reading.
-            const key = id.replace(/^section-/, "")
-            if (key === "ai") return
-            const tabKey = key as AnalysisTabKey
-            setActiveTabKey(tabKey)
-            setOpenedTabs((prev) => new Set(prev).add(tabKey))
-            // Sprint B.2: the right-rail TOC mirrors whatever Summary-
-            // tab cards are mounted. Tab swap remounts the panel under
-            // an AnimatePresence; force a TOC rescan on the next frame
-            // so the navigator picks up the new section ids without
-            // waiting for the user to scroll.
-            if (typeof window !== "undefined") {
-              requestAnimationFrame(() => {
-                window.dispatchEvent(new CustomEvent("toc-sections-changed"))
-              })
-            }
-          }}
-        />
+            the "1. INTRINSIC VALUE" section above carries the page on
+            its own. The FV-clamp-consistent displayFairValue /
+            displayMos / displayPrice derivations are hoisted above the
+            return statement (feat/alphaspread-style-opening) so this
+            band reads the exact same clamped numbers as every other
+            surface — see the NOIDATOLL-class clamp notes there. */}
+        {/* PR-B (chassis): compact Time Machine chip aligned right.
+            Chip opens the PrismTimeMachine popover (unchanged).
+            Rendered on both Prism-resolved and Prism-unavailable
+            paths. */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setTimeMachineOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-3 py-1 text-xs text-body hover:text-ink hover:bg-surface transition"
+            aria-label="Open Time Machine"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+            </svg>
+            Time Machine
+          </button>
+        </div>
+        {/* PR-3: EditorialHero (full 3-column hero) stays RETIRED from
+            this render path; only the demoted <EditorialHeroBand>
+            (Prism imagery + Signature/Spectrum toggle + MosAlertChip)
+            survives. No verdict / FV / discount / score data is
+            re-emitted here — the IV section above is the single
+            source of truth. When the Prism endpoint is unreachable
+            (prismResolved null) the band is simply omitted. The former
+            StockHeroImage mount in this slot moved to the top of the
+            page as the dark identity band
+            (feat/alphaspread-style-opening). */}
+        {prismResolved ? (
+          <EditorialHeroBand
+            data={prismResolved}
+            fairValue={displayFairValue}
+            currentPrice={displayPrice}
+            marginOfSafety={displayMos}
+            currency={company.currency}
+            redFlags={insights?.red_flags_structured ?? []}
+            dataLimited={dataLimited}
+          />
+        ) : null}
 
         {/* Sprint B.2 (2026-06-10) — Sticky right-rail Table of
             Contents. Renders >= xl (1280px) on the desktop right edge
