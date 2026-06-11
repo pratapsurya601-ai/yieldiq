@@ -1,16 +1,19 @@
 /**
- * StockHeroImage — contextual-sector hero rendering tests.
+ * StockHeroImage — dark identity band rendering tests
+ * (feat/alphaspread-style-opening).
  *
- * Pins the post-redesign (AlphaSpread-style) invariants:
- *   - Hero background is a /hero-sectors/{slug}.webp photo, NEVER a
- *     stretched company logo or marquee /hero/{TICKER}.jpg
- *   - The bottom glass panel renders price + market cap
- *   - The identity row sits BELOW the hero (not inside it) and carries
- *     the small TickerAvatar chip + company name + EXCHANGE:TICKER +
- *     WatchlistButton
- *   - Unknown sector → default.webp fallback
- *   - Every sector slug exposed by sectorToHeroImagePath has a real
- *     on-disk asset (asset-existence guard)
+ * Pins the post-restyle invariants:
+ *   - The band keeps the sector photo as a dim texture layer
+ *     (/hero-sectors/{slug}.webp), NEVER a stretched company logo or
+ *     marquee /hero/{TICKER}.jpg
+ *   - The data row renders "Price:" + the delayed quote + market cap
+ *   - The "Market Open/Closed" pill renders deterministically from the
+ *     injected `marketOpen` prop (and not at all when omitted)
+ *   - The identity row sits INSIDE the band: TickerAvatar chip +
+ *     company-name h1 + EXCHANGE:TICKER + WatchlistButton
+ *   - The retired floating verdict pill stays retired (verdict lives
+ *     in the "1. INTRINSIC VALUE" section only)
+ *   - Unknown sector → default.webp fallback + asset-existence guard
  */
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
@@ -53,21 +56,19 @@ const BASE = {
   companyName: "HDFC Bank Ltd",
   currentPrice: 1700.5,
   currency: "INR",
-  marginOfSafetyPct: 43.7,
-  verdict: "undervalued",
   marketCapCr: 1_300_000,
   exchange: "NSE",
 }
 
-describe("StockHeroImage — contextual-sector hero", () => {
-  it("renders the banking sector photo for HDFCBANK", () => {
+describe("StockHeroImage — dark identity band", () => {
+  it("renders the banking sector texture photo for HDFCBANK", () => {
     render(<StockHeroImage {...BASE} sector="Private Bank" />)
     const photo = screen.getByTestId("stock-hero-photo")
     expect(photo.getAttribute("src")).toBe("/hero-sectors/banking.webp")
     expect(photo.getAttribute("data-sector-slug")).toBe("banking")
   })
 
-  it("renders the fmcg sector photo for ITC", () => {
+  it("renders the fmcg sector texture for ITC", () => {
     render(
       <StockHeroImage
         {...BASE}
@@ -95,7 +96,7 @@ describe("StockHeroImage — contextual-sector hero", () => {
     expect(photo.getAttribute("src")).toBe("/hero-sectors/default.webp")
   })
 
-  it("never renders a stretched company logo or marquee /hero/ jpeg as the hero background", () => {
+  it("never renders a stretched company logo or marquee /hero/ jpeg as the band background", () => {
     render(<StockHeroImage {...BASE} sector="Private Bank" />)
     const allImgs = Array.from(
       screen.getByTestId("stock-hero-section").querySelectorAll("img"),
@@ -108,33 +109,60 @@ describe("StockHeroImage — contextual-sector hero", () => {
     }
   })
 
-  it("renders the glass panel with price + market cap", () => {
+  it("renders the data row with the Price label + market cap", () => {
     render(<StockHeroImage {...BASE} sector="Private Bank" />)
     const panel = screen.getByTestId("hero-glass-panel")
+    expect(panel.textContent || "").toMatch(/Price:/)
     expect(panel.textContent || "").toMatch(/Market Cap/)
     // formatMarketCap renders >=100,000 Cr as "₹X.XX Lakh Cr"
     expect(panel.textContent || "").toMatch(/Lakh Cr/)
   })
 
-  it("renders the identity row BELOW the hero with TickerAvatar + watchlist button", () => {
+  it("renders the identity row INSIDE the band with name + EXCHANGE:TICKER + watchlist button", () => {
     render(<StockHeroImage {...BASE} sector="Private Bank" />)
     const heroSection = screen.getByTestId("stock-hero-section")
     const identityRow = screen.getByTestId("hero-identity-row")
-    // Identity row is a sibling AFTER the hero in DOM order — not a
-    // descendant. compareDocumentPosition returns the FOLLOWING bit
-    // (0x04) when `identityRow` comes after `heroSection`.
-    const rel = heroSection.compareDocumentPosition(identityRow)
-    expect(rel & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(heroSection.contains(identityRow)).toBe(false)
-    // Identity row carries name + EXCHANGE:TICKER + a watchlist button
+    expect(heroSection.contains(identityRow)).toBe(true)
     expect(identityRow.textContent || "").toContain("HDFC Bank Ltd")
     expect(identityRow.textContent || "").toContain("NSE:HDFCBANK")
+    // Company name is the page h1 inside the band.
+    expect(identityRow.querySelector("h1")).not.toBeNull()
   })
 
-  it("renders the verdict pill in the top-right of the hero", () => {
+  it("does NOT render the retired floating verdict pill", () => {
     render(<StockHeroImage {...BASE} sector="Private Bank" />)
-    const pill = screen.getByTestId("hero-verdict-pill")
-    expect(pill.textContent || "").toMatch(/undervalued/i)
+    expect(screen.queryByTestId("hero-verdict-pill")).toBeNull()
+  })
+})
+
+describe("StockHeroImage — market-hours pill (deterministic via prop)", () => {
+  it("renders 'Market Open' with data-open=true when marketOpen is true", () => {
+    render(
+      <StockHeroImage
+        {...BASE}
+        sector="Private Bank"
+        marketOpen={true}
+        marketStatusCaption="NSE regular hours: Mon-Fri 09:15-15:30 IST. Exchange holidays are not tracked."
+      />,
+    )
+    const pill = screen.getByTestId("market-status-pill")
+    expect(pill.textContent || "").toMatch(/Market Open/)
+    expect(pill.getAttribute("data-open")).toBe("true")
+    expect(pill.getAttribute("title") || "").toMatch(/regular hours/i)
+  })
+
+  it("renders 'Market Closed' with data-open=false when marketOpen is false", () => {
+    render(
+      <StockHeroImage {...BASE} sector="Private Bank" marketOpen={false} />,
+    )
+    const pill = screen.getByTestId("market-status-pill")
+    expect(pill.textContent || "").toMatch(/Market Closed/)
+    expect(pill.getAttribute("data-open")).toBe("false")
+  })
+
+  it("renders no pill at all when marketOpen is omitted (no fake signal)", () => {
+    render(<StockHeroImage {...BASE} sector="Private Bank" />)
+    expect(screen.queryByTestId("market-status-pill")).toBeNull()
   })
 })
 

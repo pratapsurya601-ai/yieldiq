@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
+import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface StickyAnalysisNavSection {
@@ -7,6 +8,12 @@ export interface StickyAnalysisNavSection {
   id: string
   /** Pill label rendered in the nav. */
   label: string
+  /**
+   * Optional lucide icon rendered before the label
+   * (feat/alphaspread-style-opening — icon tab nav). Purely
+   * decorative: aria-hidden, label text remains the accessible name.
+   */
+  icon?: LucideIcon
 }
 
 export interface StickyAnalysisNavProps {
@@ -236,13 +243,16 @@ export default function StickyAnalysisNav({
                 onClick={() => handlePillClick(sec.id)}
                 aria-current={isActive ? "true" : undefined}
                 className={cn(
-                  "inline-flex items-center whitespace-nowrap rounded-full px-3.5 py-1.5",
+                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5",
                   "text-xs font-medium transition-all duration-200 ease-out",
                   isActive
                     ? "bg-brand text-white shadow-sm hover:opacity-90"
                     : "text-caption hover:text-ink hover:bg-bg/70",
                 )}
               >
+                {sec.icon ? (
+                  <sec.icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                ) : null}
                 {sec.label}
               </button>
             </li>

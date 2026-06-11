@@ -43,9 +43,10 @@ import Link from "next/link"
 
 import { NarrativeCard, DataCard } from "@/components/cards"
 import DegradedScenarioCard from "@/components/analysis/DegradedScenarioCard"
-import DcfMultiplesChip from "@/components/analysis/DcfMultiplesChip"
+import IntrinsicValueSection from "@/components/analysis/IntrinsicValueSection"
 import MetricTooltip from "@/components/common/MetricTooltip"
-import { cn, formatCurrency, formatPct } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
+import { formatMarketCap } from "@/lib/formatters"
 import {
   VERDICT_COLORS,
   verdictTierFromMos,
@@ -143,37 +144,26 @@ export default function HonestHero({
   // DcfMultiplesChip below, so users still see both estimators — only
   // every SINGLE headline figure switches to the canonical number.
   const headlineFv = signals.headlineFairValue
-  const usingComposite = signals.headlineFairValueMethod === "composite"
-  // Recompute the headline discount/premium off the headline FV when
-  // we promote the composite. Otherwise pass through the resolver's
-  // already-clamped discount (which is keyed off the DCF FV upstream).
   const currentPrice = payload.valuation?.current_price
-  const headlineDiscount =
-    headlineFv != null &&
+  const safeCurrentPrice =
     typeof currentPrice === "number" &&
     Number.isFinite(currentPrice) &&
-    currentPrice > 0 &&
-    usingComposite
-      ? ((headlineFv - currentPrice) / currentPrice) * 100
-      : signals.discount
+    currentPrice > 0
+      ? currentPrice
+      : null
+
+  // DCF METHOD ROW ONLY — the "Based on N methods" breakdown inside
+  // IntrinsicValueSection legitimately surfaces the DCF-specific
+  // estimate NEXT TO the canonical headline IV (same exemption class
+  // as DcfMultiplesChip / ValuationMethodsPanel). Every headline
+  // figure in this file reads signals.headlineFairValue.
+  // eslint-disable-next-line no-restricted-syntax -- headline-fv-allow: DCF method row inside IntrinsicValueSection
+  const dcfMethodValue = signals.fairValue
 
   const fvDisplay =
     headlineFv != null
       ? formatCurrency(headlineFv, currency, ticker)
       : "—"
-
-  const discountDisplay = (() => {
-    if (signals.degraded) return "+200% (clamp)"
-    if (headlineDiscount == null) return "—"
-    return formatPct(headlineDiscount)
-  })()
-
-  const discountTone: "good" | "bad" | "neutral" =
-    headlineDiscount == null || signals.dataLimited
-      ? "neutral"
-      : headlineDiscount >= 0
-        ? "good"
-        : "bad"
 
   const confNote =
     signals.confidence != null && !signals.dataLimited
@@ -196,159 +186,75 @@ export default function HonestHero({
           {/* Verdict colour bar — saturated cascade carries the tier */}
           <span aria-hidden className={cn("block h-1 -mt-6 md:-mt-8 -mx-6 md:-mx-8 mb-4 rounded-t-2xl", palette.bar)} />
 
-          {/* Ticker line */}
-          <p className="text-[11px] text-caption uppercase tracking-[0.15em]">
-            {displayTicker} · {companyName}
-          </p>
-
-          {/* Verdict pill */}
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <span
-              id="honest-hero-heading"
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold",
-                pillClasses(tier),
-              )}
-            >
-              <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", dotForTier(tier))} />
-              {verdictLabel}
-            </span>
-            {confNote && (
-              <span className="text-[11px] text-caption">{confNote}</span>
-            )}
-          </div>
-
-          {/* Fair Value + Discount row (or DegradedScenarioCard) */}
-          {signals.degraded ? (
-            <div className="mt-4">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-caption">
-                Fair Value
-              </p>
-              <p className="font-mono tabular-nums text-2xl font-semibold text-ink mt-0.5">
-                {fvDisplay}
-                {showClampNote && (
-                  <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-tone-warn-bg px-1.5 py-0 text-[10px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 align-middle">
-                    clamp
-                  </span>
+          {/* "1. INTRINSIC VALUE" — the AlphaSpread-style first numbered
+              section REPLACES the legacy FV/Discount dl grid + the
+              DcfMultiplesChip pill row (feat/alphaspread-style-opening).
+              Centered numbered heading, SEBI-templated narrative with
+              the canonical headline IV, "Based on N methods" rows (DCF /
+              Peer Multiples / sector estimator), italic reconciliation
+              note, and the right-hand IV card (huge figure + Discount /
+              Premium badge + IV-vs-price bars). The verdict pill rides
+              the headingExtra slot so it stays the single above-the-fold
+              verdict surface. Degraded (WIPRO-clamp) payloads keep the
+              clamped-FV + DegradedScenarioCard treatment via
+              degradedContent — heading stays, so numbering never gaps. */}
+          <IntrinsicValueSection
+            ticker={ticker}
+            displayTicker={displayTicker}
+            companyName={companyName}
+            currency={currency}
+            intrinsicValue={headlineFv}
+            currentPrice={safeCurrentPrice}
+            dcfValue={dcfMethodValue}
+            multiplesValue={payload.multiples_based_fv ?? null}
+            multiplesMethod={payload.multiples_method ?? null}
+            sectorSpecificValue={payload.sector_specific_fv ?? null}
+            sectorSpecificLabel={payload.sector_specific_label ?? null}
+            dataLimited={signals.dataLimited}
+            degraded={signals.degraded}
+            headingExtra={
+              <>
+                <span
+                  id="honest-hero-heading"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold",
+                    pillClasses(tier),
+                  )}
+                >
+                  <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", dotForTier(tier))} />
+                  {verdictLabel}
+                </span>
+                {confNote && (
+                  <span className="text-[11px] text-caption">{confNote}</span>
                 )}
-              </p>
-              <div className="mt-4">
-                <DegradedScenarioCard
-                  ticker={ticker}
-                  currency={currency}
-                  rawFairValue={rawFairValue}
-                  showValueTrapPara={showValueTrapPara}
-                  redFlagCount={signals.redFlags ?? null}
-                  moat={signals.moat ?? null}
-                />
-              </div>
-            </div>
-          ) : (
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">
-              <div>
-                <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
+              </>
+            }
+            degradedContent={
+              <div className="mt-2">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-caption">
                   Fair Value
-                </dt>
-                {/* Premium Feel R2 — wrap the headline FV with the new
-                    MetricTooltip so users can hover the number to learn
-                    what "Fair Value" means as a model output. */}
-                <dd className="mt-0.5">
-                  <MetricTooltip
-                    label="Fair Value"
-                    showLabel={false}
-                    title="Fair Value"
-                    description={
-                      usingComposite && headlineFv != null
-                        ? "Composite of three estimators: our DCF, a peer-multiples comparable, and the analyst consensus, weighted by reliability per ticker."
-                        : "Our estimate of what one share is worth based on the cash the business looks set to generate in the future, discounted back to today."
-                    }
-                    formula={
-                      usingComposite && headlineFv != null
-                        ? "Composite IV = w₁·DCF + w₂·Peer Multiples + w₃·Wall Street consensus"
-                        : "Discounted Cash Flow — future FCF discounted at WACC"
-                    }
-                    caveat={
-                      usingComposite && headlineFv != null
-                        ? "Each input has its own model risk; the composite reduces single-method bias but is not a forecast."
-                        : "A DCF is only as good as its inputs — treat the number as a centre of gravity, not a precise figure."
-                    }
-                    value={
-                      <span className="font-mono tabular-nums text-2xl font-semibold text-ink">
-                        {fvDisplay}
-                        {showClampNote && (
-                          <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-tone-warn-bg px-1.5 py-0 text-[10px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 align-middle">
-                            clamp
-                          </span>
-                        )}
-                      </span>
-                    }
+                </p>
+                <p className="font-mono tabular-nums text-2xl font-semibold text-ink mt-0.5">
+                  {fvDisplay}
+                  {showClampNote && (
+                    <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-tone-warn-bg px-1.5 py-0 text-[10px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 align-middle">
+                      clamp
+                    </span>
+                  )}
+                </p>
+                <div className="mt-4">
+                  <DegradedScenarioCard
+                    ticker={ticker}
+                    currency={currency}
+                    rawFairValue={rawFairValue}
+                    showValueTrapPara={showValueTrapPara}
+                    redFlagCount={signals.redFlags ?? null}
+                    moat={signals.moat ?? null}
                   />
-                </dd>
+                </div>
               </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
-                  {headlineDiscount != null && headlineDiscount < 0
-                    ? "Premium to FV"
-                    : "Discount to FV"}
-                </dt>
-                <dd className="mt-0.5">
-                  <MetricTooltip
-                    metric="mos"
-                    label={
-                      headlineDiscount != null && headlineDiscount < 0
-                        ? "Premium to FV"
-                        : "Discount to FV"
-                    }
-                    showLabel={false}
-                    value={
-                      <span
-                        className={cn(
-                          "font-mono tabular-nums text-2xl font-semibold",
-                          discountTone === "good"
-                            ? "text-tone-good-fg"
-                            : discountTone === "bad"
-                              ? "text-rose-700"
-                              : "text-ink",
-                        )}
-                      >
-                        {discountDisplay}
-                      </span>
-                    }
-                  />
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {/* DCF + Multiples cross-confirmation (Sprint A2, 2026-06-09).
-              Renders a small horizontal pill row showing DCF FV alongside
-              a peer-relative multiples FV — closes a key positioning gap
-              vs AlphaSpread. Self-hides when no peer cohort / no usable
-              multiple, when the page is degraded (the
-              DegradedScenarioCard already carries the explainer), or
-              when the FV is non-positive. Additive — never replaces the
-              FV/Discount row above. */}
-          {!signals.degraded &&
-            signals.fairValue != null &&
-            signals.fairValue > 0 &&
-            payload.valuation?.current_price != null &&
-            payload.valuation.current_price > 0 && (
-              <DcfMultiplesChip
-                ticker={ticker}
-                dcfValue={signals.fairValue}
-                multiplesValue={payload.multiples_based_fv ?? null}
-                multiplesMethod={payload.multiples_method ?? null}
-                currentPrice={payload.valuation.current_price}
-                currency={currency}
-                sectorMedianMultiple={
-                  payload.multiples_method === "pe"
-                    ? payload.sector_medians?.pe ?? null
-                    : payload.multiples_method === "pb"
-                      ? payload.sector_medians?.pb ?? null
-                      : null
-                }
-              />
-            )}
+            }
+          />
 
           {/* One-line caveat row — value-trap / data-limited / clamp.
               Spec §1 priority 5. Single most factual line; never directive. */}
@@ -515,7 +421,7 @@ export default function HonestHero({
               Market cap
             </span>
             <span className="font-mono tabular-nums text-[13px] text-ink">
-              {signals.marketCapCr != null ? formatMarketCapCr(signals.marketCapCr) : "—"}
+              {signals.marketCapCr != null ? formatMarketCap(signals.marketCapCr) : "—"}
             </span>
           </div>
 
@@ -592,8 +498,6 @@ function worryRailLabel(tier: HeroSignals["worry"] | null | undefined): string {
   }
 }
 
-function formatMarketCapCr(cr: number): string {
-  if (cr >= 1e5) return `Rs.${(cr / 1e5).toFixed(2)} L Cr`
-  if (cr >= 1e3) return `Rs.${(cr / 1e3).toFixed(1)}k Cr`
-  return `Rs.${Math.round(cr)} Cr`
-}
+// formatMarketCapCr (the "Rs.X L Cr" jargon-style private duplicate)
+// is deleted — the rail now renders via the canonical
+// formatMarketCap() from @/lib/formatters ("₹X.XX Lakh Cr").

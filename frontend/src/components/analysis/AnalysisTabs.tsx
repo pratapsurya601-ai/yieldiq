@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type AnalysisTabKey =
@@ -15,6 +16,12 @@ export type AnalysisTabKey =
 export interface AnalysisTabDef {
   key: AnalysisTabKey
   label: string
+  /**
+   * Optional lucide icon rendered before the label
+   * (feat/alphaspread-style-opening — icon tab nav). Decorative only:
+   * aria-hidden, so the accessible tab name stays the label text.
+   */
+  icon?: LucideIcon
   content: ReactNode
 }
 
@@ -84,12 +91,15 @@ export default function AnalysisTabs({ tabs, initial, active: controlledActive, 
                 id={`tab-${t.key}`}
                 onClick={() => handleChange(t.key)}
                 className={cn(
-                  "shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-medium min-h-[44px] border-b-2 -mb-px transition",
+                  "shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-medium min-h-[44px] border-b-2 -mb-px transition",
                   selected
                     ? "border-brand text-brand"
                     : "border-transparent text-caption hover:text-ink"
                 )}
               >
+                {t.icon ? (
+                  <t.icon aria-hidden className="h-4 w-4 shrink-0" />
+                ) : null}
                 {t.label}
               </button>
             )

@@ -301,23 +301,17 @@ describe("HonestHero — verdict consistency with hero pill (bug 1)", () => {
 // switches.
 // ─────────────────────────────────────────────────────────────────
 
-// formatCurrency renders INR as `₹` (the rupee sign), so the FV
-// cell text starts with "₹" not "Rs". The discount cell value
-// instead ends in "%".
-const RUPEE = "₹"
-
+// feat/alphaspread-style-opening: the headline FV now renders as the
+// huge figure inside the IntrinsicValueCard (data-testid="iv-card")
+// of the "1. INTRINSIC VALUE" section; the headline discount/premium
+// renders as the card's badge (data-testid="iv-card-badge"). The
+// invariant under test is unchanged — composite-preferred headline,
+// DCF fallback — only the DOM locator moved. The DCF figure stays
+// visible in the "Based on N methods" DCF row (iv-method-dcf), so
+// the not-the-headline assertions scope to the card, which carries
+// only the headline figure + the IV/Price bars.
 function findFvNode(): HTMLElement | null {
-  // The headline FV value cell renders inside a MetricTooltip; scan
-  // for the font-mono span carrying a currency-formatted number.
-  const spans = document.querySelectorAll(
-    "span.font-mono.tabular-nums.text-2xl",
-  )
-  for (const span of Array.from(spans)) {
-    if ((span.textContent ?? "").trim().startsWith(RUPEE)) {
-      return span as HTMLElement
-    }
-  }
-  return null
+  return document.querySelector<HTMLElement>('[data-testid="iv-card"]')
 }
 
 describe("HonestHero — headline reads composite_intrinsic_value", () => {
@@ -413,20 +407,13 @@ describe("HonestHero — headline reads composite_intrinsic_value", () => {
         payload={payload}
       />,
     )
-    // The Discount-to-FV dd is the only other large font-mono node in
-    // the hero. Scan all and pick the one whose text ends with "%".
-    const monoSpans = document.querySelectorAll(
-      "span.font-mono.tabular-nums.text-2xl",
+    // The headline discount now renders as the IV card's badge
+    // ("Discount X%" — price below IV on this fixture).
+    const pctNode = document.querySelector<HTMLElement>(
+      '[data-testid="iv-card-badge"]',
     )
-    let pctNode: HTMLElement | null = null
-    for (const s of Array.from(monoSpans)) {
-      const t = (s.textContent ?? "").trim()
-      if (t.endsWith("%")) {
-        pctNode = s as HTMLElement
-        break
-      }
-    }
     expect(pctNode).not.toBeNull()
+    expect(pctNode!.getAttribute("data-direction")).toBe("discount")
     // (1147.77 - 738.65) / 738.65 = 55.39%
     expect(pctNode!.textContent).toMatch(/55\.\d%/)
   })
