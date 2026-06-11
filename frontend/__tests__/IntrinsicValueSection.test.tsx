@@ -1,20 +1,28 @@
 /**
  * IntrinsicValueSection — narrative templates + methods rows +
- * reconciliation note (feat/alphaspread-style-opening).
+ * reconciliation note + thesis-redesign composition
+ * (feat/intrinsic-value-thesis-redesign).
  *
  * Pins:
  *   1. The SEBI-cleared narrative templates render with the correct
- *      numbers ("trades X% below/above", near-parity, data-limited).
+ *      numbers ("trades X% below/above", near-parity, data-limited) —
+ *      now emitted by <IntrinsicHero>, same testids and copy.
  *   2. "Based on N methods" rows self-show/hide for DCF / Peer
  *      Multiples / sector-specific estimator.
  *   3. The italic reconciliation note picks the right descriptive
  *      sentence for each DCF-vs-multiples split.
- *   4. data_limited renders template [D] and hides methods + bars.
+ *   4. data_limited renders template [D] and hides methods, strip,
+ *      scenario cards, gauge, and drivers.
+ *   5. The redesign composition: IntrinsicHero headline numeral,
+ *      ValuationRangeStrip, ScenarioCards, ConfidenceGauge, and
+ *      ValuationDrivers all mount from this section (the retired
+ *      IntrinsicValueCard's iv-card surface no longer exists).
  */
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 
 import IntrinsicValueSection from "@/components/analysis/IntrinsicValueSection"
+import type { QualityOutput, ScenariosOutput } from "@/types/api"
 
 function stubMatchMedia() {
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -39,6 +47,18 @@ const BASE = {
   companyName: "Test Industries",
   currency: "INR",
 }
+
+const SCENARIOS: ScenariosOutput = {
+  bear: { iv: 900, mos_pct: -10, growth: 4, wacc: 11, term_g: 3 },
+  base: { iv: 1200, mos_pct: 20, growth: 8, wacc: 10, term_g: 4 },
+  bull: { iv: 1500, mos_pct: 50, growth: 12, wacc: 9, term_g: 5 },
+}
+
+const QUALITY = {
+  roe: 17.2,
+  de_ratio: 0.4,
+  revenue_cagr_3y: 0.124,
+} as QualityOutput
 
 describe("IntrinsicValueSection — narrative templates", () => {
   it("renders the trades-below template with the exact numbers", () => {
@@ -108,12 +128,16 @@ describe("IntrinsicValueSection — narrative templates", () => {
     expect(boldText).toContain("20.0%")
   })
 
-  it("renders the data-limited template and hides methods + bars", () => {
+  it("renders the data-limited template and hides every numeric surface", () => {
     render(
       <IntrinsicValueSection
         {...BASE}
         intrinsicValue={null}
         currentPrice={1000}
+        scenarios={SCENARIOS}
+        confidence={82}
+        quality={QUALITY}
+        fcfYield={4.8}
         dataLimited
       />,
     )
@@ -125,8 +149,12 @@ describe("IntrinsicValueSection — narrative templates", () => {
     )
     expect(text).toContain("Check back after the next data refresh.")
     expect(screen.queryByTestId("iv-methods")).toBeNull()
-    expect(screen.queryByTestId("iv-card-bars")).toBeNull()
     expect(screen.queryByTestId("iv-reconciliation")).toBeNull()
+    // Thesis-redesign surfaces are suppressed too — no fabricated zeros.
+    expect(screen.queryByTestId("iv-range-strip")).toBeNull()
+    expect(screen.queryByTestId("iv-scenarios")).toBeNull()
+    expect(screen.queryByTestId("iv-confidence-gauge")).toBeNull()
+    expect(screen.queryByTestId("iv-drivers")).toBeNull()
   })
 })
 
@@ -257,8 +285,8 @@ describe("IntrinsicValueSection — reconciliation note", () => {
   })
 })
 
-describe("IntrinsicValueSection — heading + card composition", () => {
-  it("renders the numbered heading and the IV card", () => {
+describe("IntrinsicValueSection — heading + hero composition", () => {
+  it("renders the numbered heading and the headline gap numeral", () => {
     render(
       <IntrinsicValueSection
         {...BASE}
@@ -269,24 +297,137 @@ describe("IntrinsicValueSection — heading + card composition", () => {
     )
     const section = screen.getByTestId("intrinsic-value-section")
     expect(section.textContent).toMatch(/1\.\s*INTRINSIC VALUE/)
-    expect(screen.getByTestId("iv-card").textContent).toMatch(
-      /TEST Intrinsic Value/,
-    )
+    const hero = screen.getByTestId("iv-hero")
+    expect(hero.getAttribute("data-direction")).toBe("below")
+    const pct = screen.getByTestId("iv-hero-pct")
+    expect(pct.getAttribute("data-direction")).toBe("discount")
+    expect(pct.textContent).toContain("20.0%")
+    // The retired IntrinsicValueCard surface must not exist anymore.
+    expect(screen.queryByTestId("iv-card")).toBeNull()
   })
 
-  it("replaces the two-column body with degradedContent when degraded", () => {
+  it("replaces the body with degradedContent when degraded", () => {
     render(
       <IntrinsicValueSection
         {...BASE}
         intrinsicValue={1200}
         currentPrice={1000}
         dcfValue={1150}
+        scenarios={SCENARIOS}
         degraded
         degradedContent={<div data-testid="degraded-slot">clamped</div>}
       />,
     )
     expect(screen.getByTestId("degraded-slot")).toBeInTheDocument()
-    expect(screen.queryByTestId("iv-card")).toBeNull()
+    expect(screen.queryByTestId("iv-hero")).toBeNull()
     expect(screen.queryByTestId("iv-narrative")).toBeNull()
+    expect(screen.queryByTestId("iv-range-strip")).toBeNull()
+    expect(screen.queryByTestId("iv-scenarios")).toBeNull()
+  })
+})
+
+describe("IntrinsicValueSection — thesis-redesign surfaces", () => {
+  it("renders the range strip and the three scenario cards from scenarios", () => {
+    render(
+      <IntrinsicValueSection
+        {...BASE}
+        intrinsicValue={1200}
+        currentPrice={1000}
+        dcfValue={1150}
+        scenarios={SCENARIOS}
+      />,
+    )
+    expect(screen.getByTestId("iv-range-strip")).toBeInTheDocument()
+    expect(screen.getByTestId("iv-range-marker-iv").textContent).toContain(
+      "1,200",
+    )
+    expect(screen.getByTestId("iv-scenarios")).toBeInTheDocument()
+    expect(screen.getByTestId("iv-scenario-bear").textContent).toContain("900")
+    expect(screen.getByTestId("iv-scenario-base").textContent).toContain(
+      "1,200",
+    )
+    expect(screen.getByTestId("iv-scenario-bull").textContent).toContain(
+      "1,500",
+    )
+    // Assumption detail row carries the per-case inputs.
+    expect(
+      screen.getByTestId("iv-scenario-detail-base").textContent,
+    ).toContain("FCF growth 8.0% · WACC 10.0% · terminal 4.0%")
+  })
+
+  it("hides the strip and cards when scenarios are absent", () => {
+    render(
+      <IntrinsicValueSection
+        {...BASE}
+        intrinsicValue={1200}
+        currentPrice={1000}
+        dcfValue={1150}
+      />,
+    )
+    expect(screen.queryByTestId("iv-range-strip")).toBeNull()
+    expect(screen.queryByTestId("iv-scenarios")).toBeNull()
+  })
+
+  it("renders the confidence gauge with overall + pillar rows", () => {
+    render(
+      <IntrinsicValueSection
+        {...BASE}
+        intrinsicValue={1200}
+        currentPrice={1000}
+        dcfValue={1150}
+        confidence={82}
+        confidencePillars={{
+          model_confidence: 80,
+          data_quality: 90,
+          valuation_stability: 75,
+        }}
+      />,
+    )
+    expect(screen.getByTestId("iv-confidence-gauge")).toBeInTheDocument()
+    expect(screen.getByTestId("iv-confidence-overall").textContent).toContain(
+      "82",
+    )
+    expect(
+      screen.getByTestId("iv-confidence-pillar-valuation_stability")
+        .textContent,
+    ).toContain("Valuation stability")
+  })
+
+  it("hides the gauge when confidence and every pillar are null", () => {
+    render(
+      <IntrinsicValueSection
+        {...BASE}
+        intrinsicValue={1200}
+        currentPrice={1000}
+        dcfValue={1150}
+        confidence={null}
+        confidencePillars={{
+          model_confidence: null,
+          data_quality: null,
+          valuation_stability: null,
+        }}
+      />,
+    )
+    expect(screen.queryByTestId("iv-confidence-gauge")).toBeNull()
+  })
+
+  it("renders the drivers strip when at least two drivers resolve", () => {
+    render(
+      <IntrinsicValueSection
+        {...BASE}
+        intrinsicValue={1200}
+        currentPrice={1000}
+        dcfValue={1150}
+        quality={QUALITY}
+        fcfYield={4.8}
+      />,
+    )
+    expect(screen.getByTestId("iv-drivers")).toBeInTheDocument()
+    expect(screen.getByTestId("iv-driver-growth").textContent).toContain(
+      "12.4%",
+    )
+    expect(screen.getByTestId("iv-driver-returns").textContent).toContain(
+      "17.2%",
+    )
   })
 })

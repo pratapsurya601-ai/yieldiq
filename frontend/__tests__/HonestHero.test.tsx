@@ -301,17 +301,18 @@ describe("HonestHero — verdict consistency with hero pill (bug 1)", () => {
 // switches.
 // ─────────────────────────────────────────────────────────────────
 
-// feat/alphaspread-style-opening: the headline FV now renders as the
-// huge figure inside the IntrinsicValueCard (data-testid="iv-card")
-// of the "1. INTRINSIC VALUE" section; the headline discount/premium
-// renders as the card's badge (data-testid="iv-card-badge"). The
+// feat/intrinsic-value-thesis-redesign: the headline FV now renders
+// inside the IntrinsicHero narrative (data-testid="iv-narrative" —
+// "the base case is ₹X") and the headline discount/premium renders as
+// the hero's huge gap numeral (data-testid="iv-hero-pct"). The
 // invariant under test is unchanged — composite-preferred headline,
-// DCF fallback — only the DOM locator moved. The DCF figure stays
-// visible in the "Based on N methods" DCF row (iv-method-dcf), so
-// the not-the-headline assertions scope to the card, which carries
-// only the headline figure + the IV/Price bars.
+// DCF fallback — only the DOM locator moved (again; previously it was
+// the retired IntrinsicValueCard's iv-card). The DCF figure stays
+// visible in the "Based on N methods" DCF row (iv-method-dcf), so the
+// not-the-headline assertions scope to the narrative, which carries
+// only the headline IV + the current price.
 function findFvNode(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-testid="iv-card"]')
+  return document.querySelector<HTMLElement>('[data-testid="iv-narrative"]')
 }
 
 describe("HonestHero — headline reads composite_intrinsic_value", () => {
@@ -407,10 +408,10 @@ describe("HonestHero — headline reads composite_intrinsic_value", () => {
         payload={payload}
       />,
     )
-    // The headline discount now renders as the IV card's badge
-    // ("Discount X%" — price below IV on this fixture).
+    // The headline discount now renders as the hero's huge gap numeral
+    // (price below IV on this fixture → data-direction="discount").
     const pctNode = document.querySelector<HTMLElement>(
-      '[data-testid="iv-card-badge"]',
+      '[data-testid="iv-hero-pct"]',
     )
     expect(pctNode).not.toBeNull()
     expect(pctNode!.getAttribute("data-direction")).toBe("discount")

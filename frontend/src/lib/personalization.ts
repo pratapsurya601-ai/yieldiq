@@ -143,7 +143,7 @@ export const SECTION_TITLES: Record<SectionKey, { title: string; caption: string
   scenarios: {
     title: "VALUATION SCENARIOS",
     caption:
-      "Bear, base and bull fair value scenarios from a discounted cash flow model with three sensitivity profiles.",
+      "The five-year projection of the bear, base and bull fair-value paths. Per-scenario values and assumptions render in the Intrinsic Value section at the top of the page.",
   },
   compounded_growth: {
     title: "COMPOUNDED GROWTH",

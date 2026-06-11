@@ -154,7 +154,6 @@ import InlinePeerComparison from "@/components/analysis/InlinePeerComparison"
 import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
-  formatPct,
   formatCompanyName,
   formatRelativeTime,
 } from "@/lib/utils"
@@ -1201,46 +1200,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     />
   ) : null
 
-  // #ASD-restyle (2026-05-25): TrustStrip data for the Summary tab's
-  // numbered sections. Real fields from the analysis payload only —
-  // no mock values, no fake stars. If a field is null, value renders as
-  // "—" (neutral); if every stat is null upstream, the strip omits itself.
-  const scenarioAccent = (m: number | null | undefined) => {
-    if (m === null || m === undefined || !Number.isFinite(m)) return "neutral" as const
-    return m >= 0 ? ("green" as const) : ("red" as const)
-  }
-  const scenariosTrustStats: TrustStat[] | null = data.scenarios && !dataLimited
-    ? [
-        {
-          label: "Bear Discount",
-          value: Number.isFinite(data.scenarios.bear?.mos_pct)
-            ? formatPct(data.scenarios.bear.mos_pct)
-            : "—",
-          accent: scenarioAccent(data.scenarios.bear?.mos_pct),
-        },
-        {
-          label: "Base Discount",
-          value: Number.isFinite(data.scenarios.base?.mos_pct)
-            ? formatPct(data.scenarios.base.mos_pct)
-            : "—",
-          accent: scenarioAccent(data.scenarios.base?.mos_pct),
-        },
-        {
-          label: "Bull Discount",
-          value: Number.isFinite(data.scenarios.bull?.mos_pct)
-            ? formatPct(data.scenarios.bull.mos_pct)
-            : "—",
-          accent: scenarioAccent(data.scenarios.bull?.mos_pct),
-        },
-        ...(Number.isFinite(valuation.confidence_score)
-          ? [{
-              label: "Model Confidence",
-              value: `${Math.round(valuation.confidence_score)}/100`,
-              accent: "neutral" as const,
-            }]
-          : []),
-      ]
-    : null
+  // feat/intrinsic-value-thesis-redesign (2026-06-11): the bear/base/
+  // bull TrustStrip that used to ride above the projection fan is
+  // RETIRED. The per-scenario values (IV per share, signed % vs price,
+  // assumption detail) now render inside "1. INTRINSIC VALUE" via
+  // <ScenarioCards>, and model confidence renders there via
+  // <ConfidenceGauge>. The standalone "VALUATION SCENARIOS" numbered
+  // section keeps ONLY the 5-year projection fan — one scenarios-value
+  // surface per page, no duplicate stat row.
 
   const dividendData = insights?.dividend ?? null
   const dividendTrustStats: TrustStat[] | null = (() => {
@@ -1288,14 +1255,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     // filter strips null entries before mapping.
     insight_cards: null,
     red_flags: null,
-    scenarios: scenarioBlock ? (
-      <>
-        {scenariosTrustStats ? (
-          <TrustStrip stats={scenariosTrustStats} ariaLabel="Scenario highlights" />
-        ) : null}
-        {scenarioBlock}
-      </>
-    ) : null,
+    scenarios: scenarioBlock,
     bulls_bears: (
       <BullsBearsPanel
         bulls={data.bulls_say}

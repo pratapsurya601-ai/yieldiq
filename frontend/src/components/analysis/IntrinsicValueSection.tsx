@@ -2,54 +2,78 @@
 
 /**
  * IntrinsicValueSection — "1. INTRINSIC VALUE", the first numbered
- * section of the analysis page (feat/alphaspread-style-opening).
+ * section of the analysis page (feat/intrinsic-value-thesis-redesign).
  *
- * AlphaSpread-style composition:
+ * Composition (top to bottom):
  *   - Big centered numbered heading. REUSES the shared
  *     <NumberedSectionHeader> (per the agent-partition hard rule it is
  *     NOT modified) — the centering + brand-blue numeral are applied by
  *     a wrapper with arbitrary-variant utilities only.
- *   - Two-column body (≥ xl): LEFT = SEBI-templated narrative sentence
- *     with the key numbers in bold ink, then "Based on N methods:" chip
- *     rows (DCF / Peer Multiples / sector-specific estimator), then an
- *     italic one-line reconciliation note. RIGHT = <IntrinsicValueCard>
- *     (huge IV figure + Discount/Premium badge + IV-vs-price bars).
- *   - Below xl the columns stack with the card FIRST (mobile spec).
+ *   - <IntrinsicHero> — the 5-second answer: huge gap numeral
+ *     ("53.7% below intrinsic value") + the SEBI-templated narrative
+ *     sentence with the exact rupee figures in bold ink.
+ *   - <ValuationRangeStrip> — single bear→bull gradient band with the
+ *     base-case IV marker inside it and the market-price marker (which
+ *     may sit outside the band). Self-hides without scenario bounds.
+ *   - <ScenarioCards> — Bear / Base / Bull per-share values, signed %
+ *     vs price, and assumption detail on hover/focus. Self-hides
+ *     without scenarios.
+ *   - "Based on N methods" rows (DCF / Peer Multiples / sector
+ *     estimator) + the italic one-line reconciliation note — unchanged
+ *     from the previous revision — alongside <ConfidenceGauge> (arc +
+ *     pillar mini-bars, links to the #section-confidence disclosure).
+ *   - <ValuationDrivers> — sector-aware "What drives this reading"
+ *     strip (banks read bank-native fields). Self-hides under 2 cards.
  *
- * Narrative templates are the EXACT SEBI-cleared strings from the
- * design spec (descriptive verbs only: reads / trades / sits — never
- * imperative). pct = |IV − price| / price × 100; the near-parity branch
- * fires below 5%. "base case" mirrors scenarios.base wording.
+ * RETIRED in this revision: <IntrinsicValueCard> (the right-rail huge
+ * IV figure + Discount/Premium badge + two-bar IV-vs-price chart).
+ * Behavior-wise, the headline treatment moved into <IntrinsicHero>
+ * (which now owns `intrinsicValueGapPct`) and the IV-vs-price
+ * comparison moved into <ValuationRangeStrip>. No other mount of the
+ * card existed (verified by import grep at retire time).
+ *
+ * Scenario-duplication contract: the per-scenario VALUES render here
+ * (ScenarioCards); the standalone "VALUATION SCENARIOS" numbered
+ * section further down the page keeps ONLY the 5-year projection fan
+ * (<FVProjectionFan>) — its duplicate bear/base/bull TrustStrip is
+ * retired in AnalysisBody.tsx as part of this change.
  *
  * Canonical-FV contract: `intrinsicValue` is the headline FV
  * (signals.headlineFairValue). The DCF-specific figure arrives via the
  * `dcfValue` prop strictly for the DCF method row — the caller owns the
  * lint annotation for that read.
  *
- * data_limited: template [D] renders, methods rows + reconciliation are
- * suppressed, and the card hides its badge/bars (no fabricated zeros).
+ * data_limited: template [D] renders inside IntrinsicHero; the strip,
+ * scenario cards, methods rows, reconciliation, gauge, and drivers are
+ * all suppressed (no fabricated zeros).
  *
  * degraded (WIPRO-clamp class): the caller passes `degradedContent`
- * (DegradedScenarioCard et al.) which replaces the two-column body —
- * the numbered heading stays so the section numbering never gaps.
+ * (DegradedScenarioCard et al.) which replaces the body — the numbered
+ * heading stays so the section numbering never gaps.
  */
 
 import * as React from "react"
 import { Calculator, Landmark, Scale, type LucideIcon } from "lucide-react"
 
-import IntrinsicValueCard, {
-  intrinsicValueGapPct,
-} from "@/components/analysis/IntrinsicValueCard"
+import IntrinsicHero from "@/components/analysis/intrinsic/IntrinsicHero"
+import ValuationRangeStrip from "@/components/analysis/intrinsic/ValuationRangeStrip"
+import ScenarioCards from "@/components/analysis/intrinsic/ScenarioCards"
+import ConfidenceGauge, {
+  type ConfidenceGaugePillars,
+} from "@/components/analysis/intrinsic/ConfidenceGauge"
+import ValuationDrivers from "@/components/analysis/intrinsic/ValuationDrivers"
 import NumberedSectionHeader from "@/components/analysis/NumberedSectionHeader"
 import { cn, formatCurrency } from "@/lib/utils"
-
-/** |gap| below this % reads as parity (template C). */
-const PARITY_BAND_PCT = 5
+import type {
+  AnalysisResponse,
+  QualityOutput,
+  ScenariosOutput,
+} from "@/types/api"
 
 export interface IntrinsicValueSectionProps {
   /** Canonical ticker (suffix ok) — INR override for formatCurrency. */
   ticker: string
-  /** Bare display ticker for prose + the card caption. */
+  /** Bare display ticker for prose + aria labels. */
   displayTicker: string
   companyName: string
   currency: string
@@ -64,6 +88,17 @@ export interface IntrinsicValueSectionProps {
   /** Sector-routed estimator (payload.sector_specific_fv / _label). */
   sectorSpecificValue?: number | null
   sectorSpecificLabel?: string | null
+  /** Bear/base/bull cases — feeds the range strip + scenario cards. */
+  scenarios?: ScenariosOutput | null
+  /** Overall model confidence 0-100 (valuation.confidence_score). */
+  confidence?: number | null
+  /** Per-pillar confidence scores for the gauge mini-bars. */
+  confidencePillars?: ConfidenceGaugePillars | null
+  /** Quality block — feeds the sector-aware drivers strip. */
+  quality?: QualityOutput | null
+  sectorMedians?: AnalysisResponse["sector_medians"]
+  /** insights.fcf_yield (percent) for the non-bank cash driver card. */
+  fcfYield?: number | null
   dataLimited?: boolean
   /** WIPRO-clamp class state — body is replaced by `degradedContent`. */
   degraded?: boolean
@@ -86,6 +121,9 @@ interface MethodRow {
   icon: LucideIcon
 }
 
+const finite = (v: number | null | undefined): v is number =>
+  v != null && Number.isFinite(v)
+
 export default function IntrinsicValueSection({
   ticker,
   displayTicker,
@@ -98,6 +136,12 @@ export default function IntrinsicValueSection({
   multiplesMethod,
   sectorSpecificValue,
   sectorSpecificLabel,
+  scenarios,
+  confidence,
+  confidencePillars,
+  quality,
+  sectorMedians,
+  fcfYield,
   dataLimited = false,
   degraded = false,
   degradedContent,
@@ -137,6 +181,15 @@ export default function IntrinsicValueSection({
     }
   }
 
+  // ConfidenceGauge self-hides on all-null input, but we also need to
+  // know up-front whether the methods/gauge row earns its grid at all.
+  const gaugeHasData =
+    !limited &&
+    (finite(confidence) ||
+      finite(confidencePillars?.model_confidence) ||
+      finite(confidencePillars?.data_quality) ||
+      finite(confidencePillars?.valuation_stability))
+
   return (
     <section
       data-testid="intrinsic-value-section"
@@ -164,146 +217,115 @@ export default function IntrinsicValueSection({
       {degraded ? (
         degradedContent ?? null
       ) : (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:gap-8 xl:items-start">
-          {/* Card first when stacked (mobile spec); right column at xl. */}
-          <div className="order-1 xl:order-2">
-            <IntrinsicValueCard
+        <div className="min-w-0">
+          {/* ── Headline gap numeral + SEBI-templated narrative ───── */}
+          <IntrinsicHero
+            ticker={ticker}
+            displayTicker={displayTicker}
+            companyName={companyName}
+            currency={currency}
+            intrinsicValue={limited ? null : intrinsicValue}
+            currentPrice={currentPrice}
+            confidence={limited ? null : confidence}
+            dataLimited={limited}
+          />
+
+          {/* ── Bear→bull range strip (self-hides without bounds) ─── */}
+          {!limited && (
+            <ValuationRangeStrip
               ticker={ticker}
-              displayTicker={displayTicker}
               currency={currency}
-              intrinsicValue={limited ? null : intrinsicValue}
+              bear={scenarios?.bear?.iv ?? null}
+              bull={scenarios?.bull?.iv ?? null}
+              intrinsicValue={intrinsicValue}
               currentPrice={currentPrice}
-              dataLimited={limited}
+              className="mt-8"
             />
-          </div>
+          )}
 
-          <div className="order-2 xl:order-1 min-w-0">
-            <Narrative
-              companyName={companyName}
-              displayTicker={displayTicker}
-              intrinsicValue={limited ? null : intrinsicValue}
+          {/* ── Bear / Base / Bull scenario value cards ───────────── */}
+          {!limited && (
+            <ScenarioCards
+              ticker={ticker}
+              currency={currency}
+              scenarios={scenarios}
               currentPrice={currentPrice}
-              fmt={fmt}
+              className="mt-8"
             />
+          )}
 
-            {methodRows.length > 0 && (
-              <div className="mt-4" data-testid="iv-methods">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-caption">
-                  Based on {methodRows.length}{" "}
-                  {methodRows.length === 1 ? "method" : "methods"}:
-                </p>
-                <ul className="mt-2 flex flex-col gap-1.5">
-                  {methodRows.map((row) => (
-                    <li
-                      key={row.key}
-                      data-testid={`iv-method-${row.key}`}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg px-3 py-2"
-                    >
-                      <span className="flex items-center gap-2 min-w-0">
-                        <row.icon
-                          aria-hidden
-                          className="h-3.5 w-3.5 shrink-0 text-caption"
-                        />
-                        <span className="text-[12px] text-body truncate">
-                          {row.label}
-                        </span>
-                      </span>
-                      <span className="font-mono tabular-nums text-[13px] font-semibold text-ink shrink-0">
-                        {fmt(row.value)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          {/* ── Methods rows + reconciliation | confidence gauge ──── */}
+          {(methodRows.length > 0 || gaugeHasData) && (
+            <div
+              className={cn(
+                "mt-8 grid grid-cols-1 gap-5 md:items-start",
+                methodRows.length > 0 && gaugeHasData
+                  ? "md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] md:gap-8"
+                  : "md:grid-cols-1",
+              )}
+            >
+              {methodRows.length > 0 && (
+                <div className="min-w-0">
+                  <div data-testid="iv-methods">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-caption">
+                      Based on {methodRows.length}{" "}
+                      {methodRows.length === 1 ? "method" : "methods"}:
+                    </p>
+                    <ul className="mt-2 flex flex-col gap-1.5">
+                      {methodRows.map((row) => (
+                        <li
+                          key={row.key}
+                          data-testid={`iv-method-${row.key}`}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg px-3 py-2"
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <row.icon
+                              aria-hidden
+                              className="h-3.5 w-3.5 shrink-0 text-caption"
+                            />
+                            <span className="text-[12px] text-body truncate">
+                              {row.label}
+                            </span>
+                          </span>
+                          <span className="font-mono tabular-nums text-[13px] font-semibold text-ink shrink-0">
+                            {fmt(row.value)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-            {!limited && (
-              <ReconciliationNote
-                dcfValue={usable(dcfValue) ? dcfValue : null}
-                multiplesValue={usable(multiplesValue) ? multiplesValue : null}
-                currentPrice={currentPrice}
-              />
-            )}
-          </div>
+                  {!limited && (
+                    <ReconciliationNote
+                      dcfValue={usable(dcfValue) ? dcfValue : null}
+                      multiplesValue={usable(multiplesValue) ? multiplesValue : null}
+                      currentPrice={currentPrice}
+                    />
+                  )}
+                </div>
+              )}
+
+              {gaugeHasData && (
+                <ConfidenceGauge
+                  confidence={confidence}
+                  pillars={confidencePillars}
+                />
+              )}
+            </div>
+          )}
+
+          {/* ── Sector-aware drivers strip (self-hides under 2) ───── */}
+          {!limited && (
+            <ValuationDrivers
+              quality={quality}
+              sectorMedians={sectorMedians}
+              fcfYield={fcfYield}
+              className="mt-8"
+            />
+          )}
         </div>
       )}
     </section>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Narrative sentence — exact SEBI-cleared templates                  */
-/* ------------------------------------------------------------------ */
-
-interface NarrativeProps {
-  companyName: string
-  displayTicker: string
-  intrinsicValue: number | null
-  currentPrice: number | null
-  fmt: (v: number) => string
-}
-
-function Em({ children }: { children: React.ReactNode }) {
-  return <span className="font-semibold text-ink">{children}</span>
-}
-
-function Narrative({
-  companyName,
-  displayTicker,
-  intrinsicValue,
-  currentPrice,
-  fmt,
-}: NarrativeProps) {
-  const baseClass = "text-[13px] md:text-sm leading-relaxed text-body"
-
-  // Template [D] — data-limited / unpublished IV.
-  if (
-    intrinsicValue == null ||
-    currentPrice == null ||
-    !(currentPrice > 0) ||
-    !(intrinsicValue > 0)
-  ) {
-    return (
-      <p data-testid="iv-narrative" data-template="data-limited" className={baseClass}>
-        An intrinsic value for <Em>{companyName}</Em> ({displayTicker}) is not
-        published yet — the model does not have enough reliable data to
-        produce a base-case figure. Check back after the next data refresh.
-      </p>
-    )
-  }
-
-  const gap = intrinsicValueGapPct(intrinsicValue, currentPrice) ?? 0
-  const pct = Math.abs(gap).toFixed(1)
-  const lead = (
-    <>
-      The intrinsic value of <Em>{companyName}</Em> ({displayTicker}) under
-      the base case is <Em>{fmt(intrinsicValue)}</Em>.
-    </>
-  )
-
-  // Template [C] — near parity (|gap| < 5%).
-  if (Math.abs(gap) < PARITY_BAND_PCT) {
-    return (
-      <p data-testid="iv-narrative" data-template="parity" className={baseClass}>
-        {lead} The current market price of <Em>{fmt(currentPrice)}</Em> sits
-        within <Em>{pct}%</Em> of that figure — close to parity under this
-        model.
-      </p>
-    )
-  }
-
-  // Templates [A] / [B] — trades below / above the model's IV.
-  const direction = currentPrice < intrinsicValue ? "below" : "above"
-  return (
-    <p
-      data-testid="iv-narrative"
-      data-template={direction === "below" ? "trades-below" : "trades-above"}
-      className={baseClass}
-    >
-      {lead} Compared with the current market price of{" "}
-      <Em>{fmt(currentPrice)}</Em>, the stock trades <Em>{pct}%</Em>{" "}
-      {direction} the model&rsquo;s intrinsic value.
-    </p>
   )
 }
 
