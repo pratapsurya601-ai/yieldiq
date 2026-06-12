@@ -69,6 +69,7 @@ to Neon).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from typing import Any
@@ -81,6 +82,38 @@ BSE_FILINGS_URL_TMPL = (
 )
 BSE_HOST = "https://www.bseindia.com"
 
+# 2026 migration: the Comp_Resultsnew page is now an Angular SPA whose served
+# HTML contains ZERO filing links. The result table is populated by an XHR to
+# the api.bseindia.com Corp_FinanceResult_ng endpoint. We call that endpoint
+# directly from the warmed browser context (cookies established by the SPA
+# page load make it return 200 in-browser).
+#
+#   GET https://api.bseindia.com/BseIndiaAPI/api/Corp_FinanceResult_ng/w
+#       ?SCRIP_CD=<code>&FlagDur=7&HFQ=&ISUBGROUP_CODE=
+#
+# Response: {"Table":[{ "Scrip_cd":500180, "quarter_code":"MQ2025-2026",
+#   "Fld_NatureOfReport":"Standalone",
+#   "XMLName":"IFBankingDuplicateUploadDocument/IFBanking_500180_<ts>_IFBanking.html",
+#   "Consol_XMLName":"...IFBanking_500180_<ts>_IFBanking.html", ...}, ...]}
+#
+# ``XMLName`` is the STANDALONE filing (bank NPA fields are standalone-only);
+# ``Consol_XMLName`` is the consolidated one. Each is a relative path served
+# under /XBRLFILES/ on www.bseindia.com. FlagDur=7 (or empty) returns the full
+# multi-year history (~140 rows for HDFCBANK); FlagDur=1 returns nothing.
+BSE_FINRESULT_API_TMPL = (
+    "https://api.bseindia.com/BseIndiaAPI/api/Corp_FinanceResult_ng/w"
+    "?SCRIP_CD={code}&FlagDur={flagdur}&HFQ=&ISUBGROUP_CODE="
+)
+# FlagDur value that returns the widest history. 7 was confirmed in the
+# network capture; empty string ("") returns the same full set.
+BSE_FINRESULT_FLAGDUR = "7"
+
+# Absolute-URL prefix for the relative ``XMLName`` path. Confirmed via the
+# SPA's own rendered anchors: href="/XBRLFILES/<XMLName>" returns the real
+# 2.6 MB inline-XBRL document (status 200). Other prefixes either 404 or
+# soft-404 to the Angular shell.
+BSE_XBRLFILES_PREFIX = "https://www.bseindia.com/XBRLFILES/"
+
 # Three warmup hops let the Akamai _abck cookie transition to a
 # verified state. Removing any of these reverts to 403.
 WARMUP_URLS = [
@@ -89,12 +122,13 @@ WARMUP_URLS = [
     "https://www.bseindia.com/markets/equity/EQReports/marketmovers.aspx",
 ]
 
-# Match XBRL XML URLs that BSE serves for quarterly Ind-AS filings.
-# Examples observed in the wild (SpiceJet/500285):
+# LEGACY: pre-2026 BSE served quarterly Ind-AS XBRL as standalone XML files
+# linked directly in the page HTML, e.g.
 #   /XBRLFILES/FourOneUploadDocument/Main_Ind_As_500285_2622025161521.xml
-#   /XBRLFILES/FourOneUploadDocument/Main_Ind_As_500285_1582024123430.xml
-# The trailing digit blob encodes broadcast timestamp (DMYYYYHHMMSS) —
-# we don't parse it here; period_end comes from inside the XBRL itself.
+# That page is now an Angular SPA with no links, so this regex no longer
+# matches anything against live HTML. It is retained only for the
+# ``_legacy_list_from_html`` fallback path and for tests that exercise the
+# old fixtures.
 _XBRL_HREF_RE = re.compile(
     r"""href=['"](/XBRLFILES/[^'"]*?Main_Ind_As_(\d+)_[^'"]+\.xml)['"]""",
     re.IGNORECASE,
@@ -202,61 +236,155 @@ class BSEXBRLBrowserClient:
     async def list_quarterly_xbrl_urls(
         self, bse_code: str, *, max_filings: int | None = None,
     ) -> list[str]:
-        """Return absolute URLs of all Main_Ind_As XBRL files on the page.
+        """Return absolute URLs of quarterly result filings for ``bse_code``.
 
-        Order is page-as-served (BSE renders most-recent first; we
-        preserve that). Pass ``max_filings`` to cap.
+        2026 migration: the Comp_Resultsnew page is now an Angular SPA whose
+        served HTML has zero filing links — the result table is fetched by an
+        XHR to ``api.bseindia.com/.../Corp_FinanceResult_ng``. We replicate
+        that XHR from the warmed browser context (navigating the SPA page
+        first establishes the api.bseindia.com cookie so the call returns 200
+        in-browser), parse the JSON ``Table``, and build one absolute
+        ``/XBRLFILES/<XMLName>`` URL per filing.
+
+        ``XMLName`` is the STANDALONE filing (bank NPA fields are
+        standalone-only) and is returned first for each quarter;
+        ``Consol_XMLName`` is appended as a fallback only when it differs.
+        Order is newest-first (the API returns rows newest-first); duplicate
+        URLs across the MQ/MC/DQ quarter-code variants are collapsed. Pass
+        ``max_filings`` to cap the count.
+
+        Returns [] on any nav / API failure (logged at INFO) so the caller's
+        pre-flight gate trips cleanly.
         """
         if self._context is None:
             raise RuntimeError("client not initialised — call init() first")
+
+        rows: list[dict[str, Any]] = []
         page = await self._context.new_page()
+
+        # Primary path: intercept the SPA's OWN Corp_FinanceResult_ng XHR
+        # response. This is far more reliable than replaying the request via
+        # ``context.request.get`` -- Akamai's _abck sensor frequently rejects
+        # the programmatic replay (returns an empty body / soft-error) even
+        # while the in-page XHR succeeds, because the replay is missing the
+        # browser-context fetch metadata Akamai fingerprints on.
+        captured: dict[str, Any] = {"table": None}
+
+        async def _on_response(resp: Any) -> None:
+            if captured["table"] is not None:
+                return
+            if "Corp_FinanceResult_ng" not in resp.url:
+                return
+            try:
+                data = await resp.json()
+                table = data.get("Table") if isinstance(data, dict) else None
+                if table:
+                    captured["table"] = table
+            except Exception:
+                pass
+
+        listener = lambda resp: asyncio.create_task(_on_response(resp))  # noqa: E731
+        self._context.on("response", listener)
         try:
             target = BSE_FILINGS_URL_TMPL.format(code=bse_code)
             try:
-                resp = await page.goto(
-                    target, wait_until="networkidle", timeout=45000,
+                await page.goto(
+                    target, wait_until="domcontentloaded", timeout=45000,
                 )
             except Exception as exc:
-                logger.info("filings page nav fail %s: %s", bse_code, exc)
-                return []
-            status = resp.status if resp else None
-            if status != 200:
-                logger.info(
-                    "filings page non-200 for %s: status=%s url=%s",
-                    bse_code, status, page.url,
+                logger.info("SPA filings nav fail %s: %s", bse_code, exc)
+            # Wait for the SPA to fire its finance-result XHR.
+            for _ in range(20):
+                if captured["table"] is not None:
+                    break
+                await page.wait_for_timeout(1500)
+
+            if captured["table"]:
+                rows = captured["table"]
+            else:
+                # Fallback: replicate the XHR ourselves (cookie may now be warm
+                # from the SPA's attempt). Short retry loop with SPA reloads.
+                api_url = BSE_FINRESULT_API_TMPL.format(
+                    code=bse_code, flagdur=BSE_FINRESULT_FLAGDUR,
                 )
-                return []
-            # Give any post-load JS a chance to inject extra anchors.
-            await page.wait_for_timeout(2500)
-            html = await page.content()
+                for attempt in range(4):
+                    try:
+                        r = await self._context.request.get(
+                            api_url,
+                            headers={"Accept": "application/json"},
+                            timeout=60000,
+                        )
+                        raw = await r.body()
+                        data = json.loads(raw.decode("utf-8", "replace"))
+                        table = (
+                            data.get("Table") if isinstance(data, dict) else None
+                        )
+                        if table:
+                            rows = table
+                            break
+                    except Exception as exc:
+                        logger.debug(
+                            "finresult api replay attempt %d fail %s: %s",
+                            attempt, bse_code, exc,
+                        )
+                    await page.wait_for_timeout(2500)
+                    try:
+                        await page.reload(
+                            wait_until="domcontentloaded", timeout=30000,
+                        )
+                    except Exception:
+                        pass
         finally:
+            try:
+                self._context.remove_listener("response", listener)
+            except Exception:
+                pass
             await page.close()
 
+        if not rows:
+            logger.info(
+                "finresult api returned no rows for %s (SPA/Akamai)", bse_code,
+            )
+            return []
+
+        # Step 3: build /XBRLFILES/<XMLName> URLs, standalone first, deduped,
+        # newest-first (API order preserved).
         urls: list[str] = []
         seen: set[str] = set()
-        for match in _XBRL_HREF_RE.finditer(html):
-            href = match.group(1)
-            href_code = match.group(2)
-            # Defensive: only keep XBRL files whose URL embeds THIS ticker's
-            # BSE code (BSE sometimes shares the page chrome across stocks
-            # if you arrive via a stale cookie).
-            if href_code != bse_code:
-                continue
-            absolute = href if href.startswith("http") else BSE_HOST + href
+
+        def _add(xmlname: str | None) -> None:
+            if not xmlname or not isinstance(xmlname, str):
+                return
+            rel = xmlname.strip().lstrip("/")
+            if not rel:
+                return
+            absolute = BSE_XBRLFILES_PREFIX + rel
             if absolute in seen:
-                continue
+                return
             seen.add(absolute)
             urls.append(absolute)
+
+        # Standalone pass first (preferred -- carries NPA fields), then
+        # consolidated as fallback for any quarter without a distinct
+        # standalone file.
+        for row in rows:
+            _add(row.get("XMLName"))
+        for row in rows:
+            _add(row.get("Consol_XMLName"))
+
         if max_filings is not None:
             urls = urls[:max_filings]
         return urls
 
     async def download(self, xbrl_url: str) -> bytes:
-        """Download one BSE XBRL XML. Returns raw bytes (may be empty on fail).
+        """Download one BSE filing. Returns raw bytes (may be empty on fail).
 
-        The XBRL XML files are served from the same www.bseindia.com host
-        as the filings page, so the Akamai cookies established during
-        ``init()`` warmup are valid for the download too.
+        Works for both the legacy ``Main_Ind_As_*.xml`` instances and the
+        2026 ``IFBanking_*_IFBanking.html`` inline-XBRL documents — both are
+        served under ``/XBRLFILES/`` on the same www.bseindia.com host as the
+        filings page, so the Akamai cookies established during ``init()``
+        warmup are valid for the download too. The IFBanking HTML files run to
+        ~2.6 MB, so the read timeout is generous.
         """
         if self._context is None:
             raise RuntimeError("client not initialised — call init() first")
@@ -267,7 +395,7 @@ class BSEXBRLBrowserClient:
                     "Referer": "https://www.bseindia.com/corporates/Comp_Resultsnew.aspx",
                     "Accept": "*/*",
                 },
-                timeout=30000,
+                timeout=60000,
             )
         except Exception as exc:
             logger.info("xbrl download error %s: %s", xbrl_url, exc)
