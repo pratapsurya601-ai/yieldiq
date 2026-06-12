@@ -340,13 +340,132 @@ def _detect_consolidated(xbrl_bytes: bytes) -> bool | None:
     for el in root.iter():
         if not isinstance(el.tag, str):
             continue
-        if _localname(el.tag) == "NatureOfReportStandaloneConsolidated":
-            txt = (el.text or "").strip().lower()
+        # Plain XBRL XML: tag local name IS the element name.
+        # iXBRL: tag is <ix:nonNumeric name='in-capmkt:NatureOf...'>, so the
+        # element name lives in the ``name`` attribute instead.
+        ln = _localname(el.tag)
+        name_attr = el.get("name") or ""
+        name_local = name_attr.split(":", 1)[1] if ":" in name_attr else name_attr
+        if (
+            ln == "NatureOfReportStandaloneConsolidated"
+            or name_local == "NatureOfReportStandaloneConsolidated"
+        ):
+            txt = "".join(el.itertext()).strip().lower()
             if "consolid" in txt:
                 return True
             if "standalone" in txt:
                 return False
     return None
+
+
+# ---------- inline-XBRL (iXBRL) fact extraction -----------------------------
+#
+# Since 2026 the BSE SEBI Integrated Filing serves bank quarterly results as
+# inline XBRL (iXBRL) wrapped in an HTML document
+# (``IFBanking_<code>_<ts>_IFBanking.html``), NOT as a standalone
+# ``Main_Ind_As_*.xml`` instance. The numeric facts are carried in
+# ``<ix:nonFraction>`` / ``<ix:nonNumeric>`` tags whose ``name=`` attribute is
+# the same element local name the old XML path used::
+#
+#     <ix:nonFraction name='in-capmkt:PercentageOfGrossNpa' contextRef='OneD'
+#                     unitRef='pure' scale='-2' decimals='INF'>1.15</ix:nonFraction>
+#     <ix:nonFraction name='in-capmkt:GrossNonPerformingAssets' contextRef='OneD'
+#                     unitRef='INR' scale='7' format='ixt3:numdotdecimalin'
+#                     >34,061.19</ix:nonFraction>
+#
+# The ``<xbrli:context>`` definitions are present verbatim, so the existing
+# ``_extract_contexts`` (local-name match on ``context``/``startDate``/...)
+# already resolves OneD (the quarter duration) and OneI (the balance-sheet
+# instant) with no changes.
+#
+# Two transforms the iXBRL extractor MUST apply that the plain-XML
+# ``_extract_facts`` does not:
+#   * ``scale`` -- multiply the text value by 10**scale (e.g. scale='-2' turns
+#     1.15 into 0.0115; scale='7' turns 34,061.19 crore-units into the absolute
+#     rupee figure). All six KPIs are ratios whose common scale cancels, but we
+#     apply it for correctness so downstream consumers get true magnitudes.
+#   * ``sign`` -- an ``ix:nonFraction sign='-'`` is a negated value.
+# Thousands separators (Indian grouping, e.g. ``31,05,250.48``) are stripped.
+
+def _ixbrl_sniff(xbrl_bytes: bytes) -> bool:
+    """Cheap content sniff: is this an inline-XBRL (iXBRL) document?
+
+    Detects iXBRL by the inline-XBRL namespace declaration, which always
+    lives in the document head (the root ``<html xmlns:ix=".../inlineXBRL">``
+    element). We deliberately do NOT scan for the first ``<ix:nonFraction>``
+    tag: in the BSE IFBanking documents the head + style block runs to
+    ~580 KB before the first fact appears, so a fixed head window would
+    miss it. Returns False for plain XBRL XML so the legacy
+    ``Main_Ind_As_*.xml`` path stays intact.
+    """
+    head = xbrl_bytes[:65_536].lower()
+    return b"inlinexbrl" in head or b"xmlns:ix" in head
+
+
+def _extract_ixbrl_facts(
+    xbrl_bytes: bytes,
+) -> dict[str, list[tuple[float, str]]]:
+    """Return {localname: [(scaled_value, contextRef), ...]} from iXBRL.
+
+    Walks every ``ix:nonFraction`` element, reads its ``name`` attribute
+    (``ns:LocalName`` -> ``LocalName``), applies ``scale`` and ``sign``, strips
+    thousands separators, and keys the resulting numeric fact by the element
+    local name -- producing exactly the same shape ``_extract_facts`` returns
+    for plain XBRL XML, so the rest of ``parse_bank_xbrl`` is format-agnostic.
+
+    ``ix:nonNumeric`` tags carry text (auditor names, nature-of-report, ...);
+    they are not numeric facts and are skipped here -- but the
+    ``NatureOfReportStandaloneConsolidated`` flag is read separately by
+    ``_detect_consolidated`` (which also handles iXBRL, see below).
+    """
+    try:
+        from lxml import etree
+    except ImportError:  # pragma: no cover -- lxml is a hard dep in prod
+        from xml.etree import ElementTree as etree  # type: ignore
+
+    try:
+        root = etree.fromstring(xbrl_bytes)
+    except Exception as exc:
+        logger.debug("ixbrl parse fail: %s", exc)
+        return {}
+
+    facts: dict[str, list[tuple[float, str]]] = {}
+    for el in root.iter():
+        tag = el.tag
+        if not isinstance(tag, str):
+            continue
+        if _localname(tag) != "nonFraction":
+            continue
+        name = el.get("name") or ""
+        if not name:
+            continue
+        local = name.split(":", 1)[1] if ":" in name else name
+
+        # Concatenate text (iXBRL facts may wrap inner spans for formatting).
+        raw = "".join(el.itertext()).strip()
+        if not raw:
+            continue
+        s = raw.replace(",", "").replace(" ", "").strip()
+        if not s or s.upper() in ("NIL", "NA", "-", "--"):
+            continue
+        try:
+            val = float(s)
+        except (TypeError, ValueError):
+            continue
+
+        scale = el.get("scale")
+        if scale:
+            try:
+                val *= 10.0 ** int(scale)
+            except (TypeError, ValueError):
+                pass
+        sign = (el.get("sign") or "").strip()
+        if sign == "-":
+            val = -val
+
+        ctx = el.get("contextRef") or ""
+        facts.setdefault(local, []).append((val, ctx))
+    return facts
 
 
 # ---------- the parser ------------------------------------------------------
@@ -392,9 +511,17 @@ def parse_bank_xbrl(
         logger.warning("parse_bank_xbrl: extract helpers unavailable: %s", exc)
         return out
 
+    is_ixbrl = _ixbrl_sniff(xbrl_bytes)
     try:
+        # Contexts (<xbrli:context>) are present verbatim in both the legacy
+        # plain-XBRL XML and the 2026 iXBRL HTML, so the same extractor works
+        # for either. Facts differ: iXBRL carries them in <ix:nonFraction>
+        # name= attributes with a scale, so it needs a dedicated extractor.
         contexts = _extract_contexts(xbrl_bytes)
-        facts = _extract_facts(xbrl_bytes)
+        if is_ixbrl:
+            facts = _extract_ixbrl_facts(xbrl_bytes)
+        else:
+            facts = _extract_facts(xbrl_bytes)
     except Exception as exc:
         logger.info(
             "parse_bank_xbrl: malformed XBRL for %s: %s",
