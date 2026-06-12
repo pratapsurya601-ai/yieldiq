@@ -44,8 +44,16 @@ _CACHE_TTL_SECONDS = 86_400  # 24h
 # Compute parameters. Kept here (not env-driven) so the public
 # documentation in the response (`meta.lookback_days` etc.) matches
 # the actual computation by construction.
-_LOOKBACK_DAYS = 90
-_MIN_OBSERVATIONS = 30
+# composite-spine D1 (2026-06-12): lowered from 90/30 so the public
+# calibration page surfaces real per-sector accuracy ~6 weeks sooner
+# (~early July vs ~September) given only ~21 days of quarantine-clean
+# fair_value_history exist post-manifest-epoch. The lower bar trades a
+# little statistical precision for earlier signal; consumers can still
+# distinguish low-n sectors because `meta.min_observations` and each
+# sector's `observation_count` are returned verbatim in the response.
+# Does NOT touch FV/MoS/verdict computation — read-side aggregation only.
+_LOOKBACK_DAYS = 45
+_MIN_OBSERVATIONS = 15
 
 
 def _build_payload() -> dict:
