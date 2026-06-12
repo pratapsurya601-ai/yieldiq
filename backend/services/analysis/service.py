@@ -5546,6 +5546,147 @@ class AnalysisService(NarrativeMixin):
                     enriched.get("multiples_based_fv")
                     if isinstance(enriched, dict) else None
                 )
+                # ── composite A1 (2026-06-12) ─────────────────────────
+                # Wire three_stage + prob_weighted + multiples into the
+                # service-scope composite (PR-1 of AlphaSpread-parity
+                # plan). Until now the persisted headline composite blended
+                # only DCF + analyst (+ any DB-side multiples). We compute
+                # three more estimators here and pass them in. Each is
+                # wrapped in its OWN try/except: on any error or missing
+                # input that estimator stays None and the composite simply
+                # abstains via _coerce_pos_float (it never raises, never
+                # injects garbage).
+                _ts_fv = None       # three-stage growth DCF
+                _pw_fv = None       # probability-weighted scenario average
+                _mult_fv_local = None  # peer-relative multiples (fallback)
+
+                # 1) Probability-weighted scenario FV (bull/base/bear).
+                try:
+                    from backend.services.probability_weighted_fv_service import (
+                        compute_probability_weighted_fv as _a1_compute_pw,
+                        ScenarioInputs as _A1ScenarioInputs,
+                    )
+                    _a1_bull = locals().get("_bull_case")
+                    _a1_base = locals().get("_base_case")
+                    _a1_bear = locals().get("_bear_case")
+                    if (
+                        _a1_bull is not None
+                        and _a1_base is not None
+                        and _a1_bear is not None
+                    ):
+                        _a1_beta = None
+                        if isinstance(wacc_data, dict):
+                            _a1_beta = wacc_data.get("beta")
+                        _a1_pw_res = _a1_compute_pw(
+                            _A1ScenarioInputs(
+                                bull_fv=float(_a1_bull),
+                                base_fv=float(_a1_base),
+                                bear_fv=float(_a1_bear),
+                                sector=_cf_sector,
+                                beta=_a1_beta,
+                            )
+                        )
+                        _pw_fv = getattr(_a1_pw_res, "weighted_fv", None)
+                except Exception:
+                    _pw_fv = None
+
+                # 2) Three-stage growth DCF. Skip when base-year FCF <= 0
+                #    or revenue growth is unavailable (the fade engine has
+                #    nothing meaningful to project). base-year FCF is in
+                #    RUPEES on `normalized_fcf_base`; convert to crore.
+                try:
+                    from backend.services.three_stage_dcf_service import (
+                        compute_three_stage_dcf as _a1_compute_ts,
+                        ThreeStageInputs as _A1ThreeStageInputs,
+                        select_three_stage_default_horizons as _a1_ts_horizons,
+                    )
+                    _a1_fcf_rupees = (
+                        enriched.get("normalized_fcf_base")
+                        if isinstance(enriched, dict) else None
+                    )
+                    _a1_base_fcf_cr = _safe_div_1e7(_a1_fcf_rupees)
+                    _a1_growth = (
+                        enriched.get("revenue_cagr_3y")
+                        if isinstance(enriched, dict) else None
+                    )
+                    if (
+                        _a1_base_fcf_cr is not None
+                        and _a1_base_fcf_cr > 0
+                        and _a1_growth is not None
+                    ):
+                        # clamp high-growth rate to a sane band
+                        _a1_g = max(-0.05, min(0.30, float(_a1_growth)))
+                        _a1_n1, _a1_n2 = _a1_ts_horizons(
+                            _cf_sector,
+                            bool(locals().get("_is_recent_ipo", False)),
+                        )
+                        _a1_net_debt = float(
+                            (locals().get("_total_debt") or 0)
+                        ) - float((locals().get("_total_cash") or 0))
+                        _a1_ts_res = _a1_compute_ts(
+                            _A1ThreeStageInputs(
+                                base_year_fcf=float(_a1_base_fcf_cr),
+                                high_growth_rate=_a1_g,
+                                high_growth_years=int(_a1_n1),
+                                fade_years=int(_a1_n2),
+                                terminal_growth=float(terminal_g),
+                                discount_rate=float(wacc),
+                                shares_outstanding=float(
+                                    (locals().get("_shares") or 0)
+                                ),
+                                net_debt=_a1_net_debt,
+                            )
+                        )
+                        _ts_fv = getattr(
+                            _a1_ts_res, "fair_value_per_share", None
+                        )
+                except Exception:
+                    _ts_fv = None
+
+                # 3) Peer-relative multiples FV — fallback when the DB-side
+                #    `multiples_based_fv` is absent. Skip when the sector
+                #    median cohort is empty (all keys None).
+                try:
+                    if _cf_multiples_fv is None:
+                        from backend.services.multiples_fv import (
+                            compute_multiples_fv as _a1_compute_mult,
+                        )
+                        from backend.services.sector_medians_for_ticker import (
+                            get_sector_medians_for_ticker as _a1_sector_medians,
+                        )
+                        _a1_medians = _a1_sector_medians(ticker)
+                        if isinstance(_a1_medians, dict) and any(
+                            v is not None for v in _a1_medians.values()
+                        ):
+                            _a1_pe = (
+                                enriched.get("pe_ratio")
+                                if isinstance(enriched, dict) else None
+                            )
+                            _a1_pb = (
+                                enriched.get("pb_ratio")
+                                if isinstance(enriched, dict) else None
+                            )
+                            _a1_payload = {
+                                "valuation": {"current_price": price},
+                                "quality": {
+                                    "pe_ratio": _a1_pe,
+                                    "pb_ratio": _a1_pb,
+                                },
+                            }
+                            _a1_mult_fv, _ = _a1_compute_mult(
+                                _a1_payload,
+                                _a1_medians,
+                                ticker_pe=_a1_pe,
+                                ticker_pb=_a1_pb,
+                            )
+                            _mult_fv_local = _a1_mult_fv
+                except Exception:
+                    _mult_fv_local = None
+
+                # DB-side multiples wins when present; else fall back to the
+                # freshly-computed local multiples FV.
+                if _cf_multiples_fv is None:
+                    _cf_multiples_fv = _mult_fv_local
                 # FIX 2026-06-12 (composite-spine): pass routing args by
                 # KEYWORD. Previously these were positional, so _cf_stock_kind
                 # / _cf_sector / ticker landed in the three_stage_fv / ddm_fv
@@ -5555,10 +5696,19 @@ class AnalysisService(NarrativeMixin):
                 # estimator inputs AND leaving stock_kind/sector/ticker unset
                 # so bank/holdco routing never fired. See
                 # docs/ENGINE_ROOT_CAUSE_2026-06-12.md.
+                # composite A1 (PR-1): wire the freshly-computed
+                # three_stage + probability_weighted estimators into the
+                # blend by KEYWORD. multiples already flows via
+                # _cf_multiples_fv (DB-side, else the local fallback set
+                # above). Each arg is None when its estimator abstained,
+                # and compute_composite_iv drops invalid inputs via
+                # _coerce_pos_float — so passing them is always safe.
                 _cf_composite_obj = _cf_compute_composite(
                     iv,
                     _cf_multiples_fv,
                     _cf_analyst_avg,
+                    three_stage_fv=_ts_fv,
+                    probability_weighted_fv=_pw_fv,
                     stock_kind=_cf_stock_kind,
                     sector=_cf_sector,
                     ticker=ticker,
