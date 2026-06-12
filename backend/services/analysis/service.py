@@ -4189,71 +4189,17 @@ class AnalysisService(NarrativeMixin):
         # but skipping the threading.Thread spawn entirely when we already
         # know the row will be rejected saves a session checkout +
         # connection round-trip on Neon's free-tier connection budget.
-        try:
-            from data_pipeline.sources.fv_history import NON_CHARTABLE_VERDICTS
-            _verdict_str = str(verdict) if verdict is not None else ""
-            _is_chartable = (
-                iv and iv > 0
-                and price and price > 0
-                and _verdict_str not in NON_CHARTABLE_VERDICTS
-            )
-            if _is_chartable:
-                import threading as _fv_threading
-                # ROOT CAUSE #13 (2026-06-11): persist score + grade so
-                # peers_service can populate the peer SCORE column from
-                # the DB fallback when the in-process cache is cold.
-                # yiq_score may be missing keys defensively; the write
-                # hook clamps to 0..100 and accepts None.
-                _yiq_score_val: int | None = None
-                try:
-                    _raw_score = yiq_score.get("score", None)
-                    if _raw_score is not None:
-                        _yiq_score_val = int(_raw_score)
-                except (TypeError, ValueError, AttributeError):
-                    _yiq_score_val = None
-                _yiq_grade_val: str | None = None
-                try:
-                    _raw_grade = yiq_score.get("grade", None)
-                    if _raw_grade is not None:
-                        _yiq_grade_val = str(_raw_grade)[:4]
-                except (TypeError, AttributeError):
-                    _yiq_grade_val = None
-                _fv_args = dict(
-                    ticker=ticker,
-                    fv=float(iv),
-                    price=float(price),
-                    mos=float(mos_pct),
-                    verdict=_verdict_str,
-                    wacc=float(wacc),
-                    confidence=int(confidence.get("score", 50)),
-                    yieldiq_score=_yiq_score_val,
-                    grade=_yiq_grade_val,
-                )
-
-                def _bg_store_fv():
-                    try:
-                        from data_pipeline.sources.fv_history import (
-                            store_today_fair_value,
-                        )
-                        _db = _get_pipeline_session()
-                        if _db is None:
-                            return
-                        try:
-                            store_today_fair_value(db=_db, **_fv_args)
-                        finally:
-                            _db.close()
-                    except Exception:
-                        pass  # already logged by store_today_fair_value
-
-                _fv_threading.Thread(
-                    target=_bg_store_fv, daemon=True, name=f"fv-store-{ticker}"
-                ).start()
-        except Exception as _fv_exc:
-            import logging as _fv_log
-            _fv_log.getLogger("yieldiq.fv_history").debug(
-                "FV history store skipped for %s: %s", ticker, _fv_exc
-            )
-        # ──────────────────────────────────────────────────────
+        # composite-spine 2026-06-12: the fair_value_history write was
+        # RELOCATED from here to after the verdict is finalized (after the
+        # composite-headline re-band + the Layer-C confidence verdict gate).
+        # Previously it ran here on the raw single-stage DCF `iv` + the
+        # pre-gate DCF verdict — so the historical record (and everything
+        # that reads it: the public /calibration page, the backtest, the
+        # FV-vs-price chart) was permanently DCF-only even though the
+        # headline served to users was meant to be the composite. The write
+        # now lives at the "DEFERRED FV-HISTORY WRITE (composite-spine)"
+        # block below, using the final _headline_fv / mos_pct / verdict.
+        # See docs/ENGINE_ROOT_CAUSE_2026-06-12.md.
 
         # ── Extended quality ratios ───────────────────────────
         # ROCE, Debt/EBITDA (with band label), Interest Coverage,
@@ -5401,18 +5347,89 @@ class AnalysisService(NarrativeMixin):
                     enriched.get("multiples_based_fv")
                     if isinstance(enriched, dict) else None
                 )
+                # FIX 2026-06-12 (composite-spine): pass routing args by
+                # KEYWORD. Previously these were positional, so _cf_stock_kind
+                # / _cf_sector / ticker landed in the three_stage_fv / ddm_fv
+                # / epv_fv float slots (PR #813 Phase-C extended the signature
+                # but never updated this call site). The string values failed
+                # _coerce_pos_float -> None, silently zeroing the Phase-C
+                # estimator inputs AND leaving stock_kind/sector/ticker unset
+                # so bank/holdco routing never fired. See
+                # docs/ENGINE_ROOT_CAUSE_2026-06-12.md.
                 _cf_composite_obj = _cf_compute_composite(
                     iv,
                     _cf_multiples_fv,
                     _cf_analyst_avg,
-                    _cf_stock_kind,
-                    _cf_sector,
-                    ticker,
+                    stock_kind=_cf_stock_kind,
+                    sector=_cf_sector,
+                    ticker=ticker,
                 )
                 if _cf_composite_obj is not None:
                     _cf_composite_components = _cf_comp_to_dict(_cf_composite_obj)
             except Exception:
                 _cf_composite_components = None
+
+            # ── Composite as headline source of truth ─────────────────
+            # (composite-spine 2026-06-12 — see docs/ENGINE_ROOT_CAUSE_2026-06-12.md)
+            #
+            # Until now the multi-estimator composite was a read-time display
+            # garnish: verdict, MoS, and fair_value_history all ran on the
+            # raw single-stage DCF (`iv`), which systematically OVERSHOT
+            # high-growth names and UNDERSHOT quality/consumer names (the
+            # signed, sector-clustered bias the 10-stock backtest surfaced).
+            # The corrective estimators (analyst consensus, multiples) existed
+            # in-DB, fresh, and were discarded.
+            #
+            # We now repoint the HEADLINE fair value + MoS + verdict to the
+            # composite when it is available and positive. The DCF stays the
+            # scenario-triangle base (bear/base/bull remain DCF) and is
+            # preserved on `composite_components.components.dcf` for the
+            # transparency panel. data_limited / avoid / unavailable verdicts
+            # are PASSTHROUGH — the re-band only touches the standard
+            # under / fair / over decision so the existing data-quality and
+            # DCF-collapse gates above keep their authority.
+            #
+            # Placed BEFORE the confidence verdict gate (Layer C) so the gate
+            # operates on the composite-based verdict and can still apply its
+            # confidence-driven downgrade on top.
+            _headline_fv = iv
+            _headline_source = "dcf"
+            _dcf_fv_audit = iv  # preserve raw DCF for the breakdown / logs
+            _PASSTHROUGH_VERDICTS = {"data_limited", "avoid", "unavailable"}
+            try:
+                _spine_obj = locals().get("_cf_composite_obj")
+                _spine_val = (
+                    float(_spine_obj.value)
+                    if (_spine_obj is not None and _spine_obj.value)
+                    else None
+                )
+            except Exception:
+                _spine_val = None
+            if (
+                _spine_val is not None
+                and _spine_val > 0
+                and price and price > 0
+                and verdict not in _PASSTHROUGH_VERDICTS
+            ):
+                _headline_fv = _spine_val
+                _headline_source = "composite"
+                mos_pct = (_spine_val - price) / price * 100.0
+                try:
+                    _mos_display, _mos_was_clamped = display_mos(mos_pct)
+                except Exception:
+                    pass
+                # Re-band verdict from composite MoS using the SAME ±15
+                # bands as the DCF verdict tree above (financial +
+                # non-financial share the band edges; the non-financial
+                # branch can resolve to "avoid" only when dcf is unreliable —
+                # we keep "overvalued" here since a positive composite is by
+                # construction a usable estimate).
+                if mos_pct > 15:
+                    verdict = "undervalued"
+                elif mos_pct > -15:
+                    verdict = "fairly_valued"
+                else:
+                    verdict = "overvalued"
 
             _cf_scores = _cf_all(
                 ticker,
@@ -5529,6 +5546,77 @@ class AnalysisService(NarrativeMixin):
                 ticker, type(_vg_exc).__name__, _vg_exc,
             )
 
+        # ── DEFERRED FV-HISTORY WRITE (composite-spine 2026-06-12) ─────────
+        # Relocated from ~line 4192 so the historical record stores the
+        # FINAL composite-based headline (after the composite re-band AND the
+        # Layer-C confidence verdict gate), not the raw single-stage DCF.
+        # This is what makes the public /calibration page, the FV-vs-price
+        # chart, and the backtest measure the engine users actually see.
+        # Async daemon thread — DB round-trips never block the response.
+        try:
+            from data_pipeline.sources.fv_history import NON_CHARTABLE_VERDICTS
+            _verdict_str = str(verdict) if verdict is not None else ""
+            _is_chartable = (
+                _headline_fv and _headline_fv > 0
+                and price and price > 0
+                and _verdict_str not in NON_CHARTABLE_VERDICTS
+            )
+            if _is_chartable:
+                import threading as _fv_threading
+                # ROOT CAUSE #13 (2026-06-11): persist score + grade so
+                # peers_service can populate the peer SCORE column from the
+                # DB fallback when the in-process cache is cold.
+                _yiq_score_val: int | None = None
+                try:
+                    _raw_score = yiq_score.get("score", None)
+                    if _raw_score is not None:
+                        _yiq_score_val = int(_raw_score)
+                except (TypeError, ValueError, AttributeError):
+                    _yiq_score_val = None
+                _yiq_grade_val: str | None = None
+                try:
+                    _raw_grade = yiq_score.get("grade", None)
+                    if _raw_grade is not None:
+                        _yiq_grade_val = str(_raw_grade)[:4]
+                except (TypeError, AttributeError):
+                    _yiq_grade_val = None
+                _fv_args = dict(
+                    ticker=ticker,
+                    fv=float(_headline_fv),  # composite headline (else DCF)
+                    price=float(price),
+                    mos=float(mos_pct),      # composite-derived MoS
+                    verdict=_verdict_str,    # composite-rebanded + gated
+                    wacc=float(wacc),
+                    confidence=int(confidence.get("score", 50)),
+                    yieldiq_score=_yiq_score_val,
+                    grade=_yiq_grade_val,
+                )
+
+                def _bg_store_fv():
+                    try:
+                        from data_pipeline.sources.fv_history import (
+                            store_today_fair_value,
+                        )
+                        _db = _get_pipeline_session()
+                        if _db is None:
+                            return
+                        try:
+                            store_today_fair_value(db=_db, **_fv_args)
+                        finally:
+                            _db.close()
+                    except Exception:
+                        pass  # already logged by store_today_fair_value
+
+                _fv_threading.Thread(
+                    target=_bg_store_fv, daemon=True, name=f"fv-store-{ticker}"
+                ).start()
+        except Exception as _fv_exc:
+            import logging as _fv_log
+            _fv_log.getLogger("yieldiq.fv_history").debug(
+                "FV history store skipped for %s: %s", ticker, _fv_exc
+            )
+        # ──────────────────────────────────────────────────────────────────
+
         # Day-24: record Step 10 and finalise timings just before the
         # response is built. total_inner_ms is wall-clock for the entire
         # _get_full_analysis_inner call (excludes outer get_full_analysis
@@ -5550,13 +5638,16 @@ class AnalysisService(NarrativeMixin):
             # read freshness directly.
             as_of=_live_quote_as_of,
             valuation=ValuationOutput(
-                fair_value=round(iv, 2),
+                # composite-spine 2026-06-12: headline FV is the composite
+                # when available (else raw DCF). DCF preserved on
+                # composite_components.dcf + _dcf_fv_audit.
+                fair_value=round(_headline_fv, 2),
                 current_price=round(price, 2),
                 margin_of_safety=round(mos_pct, 1),
                 # Step B: true Buffett MoS = (FV - CP) / FV * 100.
                 # Additive alongside the legacy upside-% field above.
                 buffett_mos_pct=(
-                    round(_b, 1) if (_b := buffett_mos_pct(iv, price)) is not None else None
+                    round(_b, 1) if (_b := buffett_mos_pct(_headline_fv, price)) is not None else None
                 ),
                 margin_of_safety_display=round(min(_mos_display, 80), 1),
                 mos_is_extreme=mos_pct > 80,
