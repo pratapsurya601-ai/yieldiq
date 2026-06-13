@@ -21,6 +21,7 @@ import SectionOwnership from "./SectionOwnership"
 import SectionPeers from "./SectionPeers"
 import SectionPrice from "./SectionPrice"
 import SectionQuarterly from "./SectionQuarterly"
+import SectionReturns from "./SectionReturns"
 import SectionRisk from "./SectionRisk"
 import SectionThesis from "./SectionThesis"
 import SectionValuation from "./SectionValuation"
@@ -65,6 +66,7 @@ export default function DemoClient() {
       <SectionValuation tier={tier} />
       <SectionAnalysts />
       <SectionForecast />
+      <SectionReturns />
       <SectionRisk />
       <SectionOwnership />
       <SectionPeers />
