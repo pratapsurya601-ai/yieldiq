@@ -26,6 +26,7 @@ from .peer_groups import PeerGroupsValidator
 from .ratio_history import RatioHistoryValidator
 from .shareholding_pattern import ShareholdingPatternValidator
 from .stocks import StocksValidator
+from .unit_integrity import UnitIntegrityValidator
 
 REGISTRY: list[type] = [
     DailyPricesValidator,
@@ -39,6 +40,9 @@ REGISTRY: list[type] = [
     ShareholdingPatternValidator,
     CompanyQuarterlyResultsValidator,
     CagrServiceOutputValidator,
+    # Unit/currency integrity (2026-06-13) — cross-field magnitude guard
+    # that catches the silent-wrong-number bug class before a fair value.
+    UnitIntegrityValidator,
 ]
 
 __all__ = [
@@ -53,4 +57,5 @@ __all__ = [
     "ShareholdingPatternValidator",
     "CompanyQuarterlyResultsValidator",
     "CagrServiceOutputValidator",
+    "UnitIntegrityValidator",
 ]
