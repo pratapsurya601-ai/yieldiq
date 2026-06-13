@@ -199,6 +199,105 @@ def test_default_hook_drains_inmem_cache():
     assert cache.get("keep:me") == "untouched"
 
 
+# ─────────────────────────────────────────────────────────────────
+# Projection-cache blind-spot fix (2026-06-13)
+#
+# Regression coverage for the bug where the drain hook flushed only
+# analysis:* and public:stock-summary:*, leaving the version-keyed /
+# TTL-only PROJECTION caches (og:, prism:*, ai_summary:) serving the
+# stale pre-fix verdict on the public OG / SEO surfaces until TTL.
+# ─────────────────────────────────────────────────────────────────
+
+
+def test_drain_prefixes_cover_all_projection_caches():
+    """DRAIN_PREFIXES must enumerate every public projection cache that
+    surfaces the headline verdict/FV so a scoped manifest apply flushes
+    them all. The list is the contract; lock it down so a future cache
+    addition that forgets to register here trips this test."""
+    import backend.services.cache_invalidation_manifest as m
+    importlib.reload(m)
+
+    expected = {
+        "analysis:",
+        "public:stock-summary:",
+        "og:",
+        "prism:",
+        "prism-compare:",
+        "prism-history:",
+        "ai_summary:",
+    }
+    assert set(m.DRAIN_PREFIXES) == expected
+
+
+def test_default_hook_drains_og_and_prism_projection_caches():
+    """The default drain hook must flush the og:, prism:* and
+    ai_summary: projection caches — both the version-keyed og: entry and
+    the plain-TTL prism:* / ai_summary: entries."""
+    import backend.services.cache_invalidation_manifest as m
+    from backend.services.cache_service import cache
+    importlib.reload(m)
+
+    # og: is version-keyed (stored under v{N}:og:...); prism:* and
+    # ai_summary: are plain-TTL (stored under the bare user key).
+    cache.set("og:HDFCBANK.NS", {"verdict": "stale"}, ttl=3600,
+              version_keyed=True)
+    cache.set("prism:HDFCBANK.NS:raw", {"verdict": "stale"}, ttl=3600)
+    cache.set("prism-compare:HDFCBANK.NS:ICICIBANK.NS:raw", {"v": 1},
+              ttl=3600)
+    cache.set("prism-history:HDFCBANK.NS:12", {"v": 2}, ttl=3600)
+    cache.set("ai_summary:HDFCBANK.NS", "stale narrative", ttl=3600)
+    cache.set("keep:me", "untouched", ttl=3600)
+
+    m.notify_manifest_entry_applied(m.MANIFEST[-1])
+
+    assert cache.get("og:HDFCBANK.NS", version_keyed=True) is None
+    assert cache.get("prism:HDFCBANK.NS:raw") is None
+    assert cache.get("prism-compare:HDFCBANK.NS:ICICIBANK.NS:raw") is None
+    assert cache.get("prism-history:HDFCBANK.NS:12") is None
+    assert cache.get("ai_summary:HDFCBANK.NS") is None
+    assert cache.get("keep:me") == "untouched"
+
+
+def test_scoped_manifest_apply_flushes_og_projection_end_to_end():
+    """End-to-end blind-spot regression: a SCOPED manifest entry (one
+    ticker, no CACHE_VERSION bump) must evict that ticker's og: entry so
+    the next OG read recomputes instead of serving the stale pre-fix
+    verdict until the 1h TTL expires.
+
+    Models the null-CAGR / bear-floor scoped fixes: a fresh worker
+    imports the new manifest (carrying the scoped entry inside the
+    lookback window) and the import-time sweep drains the projection
+    caches before the worker serves its first OG request."""
+    import backend.services.cache_invalidation_manifest as m
+    from backend.services.cache_service import cache
+    importlib.reload(m)
+
+    # A warm worker holds the PRE-fix og: payload for the scoped ticker.
+    cache.set("og:NTPC.NS", {"verdict": "stale-prefix"}, ttl=3600,
+              version_keyed=True)
+
+    now = _utc(2026, 6, 13, 12)
+    scoped_entry = {
+        "version_id": "v_test_scoped_ntpc",
+        "applied_at": _utc(2026, 6, 13, 11),  # 1h ago — inside lookback
+        "scope": {"tickers": ["NTPC"], "fields": ["scenarios.bear"]},
+    }
+
+    # The import-time sweep replays recent entries through the default
+    # hook. Drain is wildcard-by-prefix (not per-ticker), which is the
+    # documented behavior — a scoped entry still flushes the whole
+    # projection tier on this worker, which is correct: the worker has
+    # no shared store and the recompute is cheap relative to a stale
+    # public verdict.
+    fired = m.sweep_recent_entries(
+        manifest=[scoped_entry], lookback_hours=24, now=now)
+    assert fired >= 1
+
+    # The stale og: projection for the scoped ticker is gone — the next
+    # OG read is a miss and recomputes the post-fix verdict.
+    assert cache.get("og:NTPC.NS", version_keyed=True) is None
+
+
 def test_default_hook_idempotent_on_empty_store():
     import backend.services.cache_invalidation_manifest as m
     from backend.services.cache_service import cache

@@ -414,17 +414,33 @@ def public_manifest_entry(entry: dict) -> dict:
 #
 # Background. The Day-94 manifest gates Postgres-tier (tier-2) reads
 # correctly: a new entry invalidates an old `analysis_cache` row on
-# the next read. But three in-memory tiers bypass the manifest:
+# the next read. But the in-memory / projection tiers bypass the
+# manifest entirely — they sit IN FRONT of the tier-2 gate and
+# short-circuit on a hit before is_row_valid_per_manifest ever runs:
 #
 #   * tier-0  `analysis:{ticker}:raw`         (24 h TTL, not version-keyed)
 #   * tier-1  `analysis:{ticker}`             (24 h TTL, not version-keyed)
 #   * tier-5  `public:stock-summary:{ticker}` (1 h TTL,  version-keyed)
+#   * og      `og:{ticker}`                   (1 h TTL,  version-keyed)
+#   * prism   `prism:{ticker}:raw`            (1 h TTL,  not version-keyed)
+#             `prism-compare:{a}:{b}:raw`     (1 h TTL,  not version-keyed)
+#             `prism-history:{ticker}:{q}`    (TTL,      not version-keyed)
+#   * narr    `ai_summary:{ticker}`           (TTL,      not version-keyed)
 #
 # A worker warmed BEFORE a cohort applies keeps serving the pre-cohort
 # payload until its in-memory TTL expires. Authed (tier-0/1) and anon
-# (tier-5) get different verdicts during the drift window. That is the
-# concrete "auth vs anon mismatch" P0 reframed by the Phase B.0 audit
-# (see docs/diagnostics/phase-b-cache-paths-2026-05-24.md).
+# (tier-5 / og / prism) get different verdicts during the drift window.
+# That is the concrete "auth vs anon mismatch" P0 reframed by the Phase
+# B.0 audit (see docs/diagnostics/phase-b-cache-paths-2026-05-24.md).
+#
+# Blind-spot fix (2026-06-13). The original B.1 hook drained ONLY
+# analysis:* and public:stock-summary:*, leaving the og:, prism:* and
+# ai_summary: PROJECTION caches stale: a scoped manifest entry shipped
+# without a CACHE_VERSION bump (the null-CAGR / bear-floor style fixes)
+# kept serving the stale pre-fix verdict on the public OG card, JSON-LD
+# and Prism surfaces for up to the projection TTL (~1 h). The drain hook
+# now sweeps the full DRAIN_PREFIXES tuple (defined below), so every
+# version-keyed projection flushes on apply alongside analysis:*.
 #
 # Mechanism. Drain hooks register at module import; on every fresh
 # process start we sweep the manifest for entries applied in the last
@@ -453,6 +469,38 @@ MANIFEST_APPLIED_HOOKS: list[Callable[[dict], None]] = []
 #: start. Tuned to the worst in-memory TTL (analysis:{ticker}:raw = 24h)
 #: so we cover the full possible stale window.
 DRAIN_LOOKBACK_HOURS = 24
+
+#: In-memory key prefixes the default drain hook flushes on every
+#: manifest apply. Every entry here is a PROJECTION of engine output
+#: (headline FV / verdict / MoS / score) that is NOT manifest-aware on
+#: read — it is gated only by its own TTL (and, for some, by
+#: CACHE_VERSION). A scoped manifest entry shipped WITHOUT a
+#: CACHE_VERSION bump (the common case for null-CAGR / bear-floor style
+#: scoped fixes) would otherwise keep serving the stale pre-fix verdict
+#: on these public OG/SEO surfaces until the TTL expires (~1h for the
+#: projection caches, up to 24h for analysis:*).
+#:
+#: The Postgres tier-2 read (analysis_cache_service.get_cached) is the
+#: ONLY read path that consults is_row_valid_per_manifest on read; these
+#: projection caches sit IN FRONT of it and short-circuit before the
+#: gate ever runs. Draining them on apply is what makes a scoped fix
+#: reach the anon OG card / JSON-LD / stock-summary surface within
+#: seconds instead of waiting for TTL.
+#:
+#: delete_by_prefix peels the v{N}: version-key prefix, so version-keyed
+#: projections (og:, public:stock-summary:) and plain-TTL projections
+#: (prism:*, prism-compare:*, prism-history:*, ai_summary:) drain in one
+#: call each. Mirrors the per-ticker prefix list in
+#: backend/routers/admin.py recompute_ticker.
+DRAIN_PREFIXES: tuple[str, ...] = (
+    "analysis:",                 # tier-0/1 authed AnalysisResponse (24h)
+    "public:stock-summary:",     # tier-5 anon summary (1h, version-keyed)
+    "og:",                       # OG card / share-link payload (1h, version-keyed)
+    "prism:",                    # consolidated Prism payload (1h) — prism:{t}:raw
+    "prism-compare:",            # Prism pair-compare payload (1h)
+    "prism-history:",            # Prism quarterly-history payload
+    "ai_summary:",               # cached AI narrative of the verdict
+)
 
 
 def register_manifest_applied_hook(hook: Callable[[dict], None]) -> None:
@@ -5016,19 +5064,29 @@ def _register_default_drain_hook() -> None:
 
     def _drain_inmem_for_entry(entry: dict) -> None:
         # The in-memory drain is intentionally wildcard (all tickers
-        # under the two prefixes) regardless of the entry's
-        # scope.tickers. Reason: in-memory keys are by ticker only;
-        # iterating the scope list and deleting per-ticker keys would
-        # require a per-suffix product (.NS / bare) and would still
-        # miss exotic keys. The store is small (single-worker, per
-        # process), so a prefix sweep is cheap and bulletproof.
-        try:
-            _cache_singleton.delete_by_prefix("analysis:")
-            _cache_singleton.delete_by_prefix("public:stock-summary:")
-        except Exception as exc:  # noqa: BLE001
-            log.warning(
-                "cache_manifest: in-mem drain failed for entry %s: %s",
-                (entry or {}).get("version_id"), exc,
+        # under each prefix) regardless of the entry's scope.tickers.
+        # Reason: in-memory keys are by ticker only; iterating the
+        # scope list and deleting per-ticker keys would require a
+        # per-suffix product (.NS / bare) and would still miss exotic
+        # keys. The store is small (single-worker, per process), so a
+        # prefix sweep is cheap and bulletproof. delete_by_prefix peels
+        # the v{N}: prefix, so version-keyed projections (og:, stock-
+        # summary:) drain alongside the plain-TTL ones in one call.
+        drained = 0
+        for _prefix in DRAIN_PREFIXES:
+            try:
+                drained += _cache_singleton.delete_by_prefix(_prefix)
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "cache_manifest: in-mem drain failed for entry %s "
+                    "prefix %r: %s",
+                    (entry or {}).get("version_id"), _prefix, exc,
+                )
+        if drained:
+            log.info(
+                "cache_manifest: drained %d in-mem projection entries "
+                "for manifest entry %s",
+                drained, (entry or {}).get("version_id"),
             )
 
     register_manifest_applied_hook(_drain_inmem_for_entry)
