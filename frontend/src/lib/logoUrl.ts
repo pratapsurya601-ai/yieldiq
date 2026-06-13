@@ -135,11 +135,13 @@ export function getLogoFallbackUrl(ticker: string): string | null {
 // The /funds pages key off an `amc` string that comes verbatim from the
 // AMFI NAVAll banner lines (e.g. "Aditya Birla Sun Life Mutual Fund",
 // "quant Mutual Fund"). We normalize that to a stable lookup key and map
-// it to the fund-house domain, then resolve a favicon-based logo exactly
-// like the ticker chain (Google s2/favicons → DuckDuckGo). There is no
-// self-hosted stage for AMCs: there are only ~50 fund houses and the
-// favicon is the house's own brand mark, so a build-time fetch + binary
-// commit isn't worth it. Unmapped AMCs return null and render a branded
+// it to the fund-house domain, then resolve a logo exactly like the
+// ticker chain. 2026-06-14 HD upgrade: we now mass-fetch crisp 192px
+// Logo.dev PNGs for every curated house via
+// `frontend/scripts/fetch-amc-logos.mjs` and commit them to
+// `frontend/public/logos/amc/`, so the self-hosted PNG is stage 0 (sharp
+// at retina) with Google s2/favicons → DuckDuckGo as long-tail fallbacks.
+// Unmapped (or unfetched) houses return null and render a branded
 // letter-mark in <AmcAvatar/>.
 
 /**
@@ -169,4 +171,35 @@ export function getAmcDomain(amc: string): string | null {
   const key = normalizeAmcName(amc)
   if (!key) return null
   return AMC_DOMAINS[key] ?? null
+}
+
+/**
+ * Convert an AMC banner string to the on-disk filename slug used by the
+ * mass-fetched `frontend/public/logos/amc/` corpus. Mirrors `amcSlug` in
+ * `frontend/scripts/fetch-amc-logos.mjs` — both sides MUST apply
+ * identical transforms or the chip 404s past the self-hosted stage even
+ * when the file exists.
+ *   "HDFC Mutual Fund" → "hdfc"; "360 ONE Mutual Fund" → "360_one".
+ */
+export function getAmcLogoFilename(amc: string): string {
+  return normalizeAmcName(amc)
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+}
+
+/**
+ * Self-hosted HD AMC logo URL — first hop in the AmcAvatar chain. A 192px
+ * Logo.dev PNG committed under `frontend/public/logos/amc/`, served from
+ * the Vercel edge cache (no per-render third-party hop, sharper than the
+ * 32-128px favicons). Returns null when the house isn't in the curated
+ * domain map — no fetch was ever attempted, so skip straight past this
+ * stage. For the handful of curated houses Logo.dev had no real logo for,
+ * the file is absent and the `<img onError>` cascade advances to the
+ * Google favicon stage on the 404.
+ */
+export function getSelfHostedAmcLogoUrl(amc: string): string | null {
+  if (!getAmcDomain(amc)) return null
+  const slug = getAmcLogoFilename(amc)
+  if (!slug) return null
+  return `/logos/amc/${slug}.png`
 }
