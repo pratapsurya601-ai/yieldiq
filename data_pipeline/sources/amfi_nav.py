@@ -168,28 +168,48 @@ def parse_navall(text: str) -> Iterator[dict]:
 
 # ── Persistence ─────────────────────────────────────────────────────
 
+# Batched via psycopg2.extras.execute_values (VALUES %s). The daily file
+# is ~14k rows and a single backfilled scheme carries years of daily NAV
+# (~2.5k rows), so the old row-by-row executemany blew the workflow
+# timeout — the daily ingest cron was being cancelled mid-run, leaving
+# fund_nav_history empty. The whole batch now lands in a few multi-row
+# INSERTs instead of thousands of single-row round-trips.
 UPSERT_SQL = """
 INSERT INTO fund_nav_history (scheme_code, nav_date, nav)
-VALUES (%(scheme_code)s, %(nav_date)s, %(nav)s)
+VALUES %s
 ON CONFLICT (scheme_code, nav_date) DO UPDATE SET
     nav = EXCLUDED.nav
 """
+
+UPSERT_TEMPLATE = "(%(scheme_code)s, %(nav_date)s, %(nav)s)"
 
 
 def upsert_nav_rows(rows: Iterable[dict], conn) -> int:
     """Bulk UPSERT NAV rows using a raw psycopg2 connection.
 
-    Returns the count of input rows written. Idempotent on
-    (scheme_code, nav_date) — re-running the same day's ingest is a
-    no-op aside from refreshing the NAV value if AMFI corrected it.
+    Returns the count of rows written. Idempotent on (scheme_code,
+    nav_date) — re-running the same day's ingest is a no-op aside from
+    refreshing the NAV value if AMFI corrected it. Rows are deduped on
+    (scheme_code, nav_date) keeping the last value, so a single multi-row
+    VALUES batch can't trip "ON CONFLICT ... cannot affect row a second
+    time" on a duplicate date in the feed.
     """
-    rows = list(rows)
-    if not rows:
+    by_key: dict[tuple, dict] = {}
+    for r in rows:
+        by_key[(r["scheme_code"], r["nav_date"])] = r
+    deduped = list(by_key.values())
+    if not deduped:
         return 0
+    # Lazy import so parse-only callers / tests don't require psycopg2.
+    from psycopg2.extras import execute_values
+
     with conn.cursor() as cur:
-        cur.executemany(UPSERT_SQL, rows)
+        execute_values(
+            cur, UPSERT_SQL, deduped,
+            template=UPSERT_TEMPLATE, page_size=1000,
+        )
     conn.commit()
-    return len(rows)
+    return len(deduped)
 
 
 # ── CLI ─────────────────────────────────────────────────────────────

@@ -109,3 +109,74 @@ def test_negative_or_zero_nav_treated_as_missing() -> None:
         "999002;ISIN3;ISIN4;Test Scheme B;0.0000;27-May-2026\n"
     )
     assert list(parse_navall(bad)) == []
+
+
+# ── upsert_nav_rows — batched via execute_values ─────────────────────
+
+
+def test_upsert_nav_rows_batches_and_dedupes(monkeypatch) -> None:
+    # upsert_nav_rows must dedupe on (scheme_code, nav_date) and hand the
+    # rows to psycopg2.extras.execute_values in ONE batched call — not the
+    # per-row executemany that blew the daily-ingest workflow timeout.
+    extras = pytest.importorskip("psycopg2.extras")
+
+    captured: dict = {}
+
+    def fake_execute_values(cur, sql, argslist, template=None, page_size=100):
+        captured["sql"] = sql
+        captured["rows"] = list(argslist)
+        captured["template"] = template
+
+    monkeypatch.setattr(extras, "execute_values", fake_execute_values)
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def executemany(self, *a, **k):  # pragma: no cover - must not run
+            raise AssertionError("executemany must not be used (un-batched)")
+
+    class FakeConn:
+        def __init__(self) -> None:
+            self.committed = False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            self.committed = True
+
+    from data_pipeline.sources.amfi_nav import upsert_nav_rows
+
+    rows = [
+        {"scheme_code": "100", "nav_date": date(2026, 6, 1), "nav": 10.0},
+        {"scheme_code": "100", "nav_date": date(2026, 6, 1), "nav": 10.5},  # dup
+        {"scheme_code": "100", "nav_date": date(2026, 6, 2), "nav": 11.0},
+        {"scheme_code": "200", "nav_date": date(2026, 6, 1), "nav": 99.0},
+    ]
+    conn = FakeConn()
+    n = upsert_nav_rows(rows, conn)
+
+    assert n == 3  # 4 rows deduped to 3 on (scheme_code, nav_date)
+    assert len(captured["rows"]) == 3
+    assert "VALUES %s" in captured["sql"]
+    assert captured["template"] is not None
+    kept = {(r["scheme_code"], r["nav_date"]): r["nav"] for r in captured["rows"]}
+    assert kept[("100", date(2026, 6, 1))] == 10.5  # last value wins
+    assert conn.committed is True
+
+
+def test_upsert_nav_rows_empty_is_noop() -> None:
+    from data_pipeline.sources.amfi_nav import upsert_nav_rows
+
+    class Conn:
+        def cursor(self):  # pragma: no cover - must not be called
+            raise AssertionError("cursor() must not be called for empty rows")
+
+        def commit(self):  # pragma: no cover
+            raise AssertionError("commit() must not be called for empty rows")
+
+    assert upsert_nav_rows([], Conn()) == 0
