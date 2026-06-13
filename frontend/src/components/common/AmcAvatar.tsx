@@ -8,22 +8,26 @@
  *
  * Fallback chain (the <img onError> handler advances at runtime):
  *
- *   (0) Google s2/favicons for the curated AMC domain. Always-on, free,
- *       returns a real PNG (~32-128px) — the fund house's own brand mark.
- *   (1) DuckDuckGo icon service for the same domain — independent
+ *   (0) Self-hosted HD logo — a crisp 192px Logo.dev PNG mass-fetched at
+ *       build time into `frontend/public/logos/amc/` and served from the
+ *       Vercel edge. Retina-sharp, no third-party hop. (2026-06-14.)
+ *   (1) Google s2/favicons for the curated AMC domain. Always-on, free,
+ *       real PNG (~32-128px) — long-tail fallback for houses Logo.dev had
+ *       no logo for.
+ *   (2) DuckDuckGo icon service for the same domain — independent
  *       crawler, saves the day when Google's favicon index is stale.
- *   (2) Letter-mark — AMC initials on a deterministic on-brand tint.
+ *   (3) Letter-mark — AMC initials on a deterministic on-brand tint.
  *       Reached immediately for any AMC not in the curated domain map.
- *
- * No self-hosted PNG stage (unlike TickerAvatar): there are only ~50
- * fund houses and the favicon IS the brand mark, so a build-time fetch +
- * binary commit isn't worth it.
  */
 "use client"
 
 import { useState } from "react"
 
-import { getAmcDomain, normalizeAmcName } from "@/lib/logoUrl"
+import {
+  getAmcDomain,
+  getSelfHostedAmcLogoUrl,
+  normalizeAmcName,
+} from "@/lib/logoUrl"
 
 export type AmcAvatarSize = "sm" | "md" | "lg"
 
@@ -79,25 +83,28 @@ function initialsFor(amc: string): string {
   return norm.slice(0, 2).toUpperCase()
 }
 
-function urlForStage(domain: string | null, stage: number): string | null {
-  if (!domain) return null
-  switch (stage) {
-    case 0:
-      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
-    case 1:
-      return `https://icons.duckduckgo.com/ip3/${domain}.ico`
-    default:
-      return null
-  }
+/**
+ * Ordered logo-source chain for an AMC. The <img onError> handler walks
+ * the array by index; the first non-null entry is the self-hosted HD PNG
+ * (when the house is curated), then the two favicon services. An empty
+ * array (unmapped house) drops straight to the letter-mark.
+ */
+function sourcesFor(amc: string): string[] {
+  const domain = getAmcDomain(amc)
+  return [
+    getSelfHostedAmcLogoUrl(amc),
+    domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null,
+    domain ? `https://icons.duckduckgo.com/ip3/${domain}.ico` : null,
+  ].filter((u): u is string => Boolean(u))
 }
 
 export default function AmcAvatar({ amc, size = "sm", className }: AmcAvatarProps) {
   const px = SIZE_PX[size]
   const dimClass = SIZE_CLASS[size]
-  const domain = getAmcDomain(amc)
+  const sources = sourcesFor(amc)
 
   const [stage, setStage] = useState(0)
-  const src = urlForStage(domain, stage)
+  const src = sources[stage] ?? null
 
   const baseClasses = [
     "inline-flex shrink-0 items-center justify-center overflow-hidden rounded",

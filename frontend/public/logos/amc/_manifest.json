@@ -1,0 +1,411 @@
+{
+  "_meta": {
+    "source": "logo.dev (free tier, public token)",
+    "token_prefix": "pk_SNF…",
+    "size_px": 192,
+    "format": "png",
+    "fetched_at": "2026-06-13T18:43:38.891Z",
+    "summary": {
+      "total": 44,
+      "saved": 42,
+      "placeholder": 0,
+      "too_small": 2,
+      "bad_type": 0,
+      "http_error": 0,
+      "network": 0,
+      "total_bytes": 643010
+    }
+  },
+  "logos": {
+    "360_one": {
+      "domain": "360.one",
+      "source_url": "https://img.logo.dev/360.one?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 4764,
+      "hash": "3f338c12bb06ffc1",
+      "fetched_at": "2026-06-13T18:43:00.115Z",
+      "status": "saved",
+      "filename": "360_one.png"
+    },
+    "aditya_birla_sun_life": {
+      "domain": "mutualfund.adityabirlacapital.com",
+      "source_url": "https://img.logo.dev/mutualfund.adityabirlacapital.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30298,
+      "hash": "a9b29d98dc779a9f",
+      "fetched_at": "2026-06-13T18:43:00.695Z",
+      "status": "saved",
+      "filename": "aditya_birla_sun_life.png"
+    },
+    "angel_one": {
+      "domain": "angelone.in",
+      "source_url": "https://img.logo.dev/angelone.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20341,
+      "hash": "b739b9dbba61fbd1",
+      "fetched_at": "2026-06-13T18:43:02.126Z",
+      "status": "saved",
+      "filename": "angel_one.png"
+    },
+    "axis": {
+      "domain": "axismf.com",
+      "source_url": "https://img.logo.dev/axismf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8187,
+      "hash": "209d97c9f7a1764b",
+      "fetched_at": "2026-06-13T18:43:03.048Z",
+      "status": "saved",
+      "filename": "axis.png"
+    },
+    "bajaj_finserv": {
+      "domain": "bajajamc.com",
+      "source_url": "https://img.logo.dev/bajajamc.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5372,
+      "hash": "fe30bdda08ad5189",
+      "fetched_at": "2026-06-13T18:43:03.867Z",
+      "status": "saved",
+      "filename": "bajaj_finserv.png"
+    },
+    "bandhan": {
+      "domain": "bandhanmutual.com",
+      "source_url": "https://img.logo.dev/bandhanmutual.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23171,
+      "hash": "4557267a1988e098",
+      "fetched_at": "2026-06-13T18:43:04.993Z",
+      "status": "saved",
+      "filename": "bandhan.png"
+    },
+    "bank_of_india": {
+      "domain": "boimf.in",
+      "source_url": "https://img.logo.dev/boimf.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8088,
+      "hash": "68a5cb051c72edcb",
+      "fetched_at": "2026-06-13T18:43:06.019Z",
+      "status": "saved",
+      "filename": "bank_of_india.png"
+    },
+    "baroda_bnp_paribas": {
+      "domain": "barodabnpparibasmf.in",
+      "source_url": "https://img.logo.dev/barodabnpparibasmf.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11964,
+      "hash": "73f8d40255f90b1d",
+      "fetched_at": "2026-06-13T18:43:06.734Z",
+      "status": "saved",
+      "filename": "baroda_bnp_paribas.png"
+    },
+    "canara_robeco": {
+      "domain": "canararobeco.com",
+      "source_url": "https://img.logo.dev/canararobeco.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7039,
+      "hash": "9f9f696bd4ac4695",
+      "fetched_at": "2026-06-13T18:43:07.345Z",
+      "status": "saved",
+      "filename": "canara_robeco.png"
+    },
+    "choice": {
+      "domain": "choiceindia.com",
+      "source_url": "https://img.logo.dev/choiceindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11116,
+      "hash": "927ef06875eef81b",
+      "fetched_at": "2026-06-13T18:43:07.899Z",
+      "status": "saved",
+      "filename": "choice.png"
+    },
+    "dsp": {
+      "domain": "dspim.com",
+      "source_url": "https://img.logo.dev/dspim.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10725,
+      "hash": "e8953233ff0cdae5",
+      "fetched_at": "2026-06-13T18:43:08.577Z",
+      "status": "saved",
+      "filename": "dsp.png"
+    },
+    "edelweiss": {
+      "domain": "edelweissmf.com",
+      "source_url": "https://img.logo.dev/edelweissmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13150,
+      "hash": "80b8b94c97f18eac",
+      "fetched_at": "2026-06-13T18:43:09.173Z",
+      "status": "saved",
+      "filename": "edelweiss.png"
+    },
+    "franklin_templeton": {
+      "domain": "franklintempletonindia.com",
+      "source_url": "https://img.logo.dev/franklintempletonindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9293,
+      "hash": "cee3e14d8b0bb5c4",
+      "fetched_at": "2026-06-13T18:43:10.829Z",
+      "status": "saved",
+      "filename": "franklin_templeton.png"
+    },
+    "groww": {
+      "domain": "groww.in",
+      "source_url": "https://img.logo.dev/groww.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13550,
+      "hash": "3bbaaa372ec51111",
+      "fetched_at": "2026-06-13T18:43:11.848Z",
+      "status": "saved",
+      "filename": "groww.png"
+    },
+    "hdfc": {
+      "domain": "hdfcfund.com",
+      "source_url": "https://img.logo.dev/hdfcfund.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8924,
+      "hash": "77d5c00db48765f1",
+      "fetched_at": "2026-06-13T18:43:12.468Z",
+      "status": "saved",
+      "filename": "hdfc.png"
+    },
+    "hsbc": {
+      "domain": "assetmanagement.hsbc.co.in",
+      "source_url": "https://img.logo.dev/assetmanagement.hsbc.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6174,
+      "hash": "9229216d861ecbd4",
+      "fetched_at": "2026-06-13T18:43:13.594Z",
+      "status": "saved",
+      "filename": "hsbc.png"
+    },
+    "icici_prudential": {
+      "domain": "icicipruamc.com",
+      "source_url": "https://img.logo.dev/icicipruamc.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22695,
+      "hash": "464b1c44edaa36a2",
+      "fetched_at": "2026-06-13T18:43:14.517Z",
+      "status": "saved",
+      "filename": "icici_prudential.png"
+    },
+    "iti": {
+      "domain": "itimf.com",
+      "source_url": "https://img.logo.dev/itimf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2715,
+      "hash": "4f430ad45478fb49",
+      "fetched_at": "2026-06-13T18:43:15.540Z",
+      "status": "saved",
+      "filename": "iti.png"
+    },
+    "invesco": {
+      "domain": "invescomutualfund.com",
+      "source_url": "https://img.logo.dev/invescomutualfund.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20902,
+      "hash": "85dfb708a5a3b271",
+      "fetched_at": "2026-06-13T18:43:16.666Z",
+      "status": "saved",
+      "filename": "invesco.png"
+    },
+    "jio_blackrock": {
+      "domain": "jioblackrock.com",
+      "source_url": "https://img.logo.dev/jioblackrock.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13029,
+      "hash": "b31684cc4a0fbf28",
+      "fetched_at": "2026-06-13T18:43:17.281Z",
+      "status": "saved",
+      "filename": "jio_blackrock.png"
+    },
+    "jm_financial": {
+      "domain": "jmfinancialmf.com",
+      "source_url": "https://img.logo.dev/jmfinancialmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7179,
+      "hash": "48d5a3e2212ac375",
+      "fetched_at": "2026-06-13T18:43:17.929Z",
+      "status": "saved",
+      "filename": "jm_financial.png"
+    },
+    "kotak_mahindra": {
+      "domain": "kotakmf.com",
+      "source_url": "https://img.logo.dev/kotakmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26072,
+      "hash": "f5a3fbbe60488063",
+      "fetched_at": "2026-06-13T18:43:18.724Z",
+      "status": "saved",
+      "filename": "kotak_mahindra.png"
+    },
+    "lic": {
+      "domain": "licmf.com",
+      "source_url": "https://img.logo.dev/licmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15317,
+      "hash": "faaebd358f2ed60a",
+      "fetched_at": "2026-06-13T18:43:19.432Z",
+      "status": "saved",
+      "filename": "lic.png"
+    },
+    "mahindra_manulife": {
+      "domain": "mahindramanulife.com",
+      "source_url": "https://img.logo.dev/mahindramanulife.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12760,
+      "hash": "a736d3fc4803db22",
+      "fetched_at": "2026-06-13T18:43:21.172Z",
+      "status": "saved",
+      "filename": "mahindra_manulife.png"
+    },
+    "mirae_asset": {
+      "domain": "miraeassetmf.co.in",
+      "source_url": "https://img.logo.dev/miraeassetmf.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15179,
+      "hash": "745214e7fb4f95da",
+      "fetched_at": "2026-06-13T18:43:21.891Z",
+      "status": "saved",
+      "filename": "mirae_asset.png"
+    },
+    "motilal_oswal": {
+      "domain": "motilaloswalmf.com",
+      "source_url": "https://img.logo.dev/motilaloswalmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16321,
+      "hash": "88e5514248b3c37b",
+      "fetched_at": "2026-06-13T18:43:22.505Z",
+      "status": "saved",
+      "filename": "motilal_oswal.png"
+    },
+    "navi": {
+      "domain": "navimutualfund.com",
+      "fetched_at": "2026-06-13T18:43:23.218Z",
+      "status": "too_small",
+      "bytes": 1757
+    },
+    "nippon_india": {
+      "domain": "mf.nipponindiaim.com",
+      "source_url": "https://img.logo.dev/mf.nipponindiaim.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 48935,
+      "hash": "65281d809f3ed610",
+      "fetched_at": "2026-06-13T18:43:24.244Z",
+      "status": "saved",
+      "filename": "nippon_india.png"
+    },
+    "nj": {
+      "domain": "njmutualfund.com",
+      "source_url": "https://img.logo.dev/njmutualfund.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19673,
+      "hash": "e46782ce1900be4c",
+      "fetched_at": "2026-06-13T18:43:25.192Z",
+      "status": "saved",
+      "filename": "nj.png"
+    },
+    "pgim_india": {
+      "domain": "pgimindiamf.com",
+      "source_url": "https://img.logo.dev/pgimindiamf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 28577,
+      "hash": "fd2a10aa4e8f3170",
+      "fetched_at": "2026-06-13T18:43:25.987Z",
+      "status": "saved",
+      "filename": "pgim_india.png"
+    },
+    "ppfas": {
+      "domain": "amc.ppfas.com",
+      "source_url": "https://img.logo.dev/amc.ppfas.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12466,
+      "hash": "26ae43974a212771",
+      "fetched_at": "2026-06-13T18:43:26.806Z",
+      "status": "saved",
+      "filename": "ppfas.png"
+    },
+    "quant": {
+      "domain": "quantmutual.com",
+      "source_url": "https://img.logo.dev/quantmutual.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16557,
+      "hash": "dd9b81cfc85b64fe",
+      "fetched_at": "2026-06-13T18:43:28.443Z",
+      "status": "saved",
+      "filename": "quant.png"
+    },
+    "quantum": {
+      "domain": "quantumamc.com",
+      "source_url": "https://img.logo.dev/quantumamc.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23302,
+      "hash": "a813b764fa5404cf",
+      "fetched_at": "2026-06-13T18:43:29.775Z",
+      "status": "saved",
+      "filename": "quantum.png"
+    },
+    "samco": {
+      "domain": "samcomf.com",
+      "source_url": "https://img.logo.dev/samcomf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19018,
+      "hash": "6f89774b25625b39",
+      "fetched_at": "2026-06-13T18:43:30.491Z",
+      "status": "saved",
+      "filename": "samco.png"
+    },
+    "sbi": {
+      "domain": "sbimf.com",
+      "source_url": "https://img.logo.dev/sbimf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18081,
+      "hash": "6bc23344c7b0a720",
+      "fetched_at": "2026-06-13T18:43:31.616Z",
+      "status": "saved",
+      "filename": "sbi.png"
+    },
+    "sundaram": {
+      "domain": "sundarammutual.com",
+      "source_url": "https://img.logo.dev/sundarammutual.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10228,
+      "hash": "105449170680d085",
+      "fetched_at": "2026-06-13T18:43:32.335Z",
+      "status": "saved",
+      "filename": "sundaram.png"
+    },
+    "tata": {
+      "domain": "tatamutualfund.com",
+      "source_url": "https://img.logo.dev/tatamutualfund.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9925,
+      "hash": "5e06fe72514a1473",
+      "fetched_at": "2026-06-13T18:43:33.300Z",
+      "status": "saved",
+      "filename": "tata.png"
+    },
+    "taurus": {
+      "domain": "taurusmutualfund.com",
+      "source_url": "https://img.logo.dev/taurusmutualfund.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21623,
+      "hash": "f6d90f776ef87137",
+      "fetched_at": "2026-06-13T18:43:34.181Z",
+      "status": "saved",
+      "filename": "taurus.png"
+    },
+    "the_wealth_company": {
+      "domain": "thewealthcompany.com",
+      "fetched_at": "2026-06-13T18:43:34.994Z",
+      "status": "too_small",
+      "bytes": 701
+    },
+    "trust": {
+      "domain": "trustmf.com",
+      "source_url": "https://img.logo.dev/trustmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13586,
+      "hash": "2c97885736385464",
+      "fetched_at": "2026-06-13T18:43:36.019Z",
+      "status": "saved",
+      "filename": "trust.png"
+    },
+    "union": {
+      "domain": "unionmf.com",
+      "source_url": "https://img.logo.dev/unionmf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17912,
+      "hash": "44870b5e152d68b6",
+      "fetched_at": "2026-06-13T18:43:36.739Z",
+      "status": "saved",
+      "filename": "union.png"
+    },
+    "uti": {
+      "domain": "utimf.com",
+      "source_url": "https://img.logo.dev/utimf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12294,
+      "hash": "5d728bdb45ee76fb",
+      "fetched_at": "2026-06-13T18:43:37.353Z",
+      "status": "saved",
+      "filename": "uti.png"
+    },
+    "whiteoak_capital": {
+      "domain": "mf.whiteoakamc.com",
+      "source_url": "https://img.logo.dev/mf.whiteoakamc.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20279,
+      "hash": "eeb8c05be58efe5e",
+      "fetched_at": "2026-06-13T18:43:37.963Z",
+      "status": "saved",
+      "filename": "whiteoak_capital.png"
+    },
+    "zerodha": {
+      "domain": "zerodhafundhouse.com",
+      "source_url": "https://img.logo.dev/zerodhafundhouse.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6229,
+      "hash": "ec70dd4273e2819a",
+      "fetched_at": "2026-06-13T18:43:38.890Z",
+      "status": "saved",
+      "filename": "zerodha.png"
+    }
+  }
+}
