@@ -164,3 +164,89 @@ def test_iter_scheme_master_rows_captures_category() -> None:
     assert equity["amc"] == "Aditya Birla Sun Life Mutual Fund"
     assert debt["category"] == "Debt Scheme - Liquid Fund"
     assert debt["amc"] == "HDFC Mutual Fund"
+
+
+# ── upsert_funds — batched via execute_values ────────────────────────
+
+
+def test_dedupe_last_by_scheme_code_keeps_last() -> None:
+    from data_pipeline.sources.amfi_scheme_master import (
+        _dedupe_last_by_scheme_code,
+    )
+
+    rows = [
+        {"scheme_code": "100", "amc": "A"},
+        {"scheme_code": "200", "amc": "B"},
+        {"scheme_code": "100", "amc": "A2"},  # dup of 100 — last wins
+    ]
+    out = _dedupe_last_by_scheme_code(rows)
+    assert len(out) == 2
+    by_code = {r["scheme_code"]: r for r in out}
+    assert by_code["100"]["amc"] == "A2"
+    assert by_code["200"]["amc"] == "B"
+
+
+def test_upsert_funds_batches_and_dedupes(monkeypatch) -> None:
+    # upsert_funds must (a) dedupe by scheme_code and (b) hand the rows to
+    # psycopg2.extras.execute_values in a single batched call — NOT the
+    # per-row executemany that blew the workflow timeout.
+    extras = pytest.importorskip("psycopg2.extras")
+
+    captured: dict = {}
+
+    def fake_execute_values(cur, sql, argslist, template=None, page_size=100):
+        captured["sql"] = sql
+        captured["rows"] = list(argslist)
+        captured["template"] = template
+
+    monkeypatch.setattr(extras, "execute_values", fake_execute_values)
+
+    class FakeCursor:
+        def __init__(self) -> None:
+            self.rowcount = 0
+            self.executed: list = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, sql, params=None):
+            self.executed.append((sql, params))
+
+        def executemany(self, sql, seq):  # pragma: no cover - must not run
+            raise AssertionError("executemany must not be used (un-batched)")
+
+    class FakeConn:
+        def __init__(self) -> None:
+            self.cur = FakeCursor()
+            self.committed = False
+
+        def cursor(self):
+            return self.cur
+
+        def commit(self):
+            self.committed = True
+
+    from data_pipeline.sources.amfi_scheme_master import upsert_funds
+
+    base = {
+        "isin_growth": "X", "isin_div": "Y", "amc": "A",
+        "category": "Equity", "plan": "Direct", "option": "Growth",
+    }
+    rows = [
+        {**base, "scheme_code": "100", "scheme_name": "A - Direct - Growth"},
+        {**base, "scheme_code": "100", "scheme_name": "A duplicate"},  # dup
+        {**base, "scheme_code": "200", "scheme_name": "B - Direct - Growth"},
+    ]
+    conn = FakeConn()
+    n_up, n_off = upsert_funds(rows, conn)
+
+    assert n_up == 2  # 3 rows deduped to 2
+    assert len(captured["rows"]) == 2
+    assert "VALUES %s" in captured["sql"]
+    assert captured["template"] is not None
+    # The soft-deactivate UPDATE still runs after the batched insert.
+    assert len(conn.cur.executed) == 1
+    assert conn.committed is True
