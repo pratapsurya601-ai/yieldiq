@@ -2,11 +2,23 @@
 
 // B · Chrome — ticker identity band, provenance bar (04 gap closure)
 // and the 52-week dumbbell with its sliding marker.
+import TickerAvatar from "@/components/common/TickerAvatar"
+
 import { seg, useStageClock } from "./hooks"
 import { DEMO_COLORS } from "./theme"
 import { Muted } from "./ui"
 
 const WEEK52_POS = 74.5 // (1684 − 1363) / (1794 − 1363)
+
+// Quick-stats strip — the scannable factual header retail expects up top.
+const QUICK_STATS: { label: string; value: string }[] = [
+  { label: "P/E", value: "18.5" },
+  { label: "P/B", value: "2.6" },
+  { label: "ROE", value: "16.1%" },
+  { label: "Div yield", value: "1.1%" },
+  { label: "ROA", value: "2.0%" },
+  { label: "Beta", value: "0.92" },
+]
 
 export default function ChromeHeader() {
   const { ref, elapsed } = useStageClock(1200, 0.1)
@@ -16,12 +28,10 @@ export default function ChromeHeader() {
     <div ref={ref}>
       {/* Identity band */}
       <div className="flex flex-wrap items-center gap-3.5 px-1 pb-4 pt-0.5">
-        <div className="flex h-[46px] w-[46px] items-center justify-center rounded-lg bg-tone-info-bg text-[18px] font-medium text-tone-info-fg">
-          HB
-        </div>
+        <TickerAvatar ticker="HDFCBANK" size="lg" sector="banking" className="rounded-lg" />
         <div className="min-w-[200px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[18px] font-medium text-ink">HDFC Bank Ltd</span>
+            <span className="text-[20px] font-medium tracking-tight text-ink">HDFC Bank Ltd</span>
             <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-caption">
               HDFCBANK · NSE
             </span>
@@ -40,6 +50,16 @@ export default function ChromeHeader() {
           </div>
           <Muted>Market cap ₹12.8 lakh cr</Muted>
         </div>
+      </div>
+
+      {/* Quick-stats strip — scannable factual header */}
+      <div className="mb-3 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border/60 bg-border/60 sm:grid-cols-6">
+        {QUICK_STATS.map((s) => (
+          <div key={s.label} className="bg-surface px-3 py-2">
+            <div className="text-[10.5px] text-caption">{s.label}</div>
+            <div className="num mt-px text-[15px] font-medium text-ink">{s.value}</div>
+          </div>
+        ))}
       </div>
 
       {/* Provenance bar — trust at a glance */}
