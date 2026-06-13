@@ -13,6 +13,7 @@ import SectionAnalysts from "./SectionAnalysts"
 import SectionAnswer from "./SectionAnswer"
 import SectionBusiness from "./SectionBusiness"
 import SectionDividends from "./SectionDividends"
+import SectionDocuments from "./SectionDocuments"
 import SectionEvents from "./SectionEvents"
 import SectionFinancials from "./SectionFinancials"
 import SectionForecast from "./SectionForecast"
@@ -63,6 +64,7 @@ export default function DemoClient() {
       <SectionFinancials />
       <SectionDividends />
       <SectionQuarterly />
+      <SectionDocuments />
       <SectionValuation tier={tier} />
       <SectionAnalysts />
       <SectionForecast />
