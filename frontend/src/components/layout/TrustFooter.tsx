@@ -227,12 +227,13 @@ export default function TrustFooter() {
 
           {/* Nominative-fair-use disclaimer for the self-hosted ticker
               logos under /public/logos/ (mass-fetched from Logo.dev
-              2026-06-09). Required by Logo.dev's free-tier terms; also
-              standard trademark hygiene. */}
+              2026-06-09) AND the favicon-based fund-house (AMC) logos on
+              the /funds pages (2026-06-13). Required by Logo.dev's
+              free-tier terms; also standard trademark hygiene. */}
           <p className="text-xs text-caption max-w-3xl leading-relaxed">
-            Company names and logos are trademarks of their respective
-            owners and are used for identification purposes only. Logo
-            data from logo.dev.
+            Company and fund-house names and logos are trademarks of their
+            respective owners and are used for identification purposes
+            only. Logo data from logo.dev and public favicon sources.
           </p>
 
           {/* Bottom row — copyright + legal links */}

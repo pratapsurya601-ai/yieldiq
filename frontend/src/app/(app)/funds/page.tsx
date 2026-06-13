@@ -12,6 +12,7 @@ import Link from "next/link"
 
 import { fetchFundCategoriesSSR, fetchFundListSSR } from "@/lib/api"
 import type { FundListItem, FundRiskometerLevel } from "@/types/api"
+import AmcAvatar from "@/components/common/AmcAvatar"
 import { HoverCard, RevealStagger } from "@/components/motion"
 import FundsSearchInput from "./FundsSearchInput"
 
@@ -34,8 +35,11 @@ function FundCard({ fund }: { fund: FundListItem }) {
         href={`/funds/${encodeURIComponent(fund.scheme_code)}`}
         className="block rounded-lg border border-border bg-raised p-4"
       >
-        <div className="text-xs text-caption">{fund.amc}</div>
-        <div className="mt-1 line-clamp-2 text-sm font-semibold text-ink">
+        <div className="flex items-center gap-2">
+          <AmcAvatar amc={fund.amc} size="sm" />
+          <span className="truncate text-xs text-caption">{fund.amc}</span>
+        </div>
+        <div className="mt-1.5 line-clamp-2 text-sm font-semibold text-ink">
           {fund.scheme_name}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
