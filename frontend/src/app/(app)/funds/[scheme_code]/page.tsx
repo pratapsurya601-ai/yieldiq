@@ -34,6 +34,7 @@ import type {
   FundRiskometerLevel,
 } from "@/types/api"
 
+import FeeImpactCalculator from "./FeeImpactCalculator"
 import FundJsonLd from "./JsonLd"
 import NavBenchmarkChart from "./NavBenchmarkChart"
 
@@ -377,6 +378,11 @@ export default async function FundPage({ params }: Props) {
           <CostPanel metrics={data.metrics} />
           <ScoreChip metrics={data.metrics} />
         </div>
+
+        <FeeImpactCalculator
+          terDirect={data.metrics?.ter_direct ?? null}
+          terRegular={data.metrics?.ter_regular ?? null}
+        />
       </div>
 
       <SebiFooter />
