@@ -172,6 +172,165 @@ def known_good_plausibility(
     )
 
 
+def ratio_band_check(
+    table: str,
+    label: str,
+    actual: Optional[float],
+    warn_band: tuple[float, float],
+    fail_band: tuple[float, float],
+    context: Optional[dict[str, Any]] = None,
+    require_present: bool = False,
+) -> CheckResult:
+    """Flag a derived ratio that escapes a plausible magnitude band.
+
+    This is the workhorse for the unit/currency-integrity validator. The
+    silent-wrong-number bug class (USD double-convert, asset_turnover=
+    359808, INDIGO units) shares one fingerprint: a single field ends up
+    off by a factor of ~10^N because revenue/assets/cash were carried in
+    mismatched units (raw INR vs Crores) or a currency was double/half-
+    applied. A correctly-computed ratio is unit-free, so it lands in a
+    tight, sector-stable band; a unit-mangled one explodes by orders of
+    magnitude. We catch the explosion, not the specific unit.
+
+    Two nested bands:
+    - ``fail_band`` (lo, hi): hard implausibility. A value outside this is
+      almost certainly a unit/currency bug — no real listed company lands
+      here. Promotes the check to ``fail`` (red).
+    - ``warn_band`` (lo, hi): the comfortable real-world envelope. Outside
+      ``warn_band`` but inside ``fail_band`` is a yellow ``warn`` — worth
+      an eyeball (could be a genuine outlier, could be the early edge of a
+      unit drift) but not a stop-the-line red.
+
+    ``fail_band`` MUST be a superset of ``warn_band`` (lo_fail <= lo_warn,
+    hi_fail >= hi_warn); the caller owns that contract.
+
+    ``actual is None`` is treated as a pass by default (the field is
+    simply absent / not computable — that's the null-rate validator's job,
+    not this one). Pass ``require_present=True`` for invariants where a
+    missing value is itself a failure.
+    """
+    lo_warn, hi_warn = warn_band
+    lo_fail, hi_fail = fail_band
+    threshold: dict[str, Any] = {
+        "label": label,
+        "actual": actual,
+        "warn_band": [lo_warn, hi_warn],
+        "fail_band": [lo_fail, hi_fail],
+    }
+    if context:
+        threshold["context"] = context
+
+    if actual is None:
+        status: Status = "fail" if require_present else "pass"
+        return CheckResult(
+            name=f"ratio_band.{label}",
+            status=status,
+            details=(
+                f"{table}: {label} is None"
+                + (" (required, treated as fail)" if require_present else " (absent — skipped)")
+            ),
+            threshold=threshold,
+        )
+
+    if actual < lo_fail or actual > hi_fail:
+        return CheckResult(
+            name=f"ratio_band.{label}",
+            status="fail",
+            details=(
+                f"{table}: {label}={actual:g} outside plausible band "
+                f"[{lo_fail:g}, {hi_fail:g}] — unit/currency-mismatch signature"
+            ),
+            threshold=threshold,
+        )
+    if actual < lo_warn or actual > hi_warn:
+        return CheckResult(
+            name=f"ratio_band.{label}",
+            status="warn",
+            details=(
+                f"{table}: {label}={actual:g} outside comfortable band "
+                f"[{lo_warn:g}, {hi_warn:g}] (still within hard band "
+                f"[{lo_fail:g}, {hi_fail:g}])"
+            ),
+            threshold=threshold,
+        )
+    return CheckResult(
+        name=f"ratio_band.{label}",
+        status="pass",
+        details=f"{table}: {label}={actual:g} within [{lo_warn:g}, {hi_warn:g}]",
+        threshold=threshold,
+    )
+
+
+def cohort_fraction_check(
+    table: str,
+    label: str,
+    matched: int,
+    total: int,
+    warn_pct: float,
+    fail_pct: float,
+    detail_suffix: str = "",
+) -> CheckResult:
+    """Flag when too large a fraction of a cohort shares a suspicious value.
+
+    Some unit bugs are invisible per-row but obvious in aggregate. The
+    canonical example is ``de_ratio == 0`` on 17/17 tickers of a cohort:
+    a single zero is plausible (a genuinely debt-free company), but a
+    whole cohort reading exactly zero means the denominator (equity) was
+    dropped, mis-scaled, or the populator wrote a default. This helper
+    fires on the *fraction* exceeding a threshold, not on any single row.
+
+    ``matched`` = rows exhibiting the suspicious signature (e.g. exactly
+    0, or NaN, or a sentinel). ``total`` = cohort size. Empty cohort
+    (total<=0) is an informational pass.
+    """
+    threshold: dict[str, Any] = {
+        "label": label,
+        "matched": matched,
+        "total": total,
+        "warn_pct": warn_pct,
+        "fail_pct": fail_pct,
+    }
+    if total <= 0:
+        return CheckResult(
+            name=f"cohort_fraction.{label}",
+            status="pass",
+            details=f"{table}: {label} cohort empty (total={total})",
+            threshold=threshold,
+        )
+    pct = matched / total * 100.0
+    threshold["pct"] = round(pct, 2)
+    suffix = f" {detail_suffix}" if detail_suffix else ""
+    if pct >= fail_pct:
+        return CheckResult(
+            name=f"cohort_fraction.{label}",
+            status="fail",
+            details=(
+                f"{table}: {label} {matched}/{total} ({pct:.1f}%) share the "
+                f"suspicious value (>= {fail_pct}% fail threshold){suffix}"
+            ),
+            threshold=threshold,
+        )
+    if pct >= warn_pct:
+        return CheckResult(
+            name=f"cohort_fraction.{label}",
+            status="warn",
+            details=(
+                f"{table}: {label} {matched}/{total} ({pct:.1f}%) share the "
+                f"suspicious value (>= {warn_pct}% warn threshold){suffix}"
+            ),
+            threshold=threshold,
+        )
+    return CheckResult(
+        name=f"cohort_fraction.{label}",
+        status="pass",
+        details=(
+            f"{table}: {label} {matched}/{total} ({pct:.1f}%) below "
+            f"{warn_pct}% warn threshold{suffix}"
+        ),
+        threshold=threshold,
+    )
+
+
 def last_update_recency(
     table: str,
     last_update: Optional[datetime],
@@ -254,6 +413,8 @@ __all__ = [
     "row_count_stability",
     "null_rate_check",
     "known_good_plausibility",
+    "ratio_band_check",
+    "cohort_fraction_check",
     "last_update_recency",
     "schema_columns_present",
 ]
