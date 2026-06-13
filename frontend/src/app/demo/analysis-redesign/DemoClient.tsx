@@ -11,6 +11,7 @@ import DecisionBox from "./DecisionBox"
 import JumpNav from "./JumpNav"
 import SectionAnswer from "./SectionAnswer"
 import SectionBusiness from "./SectionBusiness"
+import SectionDividends from "./SectionDividends"
 import SectionFinancials from "./SectionFinancials"
 import SectionForecast from "./SectionForecast"
 import SectionNews from "./SectionNews"
@@ -57,6 +58,7 @@ export default function DemoClient() {
       <SectionThesis />
       <SectionBusiness />
       <SectionFinancials />
+      <SectionDividends />
       <SectionQuarterly />
       <SectionValuation tier={tier} />
       <SectionForecast />
