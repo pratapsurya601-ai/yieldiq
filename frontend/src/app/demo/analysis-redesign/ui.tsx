@@ -24,8 +24,8 @@ export function Section({
     <section
       id={id}
       ref={innerRef}
-      className={`mb-3.5 scroll-mt-24 rounded-2xl border bg-surface px-4 py-4 transition-[border-color,transform] duration-200 hover:-translate-y-px md:px-5 ${
-        highlight ? "border-2 border-tone-info-bd" : "border-border hover:border-caption/50"
+      className={`mb-3.5 scroll-mt-24 rounded-2xl border bg-surface px-4 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[0_3px_6px_rgba(15,23,42,0.05),0_16px_34px_-14px_rgba(15,23,42,0.16)] md:px-5 ${
+        highlight ? "border-2 border-tone-info-bd" : "border-border hover:border-caption/40"
       }`}
     >
       {(num || title) && (
