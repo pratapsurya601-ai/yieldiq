@@ -106,7 +106,29 @@ export default function RecentAnalyses() {
     }
   }, [])
 
-  if (!mounted) return null
+  // Reserve the section's vertical space BEFORE the client-only mount so
+  // it doesn't pop in and shove the rest of the page down (this widget
+  // reads localStorage, so it renders nothing on the server). A fixed
+  // min-height skeleton keeps the cumulative layout shift near zero.
+  if (!mounted) {
+    return (
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-ink inline-flex items-center gap-1.5">
+            <History className="w-4 h-4" /> Recent analyses
+          </h2>
+        </div>
+        <div className="bg-surface border border-border rounded-2xl divide-y divide-border min-h-[132px]">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-2.5">
+              <div className="h-4 w-20 bg-border/60 rounded animate-pulse" />
+              <div className="h-3 w-12 bg-border/60 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section>
@@ -116,13 +138,13 @@ export default function RecentAnalyses() {
         </h2>
       </div>
       {items.length === 0 ? (
-        <div className="bg-surface border border-border rounded-2xl p-4">
+        <div className="bg-surface border border-border rounded-2xl p-4 min-h-[132px]">
           <p className="text-xs text-body">
             Tickers you analyse will appear here for quick recall.
           </p>
         </div>
       ) : (
-        <div className="bg-surface border border-border rounded-2xl divide-y divide-border">
+        <div className="bg-surface border border-border rounded-2xl divide-y divide-border min-h-[132px]">
           {items.map(it => {
             const display = it.ticker.replace(/\.(NS|BO)$/, "")
             const row = rows.find(r => r.ticker === it.ticker)

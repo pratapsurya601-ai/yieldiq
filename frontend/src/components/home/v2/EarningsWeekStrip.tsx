@@ -43,7 +43,7 @@ function formatDay(iso: string): { dow: string; dom: string } {
 
 function Skeleton() {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="flex min-h-[104px] gap-2 overflow-x-auto pb-1">
       {[...Array(5)].map((_, i) => (
         <div key={i} className="min-w-[140px] h-24 bg-border/60 rounded-xl animate-pulse flex-shrink-0" />
       ))}

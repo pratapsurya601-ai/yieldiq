@@ -35,7 +35,7 @@ exports[`RecentAnalyses (snapshot) > renders TickerAvatar chips for each recent 
     </h2>
   </div>
   <div
-    class="bg-surface border border-border rounded-2xl divide-y divide-border"
+    class="bg-surface border border-border rounded-2xl divide-y divide-border min-h-[132px]"
   >
     <a
       class="flex items-center justify-between px-4 py-2.5 hover:bg-bg/50 transition"

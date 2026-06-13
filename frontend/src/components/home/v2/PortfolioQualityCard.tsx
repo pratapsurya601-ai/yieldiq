@@ -334,13 +334,15 @@ function EmptyState() {
 export default function PortfolioQualityCard() {
   const token = useAuthStore(s => s.token)
 
-  // Step 1 — fetch the user's holdings list. Same staleTime as the
-  // PortfolioPanel so the two surfaces don't race / re-fetch each other.
+  // Step 1 — fetch the user's holdings list. Shares the canonical
+  // ["holdings-live"] query key with PortfolioPanel so the two surfaces
+  // dedupe into ONE /portfolio/holdings-live request on load (they were
+  // previously on separate keys and fired the call twice).
   const { data: holdingsResp, isLoading: holdingsLoading } = useQuery({
-    queryKey: ["holdings-live-quality-card"],
+    queryKey: ["holdings-live"],
     queryFn: getHoldingsLive,
     enabled: !!token,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
     retry: 1,
   })
 
