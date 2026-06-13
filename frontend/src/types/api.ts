@@ -1126,6 +1126,15 @@ export interface FundListResponse {
   total: number
 }
 
+export interface FundCategoryCount {
+  category: string
+  count: number
+}
+
+export interface FundCategoriesResponse {
+  categories: FundCategoryCount[]
+}
+
 // ── Phase 1 — Fair-Value History contract (Agent B) ──────────────
 // Mirrors backend/models/fair_value_history.py exactly. Treat the
 // shapes as locked: Agent A wires the data layer, Agent C builds the

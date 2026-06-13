@@ -1779,6 +1779,7 @@ export const completeOnboardingRemote = (body?: {
 // the same backend prefix.
 
 import type {
+  FundCategoriesResponse,
   FundDetailResponse,
   FundListResponse,
 } from "@/types/api"
@@ -1786,8 +1787,12 @@ import type {
 export const getFund = (scheme_code: string): Promise<FundDetailResponse> =>
   api.get(`/api/v1/funds/${encodeURIComponent(scheme_code)}`).then((r) => r.data)
 
-export const listFunds = (limit = 20): Promise<FundListResponse> =>
-  api.get(`/api/v1/funds`, { params: { limit } }).then((r) => r.data)
+export const listFunds = (
+  limit = 48,
+  q?: string,
+  category?: string,
+): Promise<FundListResponse> =>
+  api.get(`/api/v1/funds`, { params: { limit, q, category } }).then((r) => r.data)
 
 // SSR-side fetch helpers — bypass the axios client (which depends on
 // document cookies) and the BUILD_ID query param. Server components in
@@ -1808,16 +1813,33 @@ export async function fetchFundSSR(
 }
 
 export async function fetchFundListSSR(
-  limit = 20,
+  limit = 48,
+  q?: string,
+  category?: string,
 ): Promise<FundListResponse> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/funds?limit=${limit}`, {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (q) params.set("q", q)
+    if (category) params.set("category", category)
+    const res = await fetch(`${API_BASE}/api/v1/funds?${params.toString()}`, {
       next: { revalidate: 300 },
     })
     if (!res.ok) return { funds: [], total: 0 }
     return (await res.json()) as FundListResponse
   } catch {
     return { funds: [], total: 0 }
+  }
+}
+
+export async function fetchFundCategoriesSSR(): Promise<FundCategoriesResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/funds/categories`, {
+      next: { revalidate: 3600 },
+    })
+    if (!res.ok) return { categories: [] }
+    return (await res.json()) as FundCategoriesResponse
+  } catch {
+    return { categories: [] }
   }
 }
 
