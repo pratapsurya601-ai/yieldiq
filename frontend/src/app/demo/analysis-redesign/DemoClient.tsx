@@ -9,9 +9,11 @@ import ActionRail from "./ActionRail"
 import ChromeHeader from "./ChromeHeader"
 import DecisionBox from "./DecisionBox"
 import JumpNav from "./JumpNav"
+import SectionAnalysts from "./SectionAnalysts"
 import SectionAnswer from "./SectionAnswer"
 import SectionBusiness from "./SectionBusiness"
 import SectionDividends from "./SectionDividends"
+import SectionEvents from "./SectionEvents"
 import SectionFinancials from "./SectionFinancials"
 import SectionForecast from "./SectionForecast"
 import SectionNews from "./SectionNews"
@@ -61,10 +63,12 @@ export default function DemoClient() {
       <SectionDividends />
       <SectionQuarterly />
       <SectionValuation tier={tier} />
+      <SectionAnalysts />
       <SectionForecast />
       <SectionRisk />
       <SectionOwnership />
       <SectionPeers />
+      <SectionEvents />
       <SectionNews />
       <ActionRail />
     </div>
