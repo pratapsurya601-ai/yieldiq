@@ -4651,6 +4651,48 @@ MANIFEST: list[dict] = [
             "inputs."
         ),
     },
+    {
+        # A3 sector-engine wiring (2026-06-13) — the cold-compute path
+        # now persists the bank_deepened / insurance input sub-blocks the
+        # per-engine FV helpers read, so sector_specific_fv resolves to a
+        # non-null value (and can drive the headline FV / MoS / verdict)
+        # for banks and life insurers where the underlying data is
+        # present. Banks: those with a bank_operational_kpis row UNION the
+        # bank-like classifier (is_bank_like / _NBFC_INSURANCE_BANKLIKE),
+        # restricted to deposit-taking banks + SFBs (NBFCs and general /
+        # health insurers are excluded — the wiring abstains for them).
+        # Insurers: the EV/VNB life cohort (is_ev_vnb_applicable /
+        # LIFE_INSURERS) which is the only insurer set the insurance
+        # block fires for; MAXFIN is included as a classified life
+        # insurer even though it has no appraisal row yet (over-scope is
+        # harmless — it recomputes to the same value until data lands).
+        # scope.fields="*" because changing the sector model can shift any
+        # downstream field (fair_value, mos, verdict, composite, scenarios).
+        "version_id": "v_sector_specific_fv_bank_insurance_2026_06_13",
+        "title_public": "Sector-specific valuation for banks and insurers",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "AUBANK", "AXISBANK", "BANDHANBNK", "BANKBARODA", "BANKINDIA", "CANBK",
+                "CAPITALSFB", "CENTRALBK", "CUB", "DCBBANK", "EQUITASBNK", "ESAFSFB",
+                "FEDERALBNK", "FINCABK", "FINOPB", "HDFCBANK", "ICICIBANK", "IDBI",
+                "IDFCFIRSTB", "INDIANB", "INDUSINDBK", "IOB", "JANASURF", "KARURVYSYA",
+                "KOTAKBANK", "MAHABANK", "PNB", "RBLBANK", "SBIN", "SFBAJM",
+                "SOUTHBANK", "SURYODAY", "TMB", "UCOBANK", "UJJIVANSFB", "UNIONBANK",
+                "UTKARSHBNK", "YESBANK", "HDFCLIFE", "ICICIPRULI", "LICI", "MAXFIN",
+                "SBILIFE",
+            ],
+            "fields": ["*"],
+        },
+        "rationale": (
+            "Bank fair value now uses a residual-income model on "
+            "net-interest-margin and asset-quality inputs, and insurer "
+            "fair value uses an embedded-value / new-business-value "
+            "model, instead of a generic discounted-cash-flow. This "
+            "invalidates the cached rows for those companies so they "
+            "recompute with the sector-appropriate model."
+        ),
+    },
 ]
 
 

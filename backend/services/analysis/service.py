@@ -5062,6 +5062,147 @@ class AnalysisService(NarrativeMixin):
                 # short-circuit branch above already produced a safe
                 # reit_nav_dpu_required verdict.
                 pass
+
+            # ── A3 sector-engine wiring (2026-06-13) ──────────────────
+            # Populate the sector-specific input sub-blocks the
+            # per-engine FV helpers in backend/routers/analysis.py read
+            # (`bank_deepened` / `insurance` / `nbfc`). Until now the
+            # cold-compute path NEVER wrote these, so the snapshot stored
+            # in analysis_cache.payload carried no sector inputs and the
+            # router-boundary resolver (`_resolve_sector_primary_fv`)
+            # could only fire for banks (which self-merge from the DB)
+            # — insurers and NBFCs always abstained to None even when
+            # their ingested data (insurance_appraisal_inputs migration
+            # 046, the bank KPI table) was present.
+            #
+            # Mirrors the REIT/InvIT cohort precedent directly above:
+            # every block is wrapped in its own try/except → leaves the
+            # key ABSENT on any failure or missing data. Strict superset
+            # — a generic (non-bank / non-insurer / non-NBFC) stock's
+            # _computation_inputs is byte-for-byte unchanged because each
+            # block's applicability gate rejects it before any key is set.
+            #
+            # bank_deepened: reuse the warm-path merge helper so the
+            # snapshot block matches exactly what the engine consumes —
+            # NIM / CASA / PCR / GNPA / cost-income (decimals) from the
+            # payload quality fields computed above (_bm_nim etc., as
+            # 0-100 percents) plus the bank_operational_kpis DB row, and
+            # book-value-per-share / ROE / payout. The engine gate still
+            # requires NIM, so a lender with no NIM data leaves the block
+            # absent (honest abstain) rather than emitting a P/B-only
+            # decomposition with no incremental signal.
+            try:
+                if bool(locals().get("_is_bank_like")):
+                    from backend.routers.analysis import (
+                        _merge_bank_deepened_inputs as _a3_merge_bank,
+                    )
+                    _a3_quality = {
+                        "is_bank": True,
+                        "nim": locals().get("_bm_nim"),
+                        "casa": locals().get("_bm_casa"),
+                        "cost_to_income": locals().get("_bm_cost_to_income"),
+                        "roe": enriched.get("roe"),
+                        "book_value_per_share": enriched.get(
+                            "book_value_per_share"
+                        ),
+                        "payout_ratio": enriched.get("payout_ratio"),
+                        "shares_outstanding": enriched.get("shares"),
+                    }
+                    _a3_valuation = {
+                        "current_price": float(price or 0) or None,
+                        "discount_rate": float(wacc or 0) or None,
+                        "wacc": float(wacc or 0) or None,
+                        "terminal_growth": float(terminal_g or 0) or None,
+                    }
+                    _a3_bank_block = _a3_merge_bank(
+                        ticker,
+                        {},          # no pre-existing snapshot block
+                        _a3_quality,
+                        _a3_valuation,
+                        {},          # insights not yet built at this point
+                    )
+                    # Only persist when NIM resolved — that is the engine
+                    # gate. Without it the block adds nothing over P/B and
+                    # the router resolver would abstain anyway.
+                    if _a3_bank_block and _a3_bank_block.get("nim_pct"):
+                        _computation_inputs["bank_deepened"] = _a3_bank_block
+            except Exception:
+                # Never fail the response on sector wiring. The bank
+                # route degrades to the headline P/B FV exactly as before.
+                pass
+
+            # insurance: EV + (VNB × multiple). Source the latest row
+            # from insurance_appraisal_inputs (migration 046). The table
+            # stores EV / VNB in INR Crores. The engine that consumes
+            # this block (`_compute_insurance_fv` → compute_ev_vnb_
+            # appraisal via EVVNBInputs) takes EV / VNB in ₹ CRORES and
+            # shares_outstanding in CRORE-count, and produces ₹/share
+            # directly (verified by test_insurance_ev_vnb: 157,000 Cr /
+            # 215 Cr-sh = ₹730/sh). So NO ×1e7 conversion — we pass the
+            # Crore figures straight through, with `enriched["shares"]`
+            # (Crore-count, Indian convention) as the share base. (Note:
+            # this is a DIFFERENT path from get_appraisal_fair_value_for_
+            # ticker, which converts to absolute INR for a separate
+            # FairValueResult producer — do not conflate the two.)
+            # Multiple is the calibrated select_vnb_multiple; the engine
+            # clamps / defaults defensively if it is absent.
+            try:
+                from backend.services.insurance_appraisal_service import (
+                    is_ev_vnb_applicable as _a3_ins_applicable,
+                    load_latest_appraisal_inputs as _a3_load_ins,
+                    select_vnb_multiple as _a3_vnb_mult,
+                )
+                _a3_ins_sector = (
+                    enriched.get("sector")
+                    or (raw.get("sector") if isinstance(raw, dict) else None)
+                )
+                if _a3_ins_applicable(ticker, _a3_ins_sector):
+                    _a3_ins_row = _a3_load_ins(ticker)
+                    _a3_ev_cr = (
+                        _a3_ins_row.get("embedded_value_cr")
+                        if isinstance(_a3_ins_row, dict) else None
+                    )
+                    if _a3_ev_cr and float(_a3_ev_cr) > 0:
+                        _a3_vnb_cr = (
+                            _a3_ins_row.get("value_new_business_cr") or 0.0
+                        )
+                        _a3_shares = float(enriched.get("shares") or 0) or None
+                        _a3_mult = None
+                        try:
+                            _a3_mult = _a3_vnb_mult(ticker)
+                        except Exception:
+                            _a3_mult = None
+                        _a3_ins_block = {
+                            # ₹ Crores straight through — engine works in
+                            # Crore EV / Crore-shares → ₹/share.
+                            "embedded_value": float(_a3_ev_cr),
+                            "new_business_value": float(_a3_vnb_cr),
+                            "shares_outstanding": _a3_shares,
+                        }
+                        if _a3_mult and float(_a3_mult) > 0:
+                            _a3_ins_block["vnb_multiple"] = float(_a3_mult)
+                        _computation_inputs["insurance"] = {
+                            k: v for k, v in _a3_ins_block.items()
+                            if v is not None
+                        }
+            except Exception:
+                pass
+
+            # nbfc: ABSTAIN (TODO). The NBFC ROA engine
+            # (_compute_nbfc_fv) gates on `average_assets_inr_cr` in INR
+            # Crores. The only balance-sheet figures in scope here
+            # (enriched.total_assets / total_equity) are in MIXED units —
+            # raw INR from yfinance vs Crores from the DB rollup — and
+            # selecting/normalizing the wrong one would silently fabricate
+            # a wrong fair value (worse than abstaining). The engine's
+            # other inputs (yield-on-assets / cost-of-funds / credit-cost)
+            # come from nbfc_roa_service segment defaults, but avg-assets
+            # is the binding gate and we cannot source it unit-safely yet.
+            # TODO(A3-nbfc): once a unit-normalized average_assets_inr_cr /
+            # average_equity_inr_cr is available on `enriched` (Crores,
+            # 2y-average), populate computation_inputs["nbfc"] here mirror-
+            # ing the insurance block. Leaving the key ABSENT keeps the
+            # router resolver honestly at None for NBFC tickers.
         except Exception:
             _computation_inputs = None
 
