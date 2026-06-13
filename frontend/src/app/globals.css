@@ -35,7 +35,11 @@
    the earlier scattered blue-600/blue-700/gray-50/gray-100 usage.
    ────────────────────────────────────────────────────────── */
 :root {
-  --color-bg:       #FFFFFF;
+  /* Page canvas. Deliberately a hair DARKER than --color-surface (#F8FAFC)
+     so surface cards read as elevated (figure/ground) instead of recessed.
+     Matches the analysis-redesign demo's canvas. Dark mode already nests
+     correctly (bg #0B1220 < surface #131B2C) so it is left untouched. */
+  --color-bg:       #E9EDF3;
   --color-surface:  #F8FAFC;
   --color-border:   #E2E8F0;
   --color-ink:      #0F172A;
