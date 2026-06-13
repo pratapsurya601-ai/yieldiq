@@ -106,28 +106,46 @@ def parse_plan_option(scheme_name: str) -> tuple[str, str]:
 # ── Persistence ─────────────────────────────────────────────────────
 
 
-# AMC is not in the per-row NAVAll data — it's the section header
-# above each block. amfi_nav.parse_navall ignores section headers;
-# we re-parse here capturing AMC banners so funds.amc lands populated.
+# Neither AMC nor category are in the per-row NAVAll data — both are
+# section headers above each block. amfi_nav.parse_navall ignores
+# section headers; we re-parse here capturing the two header kinds so
+# funds.amc AND funds.category land populated.
+#
+# In NAVAll the block separators (lines with no ';') are two kinds:
+#   * Category header — e.g. "Open Ended Schemes(Equity Scheme - Large
+#     Cap Fund)". No "Mutual Fund"; carries the SEBI category in parens.
+#   * AMC banner — e.g. "Aditya Birla Sun Life Mutual Fund". Contains
+#     "Mutual Fund".
+# The category header precedes the AMC banner(s) it applies to, so we
+# carry the most-recently-seen value of each forward onto scheme rows.
+
+# Pull the SEBI category out of a header line's outermost parentheses,
+# e.g. "Open Ended Schemes(Equity Scheme - Large Cap Fund)" ->
+# "Equity Scheme - Large Cap Fund".
+_CATEGORY_RE = re.compile(r"\((.+)\)")
+
 
 def iter_scheme_master_rows(text: str) -> Iterator[dict]:
-    """Yield one dict per scheme row WITH amc populated.
+    """Yield one dict per scheme row WITH amc AND category populated.
 
     Walks the NAVAll text in order, tracking the most recently seen
-    AMC banner line. The AMC banner is the first non-empty line in
-    each section that contains 'Mutual Fund' and has no pipes/semis.
+    AMC banner ("... Mutual Fund") and category header (the
+    parenthetical SEBI category). Both are no-';'/no-pipe lines.
     """
     current_amc: str | None = None
+    current_category: str | None = None
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
         if ";" not in line:
-            # AMC banner candidate. AMFI banners always contain
-            # "Mutual Fund" — filter on that to skip category headers
-            # like "Open Ended Schemes (Equity - Large Cap Fund)".
+            # Block separator: AMC banner OR category header.
             if "Mutual Fund" in line:
                 current_amc = line
+            else:
+                m = _CATEGORY_RE.search(line)
+                if m:
+                    current_category = m.group(1).strip() or None
             continue
         # Hand off to the existing single-line parser via a tiny
         # iterable so we reuse its column-count / scheme-code /
@@ -141,6 +159,7 @@ def iter_scheme_master_rows(text: str) -> Iterator[dict]:
                 "isin_div":     row["isin_div"],
                 "scheme_name":  row["scheme_name"],
                 "amc":          current_amc or "Unknown",
+                "category":     current_category,
                 "plan":         plan,
                 "option":       option,
             }
@@ -149,16 +168,17 @@ def iter_scheme_master_rows(text: str) -> Iterator[dict]:
 UPSERT_SQL = """
 INSERT INTO funds (
     scheme_code, isin_growth, isin_div, scheme_name, amc,
-    plan, option, is_active, updated_at
+    category, plan, option, is_active, updated_at
 ) VALUES (
     %(scheme_code)s, %(isin_growth)s, %(isin_div)s, %(scheme_name)s, %(amc)s,
-    %(plan)s, %(option)s, TRUE, now()
+    %(category)s, %(plan)s, %(option)s, TRUE, now()
 )
 ON CONFLICT (scheme_code) DO UPDATE SET
     isin_growth = COALESCE(EXCLUDED.isin_growth, funds.isin_growth),
     isin_div    = COALESCE(EXCLUDED.isin_div,    funds.isin_div),
     scheme_name = EXCLUDED.scheme_name,
     amc         = EXCLUDED.amc,
+    category    = COALESCE(EXCLUDED.category, funds.category),
     plan        = EXCLUDED.plan,
     option      = EXCLUDED.option,
     is_active   = TRUE,

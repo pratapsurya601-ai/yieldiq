@@ -128,3 +128,39 @@ def test_iter_scheme_master_rows_handles_missing_banner() -> None:
     rows = list(iter_scheme_master_rows(rogue))
     assert len(rows) == 1
     assert rows[0]["amc"] == "Unknown"
+    # No category header seen → category falls back to None, not raised.
+    assert rows[0]["category"] is None
+
+
+# Real-feed shape: the category section header is a no-';' line carrying
+# the SEBI category in parentheses (e.g. "Open Ended Schemes(Equity
+# Scheme - Large Cap Fund)"), with NO leading ';' or inner spaces — this
+# matches the live portal.amfiindia.com/spages/NAVAll.txt format.
+FIXTURE_WITH_CATEGORY = """\
+Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date
+
+Open Ended Schemes(Equity Scheme - Large Cap Fund)
+
+Aditya Birla Sun Life Mutual Fund
+
+100033;INF209K01157;INF209K01165;Aditya Birla Sun Life Frontline Equity Fund - Direct Plan - Growth;485.7234;27-May-2026
+
+Open Ended Schemes(Debt Scheme - Liquid Fund)
+
+HDFC Mutual Fund
+
+118989;INF179K01YV8;INF179K01YW6;HDFC Liquid Fund - Regular Plan - Growth;4800.1234;27-May-2026
+"""
+
+
+def test_iter_scheme_master_rows_captures_category() -> None:
+    # The category header precedes the AMC banner(s) it applies to and
+    # must be carried forward onto each scheme row, and re-set when a new
+    # category header appears.
+    rows = list(iter_scheme_master_rows(FIXTURE_WITH_CATEGORY))
+    assert len(rows) == 2
+    equity, debt = rows
+    assert equity["category"] == "Equity Scheme - Large Cap Fund"
+    assert equity["amc"] == "Aditya Birla Sun Life Mutual Fund"
+    assert debt["category"] == "Debt Scheme - Liquid Fund"
+    assert debt["amc"] == "HDFC Mutual Fund"
