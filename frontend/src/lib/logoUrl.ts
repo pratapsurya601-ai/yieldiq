@@ -33,11 +33,16 @@
  * fire a request we know will resolve to a generic globe).
  */
 
+import amcDomains from "@/data/amc_domains.json"
 import tickerDomains from "@/data/ticker_domains.json"
 
 // The JSON has a "_meta" key alongside the ticker entries — strip it
 // from the lookup so a ticker named "_META" couldn't ever collide.
 const DOMAINS = tickerDomains as unknown as Record<string, string>
+
+// AMC (fund-house) name → domain, keyed by the normalized name produced
+// by `normalizeAmcName`. Mirrors the ticker map but for /funds pages.
+const AMC_DOMAINS = amcDomains as unknown as Record<string, string>
 
 export function getCompanyDomain(ticker: string): string | null {
   if (!ticker) return null
@@ -123,4 +128,45 @@ export function getLogoFallbackUrl(ticker: string): string | null {
   // DuckDuckGo's `ip3` endpoint serves a single fixed size, so unlike
   // the primary `getLogoUrl` we don't take a size argument.
   return getDuckDuckGoIconUrl(ticker)
+}
+
+// ── AMC (fund-house) logos ───────────────────────────────────────────
+//
+// The /funds pages key off an `amc` string that comes verbatim from the
+// AMFI NAVAll banner lines (e.g. "Aditya Birla Sun Life Mutual Fund",
+// "quant Mutual Fund"). We normalize that to a stable lookup key and map
+// it to the fund-house domain, then resolve a favicon-based logo exactly
+// like the ticker chain (Google s2/favicons → DuckDuckGo). There is no
+// self-hosted stage for AMCs: there are only ~50 fund houses and the
+// favicon is the house's own brand mark, so a build-time fetch + binary
+// commit isn't worth it. Unmapped AMCs return null and render a branded
+// letter-mark in <AmcAvatar/>.
+
+/**
+ * Collapse an AMFI AMC banner string to a stable lookup key: lowercase,
+ * drop the "Mutual Fund" / "AMC" / "Asset Management" boilerplate and any
+ * parenthetical, and squeeze whitespace. "HDFC Mutual Fund" → "hdfc";
+ * "Aditya Birla Sun Life Mutual Fund" → "aditya birla sun life".
+ */
+export function normalizeAmcName(amc: string): string {
+  if (!amc) return ""
+  return amc
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ") // drop parentheticals e.g. "(IDF)"
+    .replace(/\bmutual fund\b/g, " ")
+    .replace(/\basset management(?:\s+(?:co(?:mpany)?|india|ltd|limited|pvt|private))*\b/g, " ")
+    .replace(/\b(?:amc|mf)\b/g, " ")
+    .replace(/[.,'"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/**
+ * Resolve the fund-house domain for an AMC banner string, or null when
+ * the house isn't in the curated map (caller renders a letter-mark).
+ */
+export function getAmcDomain(amc: string): string | null {
+  const key = normalizeAmcName(amc)
+  if (!key) return null
+  return AMC_DOMAINS[key] ?? null
 }

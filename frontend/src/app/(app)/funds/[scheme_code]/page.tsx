@@ -34,6 +34,8 @@ import type {
   FundRiskometerLevel,
 } from "@/types/api"
 
+import AmcAvatar from "@/components/common/AmcAvatar"
+
 import FeeImpactCalculator from "./FeeImpactCalculator"
 import FundJsonLd from "./JsonLd"
 import NavBenchmarkChart from "./NavBenchmarkChart"
@@ -131,13 +133,16 @@ function Hero({ fund }: { fund: FundDetailResponse["fund"] }) {
     : null
   return (
     <header className="mb-6">
-      <div className="mb-2 text-sm text-gray-500">{fund.amc}</div>
-      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
+      <div className="mb-2 flex items-center gap-2.5">
+        <AmcAvatar amc={fund.amc} size="lg" />
+        <span className="text-sm text-caption">{fund.amc}</span>
+      </div>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
         {fund.scheme_name}
       </h1>
       <div className="mt-3 flex flex-wrap gap-2">
         {fund.category ? (
-          <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+          <span className="rounded-full bg-tone-info-bg px-2.5 py-0.5 text-xs font-medium text-tone-info-fg">
             {fund.category}
             {fund.sub_category ? ` · ${fund.sub_category}` : ""}
           </span>
@@ -151,16 +156,16 @@ function Hero({ fund }: { fund: FundDetailResponse["fund"] }) {
           </span>
         ) : null}
         {fund.plan ? (
-          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+          <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-body">
             {fund.plan} plan
           </span>
         ) : null}
         {fund.option ? (
-          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+          <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-body">
             {fund.option}
           </span>
         ) : null}
-        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+        <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-body">
           Inception {inceptionYear(fund.inception_date)}
         </span>
       </div>
@@ -205,14 +210,14 @@ function ReturnsTable({
   ]
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <h2 className="mb-3 text-base font-semibold text-gray-900">
+    <section className="rounded-lg border border-border bg-raised p-4">
+      <h2 className="mb-3 text-base font-semibold text-ink">
         Trailing Returns
       </h2>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-caption">
               <th className="py-2 pr-4 font-medium">Series</th>
               {cols.map((c) => (
                 <th key={c.key} className="py-2 pr-4 font-medium">
@@ -221,35 +226,35 @@ function ReturnsTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             <tr>
-              <td className="py-2 pr-4 font-medium text-gray-900">Scheme</td>
+              <td className="py-2 pr-4 font-medium text-ink">Scheme</td>
               {schemeRow.map((v, i) => (
-                <td key={i} className="py-2 pr-4 tabular-nums text-gray-900">
+                <td key={i} className="py-2 pr-4 tabular-nums text-ink">
                   {fmtPct(v)}
                 </td>
               ))}
             </tr>
             <tr>
-              <td className="py-2 pr-4 font-medium text-gray-900">Benchmark</td>
+              <td className="py-2 pr-4 font-medium text-ink">Benchmark</td>
               {benchRow.map((v, i) => (
-                <td key={i} className="py-2 pr-4 tabular-nums text-gray-700">
+                <td key={i} className="py-2 pr-4 tabular-nums text-body">
                   {fmtPct(v)}
                 </td>
               ))}
             </tr>
             <tr>
-              <td className="py-2 pr-4 font-medium text-gray-900">Excess</td>
+              <td className="py-2 pr-4 font-medium text-ink">Excess</td>
               {excessRow.map((v, i) => (
                 <td
                   key={i}
                   className={
                     "py-2 pr-4 tabular-nums " +
                     (v == null
-                      ? "text-gray-500"
+                      ? "text-caption"
                       : v >= 0
-                        ? "text-emerald-700"
-                        : "text-red-700")
+                        ? "text-success"
+                        : "text-warning")
                   }
                 >
                   {fmtPct(v)}
@@ -259,7 +264,7 @@ function ReturnsTable({
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-caption">
         Trailing returns are CAGR for windows of 3 years or more, absolute for 1Y.
         Benchmark returns derived from the scheme&apos;s mandated TRI index.
         SI = since inception.
@@ -270,25 +275,25 @@ function ReturnsTable({
 
 function CostPanel({ metrics }: { metrics: FundDetailResponse["metrics"] }) {
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <h2 className="mb-3 text-base font-semibold text-gray-900">
+    <section className="rounded-lg border border-border bg-raised p-4">
+      <h2 className="mb-3 text-base font-semibold text-ink">
         Expense Ratio (TER)
       </h2>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Direct</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+          <div className="text-xs uppercase tracking-wide text-caption">Direct</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-ink">
             {fmtPct(metrics?.ter_direct)}
           </div>
         </div>
         <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Regular</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+          <div className="text-xs uppercase tracking-wide text-caption">Regular</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-ink">
             {fmtPct(metrics?.ter_regular)}
           </div>
         </div>
       </div>
-      <p className="mt-3 text-xs text-gray-500">
+      <p className="mt-3 text-xs text-caption">
         Direct plans have a lower expense ratio because no distributor commission is
         paid. Regular plans are sold through intermediaries who provide advice.
       </p>
@@ -299,8 +304,8 @@ function CostPanel({ metrics }: { metrics: FundDetailResponse["metrics"] }) {
 function ScoreChip({ metrics }: { metrics: FundDetailResponse["metrics"] }) {
   const grade = scoreGrade(metrics?.yieldiq_fund_score ?? null)
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <h2 className="mb-3 text-base font-semibold text-gray-900">
+    <section className="rounded-lg border border-border bg-raised p-4">
+      <h2 className="mb-3 text-base font-semibold text-ink">
         YieldIQ Fund Score
       </h2>
       {grade ? (
@@ -311,17 +316,17 @@ function ScoreChip({ metrics }: { metrics: FundDetailResponse["metrics"] }) {
             {grade.letter}
           </span>
           <div>
-            <div className="text-2xl font-semibold tabular-nums text-gray-900">
+            <div className="text-2xl font-semibold tabular-nums text-ink">
               {metrics?.yieldiq_fund_score}
-              <span className="ml-1 text-sm font-normal text-gray-500">/ 100</span>
+              <span className="ml-1 text-sm font-normal text-caption">/ 100</span>
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-caption">
               Rule-based composite of returns, risk, cost, and tenure.
             </div>
           </div>
         </div>
       ) : (
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-caption">
           {DASH} <span className="ml-1">Score not yet computed for this scheme.</span>
         </div>
       )}
@@ -331,7 +336,7 @@ function ScoreChip({ metrics }: { metrics: FundDetailResponse["metrics"] }) {
 
 function SebiFooter() {
   return (
-    <footer className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+    <footer className="mt-8 rounded-lg border border-tone-warn-bd bg-tone-warn-bg p-4 text-xs leading-relaxed text-tone-warn-fg">
       Past performance is not indicative of future returns. Mutual fund investments
       are subject to market risks; read all scheme-related documents carefully.
     </footer>
@@ -352,12 +357,12 @@ export default async function FundPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <nav className="mb-4 text-sm text-gray-500">
-        <Link href="/funds" className="hover:text-gray-900">
+      <nav className="mb-4 text-sm text-caption">
+        <Link href="/funds" className="hover:text-ink">
           Mutual Funds
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-gray-700">{data.fund.scheme_name}</span>
+        <span className="text-body">{data.fund.scheme_name}</span>
       </nav>
 
       <Hero fund={data.fund} />
