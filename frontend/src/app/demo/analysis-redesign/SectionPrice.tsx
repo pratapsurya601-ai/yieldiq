@@ -21,11 +21,11 @@ const TFS = ["1M", "6M", "1Y", "5Y", "Max"] as const
 type TF = (typeof TFS)[number]
 
 const CFG: Record<TF, { n: number; start: number; amp: number; w: number; lab: string }> = {
-  "1M": { n: 24, start: 1650, amp: 13, w: 1.9, lab: "past month" },
-  "6M": { n: 28, start: 1562, amp: 22, w: 1.7, lab: "past 6 months" },
-  "1Y": { n: 34, start: 1499, amp: 30, w: 1.5, lab: "past year" },
-  "5Y": { n: 36, start: 946, amp: 44, w: 1.2, lab: "past 5 years" },
-  Max: { n: 40, start: 255, amp: 28, w: 0.9, lab: "since listing" },
+  "1M": { n: 42, start: 1650, amp: 13, w: 2.3, lab: "past month" },
+  "6M": { n: 62, start: 1562, amp: 22, w: 2.1, lab: "past 6 months" },
+  "1Y": { n: 88, start: 1499, amp: 30, w: 1.8, lab: "past year" },
+  "5Y": { n: 116, start: 946, amp: 44, w: 1.5, lab: "past 5 years" },
+  Max: { n: 150, start: 255, amp: 28, w: 1.1, lab: "since listing" },
 }
 
 const X0 = 56
@@ -97,7 +97,9 @@ export default function SectionPrice() {
     const X = (i: number) => X0 + (i / (n - 1)) * (X1 - X0)
     const Y = (p: number) => Y_BOT - ((p - lo) / (hi - lo)) * (Y_BOT - Y_TOP)
     const P: [number, number][] = s.map((p, i) => [X(i), Y(p)])
-    const sp = smoothPath(P)
+    // Thin jagged line (real daily volatility) per the locked §7.4 history
+    // style — straight segments between dense points, not a smooth curve.
+    const sp = "M" + P.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L")
     const fvY = Math.max(Y_TOP + 2, Y(FAIR_VALUE))
     const grid = [0, 1, 2, 3].map((k) => {
       const gy = Y_TOP + 8 + k * ((Y_BOT - Y_TOP - 8) / 3)
@@ -190,12 +192,12 @@ export default function SectionPrice() {
       >
         <defs>
           <linearGradient id="pcArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={DEMO_COLORS.blue} stopOpacity={0.22} />
+            <stop offset="0" stopColor={DEMO_COLORS.blue} stopOpacity={0.1} />
             <stop offset="1" stopColor={DEMO_COLORS.blue} stopOpacity={0} />
           </linearGradient>
           <linearGradient id="pcUp" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={DEMO_COLORS.teal} stopOpacity={0.13} />
-            <stop offset="1" stopColor={DEMO_COLORS.teal} stopOpacity={0.02} />
+            <stop offset="0" stopColor={DEMO_COLORS.teal} stopOpacity={0.08} />
+            <stop offset="1" stopColor={DEMO_COLORS.teal} stopOpacity={0.015} />
           </linearGradient>
           <linearGradient id="pcStroke" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor={DEMO_COLORS.blueDark} />
@@ -220,9 +222,9 @@ export default function SectionPrice() {
           <path d={g.areaPath} fill="url(#pcArea)" />
           <path d={g.d200} fill="none" stroke={DEMO_COLORS.purple} strokeWidth={1.2} opacity={0.55} strokeLinejoin="round" />
           <path d={g.d50} fill="none" stroke={DEMO_COLORS.amber} strokeWidth={1.2} opacity={0.7} strokeLinejoin="round" />
-          <path d={g.sp} fill="none" stroke="url(#pcStroke)" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
-          <circle cx={g.last[0]} cy={g.last[1]} r={8} fill={DEMO_COLORS.blueDark} opacity={0.16} />
-          <circle cx={g.last[0]} cy={g.last[1]} r={4} fill={DEMO_COLORS.blueDark} stroke={TOKENS.surface} strokeWidth={1.5} />
+          <path d={g.sp} fill="none" stroke={DEMO_COLORS.blueDark} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+          <circle cx={g.last[0]} cy={g.last[1]} r={6} fill={DEMO_COLORS.blueDark} opacity={0.12} />
+          <circle cx={g.last[0]} cy={g.last[1]} r={3} fill={DEMO_COLORS.blueDark} stroke={TOKENS.surface} strokeWidth={1.5} />
         </g>
 
         <line x1={X0} x2={X1} y1={g.fvY} y2={g.fvY} stroke={DEMO_COLORS.teal} strokeWidth={1.5} strokeDasharray="5 4" />
