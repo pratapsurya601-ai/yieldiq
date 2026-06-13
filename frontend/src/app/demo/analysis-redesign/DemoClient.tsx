@@ -16,6 +16,7 @@ import SectionForecast from "./SectionForecast"
 import SectionNews from "./SectionNews"
 import SectionOwnership from "./SectionOwnership"
 import SectionPeers from "./SectionPeers"
+import SectionPrice from "./SectionPrice"
 import SectionQuarterly from "./SectionQuarterly"
 import SectionRisk from "./SectionRisk"
 import SectionThesis from "./SectionThesis"
@@ -51,6 +52,7 @@ export default function DemoClient() {
       <ChromeHeader />
       <JumpNav />
       <DecisionBox />
+      <SectionPrice />
       <SectionAnswer />
       <SectionThesis />
       <SectionBusiness />
