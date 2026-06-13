@@ -1,23 +1,19 @@
 /**
- * /funds — minimal mutual-fund landing.
+ * /funds — mutual-fund browse hub.
  *
- * Phase 3-slim scope: card grid of the first 20 active funds
- * (alphabetical) linking into the detail page, plus a search box that
- * routes to the existing global search for now. Phase 6 replaces this
- * with a real screener (filters by category, returns window, risk
- * band, TER, AUM, manager tenure).
- *
- * No advisory copy — only AMC-published category labels and the SEBI
- * Riskometer chip. Past-performance disclaimer at the foot of the page.
+ * Server component. Reads `q` (search scheme name / AMC) and `category`
+ * from searchParams, fetches the filtered scheme list + the category
+ * chips, and renders a card grid linking into the detail page. Search
+ * GET-submits back to this route (not the stock search). No advisory
+ * copy — only AMC-published category labels and the SEBI Riskometer
+ * chip. Past-performance disclaimer at the foot of the page.
  */
 import Link from "next/link"
 
-import { fetchFundListSSR } from "@/lib/api"
+import { fetchFundCategoriesSSR, fetchFundListSSR } from "@/lib/api"
 import type { FundListItem, FundRiskometerLevel } from "@/types/api"
 import { HoverCard, RevealStagger } from "@/components/motion"
 import FundsSearchInput from "./FundsSearchInput"
-
-export const revalidate = 300
 
 const RISKOMETER_COLORS: Record<FundRiskometerLevel, { bg: string; text: string; label: string }> = {
   Low: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Low" },
@@ -28,25 +24,23 @@ const RISKOMETER_COLORS: Record<FundRiskometerLevel, { bg: string; text: string;
   VeryHigh: { bg: "bg-red-100", text: "text-red-800", label: "Very High" },
 }
 
+const MAX_CHIPS = 14
+
 function FundCard({ fund }: { fund: FundListItem }) {
   const risk = fund.riskometer_level ? RISKOMETER_COLORS[fund.riskometer_level] : null
-  // Motion (2026-06-11): wrap each card in <HoverCard> so the hover
-  // lift + soft shadow primitive replaces the inline hover:shadow-sm.
-  // The Link still owns the navigation behaviour; HoverCard is a
-  // styling wrapper that does not introduce a button or trap clicks.
   return (
     <HoverCard className="rounded-lg">
       <Link
         href={`/funds/${encodeURIComponent(fund.scheme_code)}`}
-        className="block rounded-lg border border-gray-200 bg-white p-4"
+        className="block rounded-lg border border-border bg-raised p-4"
       >
-        <div className="text-xs text-gray-500">{fund.amc}</div>
-        <div className="mt-1 line-clamp-2 text-sm font-semibold text-gray-900">
+        <div className="text-xs text-caption">{fund.amc}</div>
+        <div className="mt-1 line-clamp-2 text-sm font-semibold text-ink">
           {fund.scheme_name}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {fund.category ? (
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+            <span className="rounded-full bg-tone-info-bg px-2 py-0.5 text-[11px] font-medium text-tone-info-fg">
               {fund.category}
             </span>
           ) : null}
@@ -58,7 +52,7 @@ function FundCard({ fund }: { fund: FundListItem }) {
             </span>
           ) : null}
           {fund.plan ? (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+            <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-body">
               {fund.plan}
             </span>
           ) : null}
@@ -68,40 +62,92 @@ function FundCard({ fund }: { fund: FundListItem }) {
   )
 }
 
-export default async function FundsLanding() {
-  const { funds, total } = await fetchFundListSSR(20)
+function CategoryChip({
+  href,
+  label,
+  count,
+  active,
+}: {
+  href: string
+  label: string
+  count?: number
+  active: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+        active
+          ? "border-tone-info-bd bg-tone-info-bg text-tone-info-fg"
+          : "border-border bg-raised text-caption hover:bg-surface hover:text-ink"
+      }`}
+    >
+      {label}
+      {typeof count === "number" ? (
+        <span className="ml-1 text-[11px] font-normal opacity-70">{count}</span>
+      ) : null}
+    </Link>
+  )
+}
+
+interface Props {
+  searchParams: Promise<{ q?: string; category?: string }>
+}
+
+export default async function FundsLanding({ searchParams }: Props) {
+  const sp = await searchParams
+  const q = typeof sp.q === "string" ? sp.q : ""
+  const category = typeof sp.category === "string" ? sp.category : ""
+
+  const [{ funds, total }, { categories }] = await Promise.all([
+    fetchFundListSSR(48, q || undefined, category || undefined),
+    fetchFundCategoriesSSR(),
+  ])
+
+  const chips = categories.slice(0, MAX_CHIPS)
+  const filtered = Boolean(q || category)
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
           Mutual Funds
         </h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-caption">
           Read-only NAV history, benchmark-relative returns, and risk metrics for
           Indian mutual-fund schemes.
         </p>
       </header>
 
-      {/* FundsSearchInput is a client component that wraps the same
-          GET form but adds a focus-state glow ring. The semantics
-          (form action="/search", input name="q") are unchanged so
-          server-side search routing still works. */}
-      <FundsSearchInput />
+      <FundsSearchInput defaultQuery={q} />
+
+      {chips.length > 0 ? (
+        <div className="mb-5 flex flex-wrap gap-1.5">
+          <CategoryChip href="/funds" label="All" active={!category} />
+          {chips.map((c) => (
+            <CategoryChip
+              key={c.category}
+              href={`/funds?category=${encodeURIComponent(c.category)}`}
+              label={c.category}
+              count={c.count}
+              active={category === c.category}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {funds.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
-          Fund data is being ingested. Check back shortly.
+        <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
+          {filtered
+            ? "No schemes match this search. Try a different name, AMC, or category."
+            : "Fund data is being ingested. Check back shortly."}
         </div>
       ) : (
         <>
-          <div className="mb-3 text-xs text-gray-500">
-            Showing {funds.length} of {total} schemes.
+          <div className="mb-3 text-xs text-caption">
+            Showing {funds.length} of {total.toLocaleString("en-IN")}
+            {filtered ? " matching" : ""} schemes.
           </div>
-          {/* Motion: tight 15ms stagger for the grid — funds lists can
-              be long and a longer stagger compounds into a visible
-              wait. RevealStagger short-circuits to the final state for
-              reduced-motion users. */}
           <RevealStagger
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
             staggerMs={15}
@@ -113,7 +159,7 @@ export default async function FundsLanding() {
         </>
       )}
 
-      <footer className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+      <footer className="mt-8 rounded-lg border border-tone-warn-bd bg-tone-warn-bg p-4 text-xs leading-relaxed text-tone-warn-fg">
         Past performance is not indicative of future returns. Mutual fund investments
         are subject to market risks; read all scheme-related documents carefully.
       </footer>

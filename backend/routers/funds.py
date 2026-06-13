@@ -39,6 +39,8 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.models.fund import (
     Fund,
     FundBenchmarkPoint,
+    FundCategoriesResponse,
+    FundCategoryCount,
     FundDetailResponse,
     FundListItem,
     FundListResponse,
@@ -302,32 +304,50 @@ def _fetch_returns_cache(db, scheme_code: str) -> Optional[FundReturnsCache]:
     )
 
 
-def _fetch_index_funds(db, limit: int) -> list[FundListItem]:
-    """Top funds for the /funds index landing.
+def _index_where(q: Optional[str], category: Optional[str]) -> tuple[str, dict]:
+    """Shared WHERE clause + binds for the index list and its count.
 
-    Phase 3-slim ordering rule: alphabetical by scheme_name within
-    active funds. We deliberately do NOT order by AUM / score here —
-    AUM lives on `fund_nav_history.aum_cr` (sparse, month-end only) and
-    score arrives in Phase 7. Ordering by score before Phase 7 ships
-    would either (a) return null-score nondeterministic rows or (b)
-    require a join that returns zero rows when Phase 2 hasn't landed —
-    both bad UX. Alphabetical is stable, well-defined, and replaceable
-    once the score column populates.
+    Search is a case-insensitive substring on scheme_name OR amc, using
+    LOWER(...) LIKE (portable across Postgres + SQLite — we avoid ILIKE,
+    which is Postgres-only). Category is an exact label match. All values
+    are parameterised; the dynamic part is only fixed clause text.
+    """
+    clauses = ["COALESCE(is_active, TRUE) = TRUE"]
+    params: dict = {}
+    if q and q.strip():
+        clauses.append("(LOWER(scheme_name) LIKE :q OR LOWER(amc) LIKE :q)")
+        params["q"] = f"%{q.strip().lower()}%"
+    if category and category.strip():
+        clauses.append("category = :category")
+        params["category"] = category.strip()
+    return " AND ".join(clauses), params
+
+
+def _fetch_index_funds(
+    db, limit: int, q: Optional[str] = None, category: Optional[str] = None
+) -> list[FundListItem]:
+    """Filtered card grid for /funds.
+
+    Active funds matching the optional search + category filter, ordered
+    alphabetically by scheme_name (stable; the Phase-7 score is not yet
+    populated, so alphabetical remains the well-defined default).
     """
     from sqlalchemy import text
 
+    where, params = _index_where(q, category)
+    params["lim"] = limit
     sql = text(
-        """
+        f"""
         SELECT scheme_code, scheme_name, amc, category, sub_category,
                riskometer_level, plan
         FROM funds
-        WHERE COALESCE(is_active, TRUE) = TRUE
+        WHERE {where}
         ORDER BY scheme_name ASC
         LIMIT :lim
         """
     )
     try:
-        rows = db.execute(sql, {"lim": limit}).fetchall()
+        rows = db.execute(sql, params).fetchall()
     except Exception as exc:
         logger.warning("funds: index landing query failed: %s", exc)
         return []
@@ -350,15 +370,15 @@ def _fetch_index_funds(db, limit: int) -> list[FundListItem]:
     return out
 
 
-def _fetch_index_total(db) -> int:
+def _fetch_index_total(
+    db, q: Optional[str] = None, category: Optional[str] = None
+) -> int:
     from sqlalchemy import text
 
+    where, params = _index_where(q, category)
     try:
         row = db.execute(
-            text(
-                "SELECT COUNT(*) FROM funds "
-                "WHERE COALESCE(is_active, TRUE) = TRUE"
-            )
+            text(f"SELECT COUNT(*) FROM funds WHERE {where}"), params
         ).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
     except Exception as exc:
@@ -366,29 +386,77 @@ def _fetch_index_total(db) -> int:
         return 0
 
 
+def _fetch_categories(db) -> list[FundCategoryCount]:
+    """Distinct categories + active-scheme counts, for the hub filter
+    chips. Empty list on any failure — the surface degrades gracefully."""
+    from sqlalchemy import text
+
+    sql = text(
+        """
+        SELECT category, COUNT(*) AS n
+        FROM funds
+        WHERE COALESCE(is_active, TRUE) = TRUE
+          AND category IS NOT NULL
+          AND category <> ''
+        GROUP BY category
+        ORDER BY n DESC, category ASC
+        """
+    )
+    try:
+        rows = db.execute(sql).fetchall()
+    except Exception as exc:
+        logger.warning("funds: categories query failed: %s", exc)
+        return []
+    out: list[FundCategoryCount] = []
+    for r in rows:
+        try:
+            out.append(FundCategoryCount(category=r[0], count=int(r[1])))
+        except Exception:
+            continue
+    return out
+
+
 # ── Routes ─────────────────────────────────────────────────────────────
 
 
 @router.get("", response_model=FundListResponse)
 def list_funds(
-    limit: int = Query(20, ge=1, le=100, description="Max cards to return."),
+    limit: int = Query(48, ge=1, le=60, description="Max cards to return."),
+    q: Optional[str] = Query(None, description="Search scheme name or AMC (substring)."),
+    category: Optional[str] = Query(None, description="Exact SEBI category filter."),
 ) -> FundListResponse:
-    """Landing-card grid for /funds.
+    """Browse grid for /funds.
 
-    Phase 3-slim: returns up to 20 active funds, alphabetical. Phase 6
-    replaces this with a real screener (filters by category, returns
-    window, risk band, TER). The Phase 3 page wires search via the
-    existing global search endpoint, not via this list.
+    Returns active funds matching the optional search (`q`, substring on
+    scheme name / AMC) and `category` filter, alphabetical by name.
+    `total` reflects the same filter so the page can show "N of M
+    matching". Phase 7 will add score-based ordering.
     """
     db = _open_session()
     if db is None:
         return FundListResponse(funds=[], total=0)
     try:
-        funds = _fetch_index_funds(db, limit)
-        total = _fetch_index_total(db)
+        funds = _fetch_index_funds(db, limit, q=q, category=category)
+        total = _fetch_index_total(db, q=q, category=category)
     finally:
         _safe_close(db)
     return FundListResponse(funds=funds, total=total)
+
+
+# NOTE: registered BEFORE the /{scheme_code} route below so "categories"
+# is not captured as a scheme_code path param.
+@router.get("/categories", response_model=FundCategoriesResponse)
+def list_fund_categories() -> FundCategoriesResponse:
+    """Distinct fund categories + active-scheme counts, for the hub's
+    filter chips."""
+    db = _open_session()
+    if db is None:
+        return FundCategoriesResponse(categories=[])
+    try:
+        cats = _fetch_categories(db)
+    finally:
+        _safe_close(db)
+    return FundCategoriesResponse(categories=cats)
 
 
 @router.get("/{scheme_code}", response_model=FundDetailResponse)

@@ -154,3 +154,18 @@ class FundListResponse(BaseModel):
 
     funds: list[FundListItem] = Field(default_factory=list)
     total: int = 0
+
+
+class FundCategoryCount(BaseModel):
+    """A SEBI category label + how many active schemes carry it.
+
+    Powers the hub's filter chips so users can browse by category
+    (Large Cap, ELSS, Liquid, ...) instead of the flat alphabetical list.
+    """
+
+    category: str
+    count: int
+
+
+class FundCategoriesResponse(BaseModel):
+    categories: list[FundCategoryCount] = Field(default_factory=list)
