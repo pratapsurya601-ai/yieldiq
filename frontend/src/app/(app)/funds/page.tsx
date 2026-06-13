@@ -152,9 +152,19 @@ export default async function FundsLanding({ searchParams }: Props) {
             Showing {funds.length} of {total.toLocaleString("en-IN")}
             {filtered ? " matching" : ""} schemes.
           </div>
+          {/*
+            threshold={0} is load-bearing: this grid is ~16 rows tall, so
+            RevealStagger's default 0.15 in-view threshold (15% of the
+            wrapper) never fits in the viewport at the top — inView would
+            never fire and every card would stay opacity-0 on load. With 0
+            the stagger reveals as soon as the grid's top edge enters view
+            (i.e. immediately). The cards are the page's primary content;
+            they must not depend on a deep scroll to render.
+          */}
           <RevealStagger
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
             staggerMs={15}
+            threshold={0}
           >
             {funds.map((f) => (
               <FundCard key={f.scheme_code} fund={f} />
