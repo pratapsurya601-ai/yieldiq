@@ -46,6 +46,7 @@ const AUTH_NAV_ITEMS: { label: string; href: string }[] = [
   { label: "Search", href: "/search" },
   { label: "Watchlist", href: "/watchlist" },
   { label: "Portfolio", href: "/portfolio" },
+  { label: "Funds", href: "/funds" },
   { label: "Discover", href: "/discover" },
   { label: "Screener", href: "/discover/screener" },
 ]
