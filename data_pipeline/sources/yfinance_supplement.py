@@ -182,6 +182,27 @@ def _persist_historical_financials(
                 total_equity = _get_val(bs, "Total Equity Gross Minority Interest", col)
             total_assets = _get_val(bs, "Total Assets", col) if bs is not None and not bs.empty else None
 
+            # ── Net-margin unit-integrity gate (FIX-NET-MARGIN-UNIT) ──
+            # yfinance mis-scales Total Revenue for a cohort of Indian
+            # micro-caps (revenue ~1000x too small) while Net Income is
+            # at the correct magnitude, producing net_margin blow-ups
+            # (ESSARSHPNG 440,053%, SHYAMTEL -56,884%, JINDALPHOT 45,645%).
+            # When pat/revenue is implausible the revenue figure is the
+            # untrustworthy one — drop revenue + net_margin to None so the
+            # corrupt value never reaches ratio_history / a fair value.
+            # Grep production logs for "net_margin_unit_gate" to track the
+            # affected ticker cohort. See NET_MARGIN_PLAUSIBLE_PCT above.
+            unit_gate_tripped = not _net_margin_unit_ok(pat, revenue)
+            if unit_gate_tripped:
+                logger.warning(
+                    "net_margin_unit_gate: %s %s revenue=%s pat=%s implied "
+                    "net_margin=%.0f%% outside +-%.0f%% (yfinance revenue "
+                    "unit-mismatch) — dropping revenue + net_margin to None",
+                    ticker, period_date, revenue, pat,
+                    _safe_pct(pat, revenue) or 0.0, NET_MARGIN_PLAUSIBLE_PCT,
+                )
+                revenue = None
+
             fin = Financials(
                 ticker=ticker,
                 period_end=period_date,
@@ -221,7 +242,10 @@ def _persist_historical_financials(
                 currency="INR",
             )
 
-            if revenue and revenue > 0:
+            # Write when we have a trustworthy revenue OR when the unit gate
+            # tripped (so we can persist the trustworthy pat/assets AND
+            # explicitly NULL the corrupt revenue/net_margin already at rest).
+            if (revenue and revenue > 0) or unit_gate_tripped:
                 existing_fin = db.query(Financials).filter_by(
                     ticker=ticker, period_end=period_date, period_type="annual"
                 ).first()
@@ -233,8 +257,20 @@ def _persist_historical_financials(
                         val = getattr(fin, attr, None)
                         if val is not None:
                             setattr(existing_fin, attr, val)
+                    # When the unit gate tripped, revenue/net_margin on `fin`
+                    # are None by construction; the `is not None` guard above
+                    # would otherwise PRESERVE the corrupt at-rest values.
+                    # Force them NULL so the confidently-wrong number cannot
+                    # survive a re-ingest.
+                    if unit_gate_tripped:
+                        existing_fin.revenue = None
+                        existing_fin.net_margin = None
                     rows_written += 1
                 else:
+                    # New row. `fin` already carries revenue=None /
+                    # net_margin=None when the unit gate tripped, so we
+                    # insert the trustworthy pat/assets without the corrupt
+                    # revenue ever being persisted.
                     db.add(fin)
                     rows_written += 1
         except Exception as row_exc:
@@ -719,6 +755,45 @@ def _safe_pct(numerator, denominator) -> float | None:
         return None
     except Exception:
         return None
+
+
+# Net-margin (pat/revenue) plausibility band, in PERCENT. A real listed
+# company cannot clear ~100% net margin; |net_margin| beyond this is the
+# unit-mismatch fingerprint where revenue and pat arrived in different
+# scales. We keep a small head-room over the hard 100% so a genuine
+# one-off (large exceptional gain on a tiny-revenue holding company) is
+# not clipped, while the 10^N blow-ups (440,053% etc.) are caught.
+#
+# FIX-NET-MARGIN-UNIT (2026-06-13): yfinance returns ``Total Revenue``
+# mis-scaled (typically ~1000x too small) for a cohort of Indian
+# micro-caps while ``Net Income`` arrives at the correct magnitude —
+# e.g. ESSARSHPNG FY2025 revenue=102.6M but net_income=6.6B from the
+# SAME income statement (net income 64x revenue). ``_to_cr`` divides
+# both by 1e7 faithfully, so the inconsistency propagates: revenue_cr
+# tiny, pat_cr normal, net_margin = pat/rev*100 explodes past ±100%.
+# Same family as the asset_turnover sanity gate in
+# backend/services/ratios_service.py (FIX-AUDIT5-P1-ASSET-TURNOVER):
+# rather than trust every upstream field, gate at write time. When the
+# implied net_margin is implausible the REVENUE figure is the
+# untrustworthy one (pat is corroborated by ebitda/assets being sane),
+# so we drop revenue + net_margin to None — the row keeps its trustworthy
+# pat/assets/equity and the UI shows "—" for revenue-derived metrics
+# instead of a confidently-wrong number that flows into a fair value.
+NET_MARGIN_PLAUSIBLE_PCT = 150.0
+
+
+def _net_margin_unit_ok(pat, revenue) -> bool:
+    """True when pat/revenue lands in a plausible net-margin band.
+
+    Returns True when there is nothing to check (either input missing or
+    revenue non-positive) — the gate only fires on a *present* pair whose
+    ratio is implausibly large, which is the unit-mismatch signature.
+    """
+    _pat = _safe_float(pat)
+    _rev = _safe_float(revenue)
+    if _pat is None or _rev is None or _rev <= 0:
+        return True
+    return abs(_pat / _rev * 100.0) <= NET_MARGIN_PLAUSIBLE_PCT
 
 
 def _get_val(df: pd.DataFrame, row_name: str, col):
