@@ -1,0 +1,90 @@
+name: MF NAV backfill (manual)
+
+# One-off / on-demand historical NAV backfill for the mutual-fund
+# universe. Pulls each scheme's full NAV history (mfapi.in mirror by
+# default) and bulk-upserts into fund_nav_history, so the /funds detail
+# pages get real charts + trailing returns instead of em-dashes.
+#
+# This is normally an operator-local job (see scripts/backfill_mf_nav.py),
+# but it's exposed here as workflow_dispatch so it can run in CI against
+# the DATABASE_URL secret without a local prod write. It does NOT run on a
+# schedule — trigger it from the Actions tab (or `gh workflow run`).
+#
+# Runtime: ~14k schemes × throttle. At 0.4s that's ~2.5h; the job budget
+# is 350 min. The checkpoint is cached so a re-dispatch with resume=true
+# continues where a timed-out / failed run left off.
+#
+# Secrets required:
+#   - DATABASE_URL : Neon Postgres connection string (read+write).
+
+on:
+  workflow_dispatch:
+    inputs:
+      schemes_source:
+        description: "canary (50) or funds_table (full universe)"
+        type: choice
+        default: funds_table
+        options: [funds_table, canary]
+      source:
+        description: "History endpoint"
+        type: choice
+        default: mfapi
+        options: [mfapi, amfi]
+      throttle:
+        description: "Seconds between scheme requests"
+        type: string
+        default: "0.4"
+      resume:
+        description: "Resume from the cached checkpoint"
+        type: boolean
+        default: true
+
+concurrency:
+  group: mf-nav-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "psycopg2-binary" "requests>=2.31"
+
+      # Cache the checkpoint so a re-dispatch with resume=true continues
+      # past the schemes already done. Immutable per run_id, restored from
+      # the most recent prior run via the prefix restore-key.
+      - name: Restore NAV backfill checkpoint
+        uses: actions/cache@v4
+        with:
+          path: scripts/snapshots/backfill_mf_nav_checkpoint.json
+          key: mf-nav-ckpt-${{ github.run_id }}
+          restore-keys: |
+            mf-nav-ckpt-
+
+      - name: Run NAV backfill
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret missing"
+            exit 1
+          fi
+          RESUME_FLAG=""
+          if [ "${{ inputs.resume }}" = "true" ]; then RESUME_FLAG="--resume"; fi
+          python scripts/backfill_mf_nav.py \
+            --schemes-source "${{ inputs.schemes_source }}" \
+            --source "${{ inputs.source }}" \
+            --throttle "${{ inputs.throttle }}" \
+            $RESUME_FLAG
