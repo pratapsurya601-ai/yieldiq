@@ -4488,6 +4488,52 @@ MANIFEST: list[dict] = [
             "the weighted average."
         ),
     },
+    {
+        # DCF currency normalization (2026-06-13) — read-path fix for
+        # foreign-currency-reported companies whose statement values are
+        # converted USD→INR at ingest but whose `financials.currency`
+        # column stays tagged 'USD'. The previous read-side idempotency
+        # guard compared raw revenue against an absolute-rupee threshold
+        # (1e10) that never fired against the crore-denominated table, so
+        # the converted values were multiplied a second time, inflating
+        # the discounted-cash-flow inputs ~83.5×. The corrected guard is
+        # crore-aware (market-cap anchor + crore-magnitude fallback) and
+        # suppresses the second multiply. This invalidates the cached
+        # rows for the foreign-currency-reported companies so they
+        # recompute on the corrected inputs.
+        #
+        # Scope is the explicit list of USD-tagged tickers in the
+        # `financials` table (the only currency='USD' surface — the
+        # company_financials table is entirely INR). 14 of the 15 are
+        # confirmed movers (the convert-twice guard fires); INFY is
+        # included for safety because it sits on the identical currency
+        # codepath, and a harmless recompute is preferable to a stale
+        # cached value. fields=["*"] because a change to the cash-flow
+        # inputs can shift any downstream engine field.
+        "version_id": "v_dcf_currency_normalization_2026_06_13",
+        "title_public": (
+            "DCF currency normalization for foreign-currency-reported "
+            "companies"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "COFORGE", "CYIENT", "DIVISLAB", "HCLTECH", "INFY",
+                "KPITTECH", "LAURUSLABS", "LTIM", "MASTEK", "MPHASIS",
+                "OFSS", "PERSISTENT", "TATAELXSI", "TECHM", "WIPRO",
+            ],
+            "fields": ["*"],
+        },
+        "rationale": (
+            "Foreign-currency-reported financials were being "
+            "double-converted to INR, inflating the discounted-cash-flow "
+            "inputs for these companies. The read path now detects "
+            "values that were already converted at ingest and does not "
+            "convert them a second time. This invalidates the cached "
+            "rows for those companies so they recompute on the corrected "
+            "inputs."
+        ),
+    },
 ]
 
 
