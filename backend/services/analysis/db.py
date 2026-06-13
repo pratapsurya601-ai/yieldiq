@@ -100,6 +100,90 @@ def _fetch_current_assets(ticker: str) -> float | None:
             pass
 
 
+def _fetch_annual_revenue_series(ticker: str) -> list[float]:
+    """De-duped, chronologically-ordered annual revenue series from
+    ``v_financials_unified``.
+
+    Returns oldest→newest revenue values (one per distinct fiscal year,
+    NULL/non-positive rows dropped) so the caller can feed them straight
+    into ``compute_revenue_cagr``. Returns ``[]`` on any miss/failure.
+
+    WHY THIS EXISTS (null-CAGR data_limited fix, 2026-06-13)
+    -------------------------------------------------------
+    The hot analysis path builds ``income_df`` from whichever source
+    served the ticker (local DB ``financials`` LIMIT-5, or the yfinance
+    collector which for thin-coverage mid-caps often returns only a
+    TTM/1-2yr income statement). When that series is too short, BOTH
+    ``revenue_cagr_3y`` and ``revenue_cagr_5y`` come back None and the
+    null-CAGR gate (service.py FIX 1) forces ``data_limited`` even for
+    names with a full, sound DCF and ≥3 years of genuine annual revenue
+    sitting in the financials DB.
+
+    ``v_financials_unified`` (migration 076) already reconciles the two
+    annual tables and emits EXACTLY ONE row per (ticker, fiscal_year):
+    it prefers non-corrupt ``company_financials`` and falls back to the
+    older ``financials`` table per cell. That means the dedup of the
+    ``cf_has_duplicate_fy`` / ``cf_is_corrupt`` cohort (e.g. AARTIIND's
+    duplicate FY2023 & FY2024 rows) is handled inside the view — here we
+    only enforce: distinct fiscal year, revenue present and > 0, ordered
+    oldest→newest. We additionally collapse defensively in Python in
+    case a future view change ever emits more than one row per FY.
+
+    DEFENSIVE / SURGICAL by construction:
+      * Read-only single SELECT; never writes.
+      * Never raises — degrades to ``[]`` so the caller keeps whatever
+        income_df-derived CAGR it already had (i.e. the existing
+        behaviour is the floor; this can only ADD a CAGR, never remove
+        one).
+      * The unit-consistency / artifact guard stays the caller's job:
+        ``compute_revenue_cagr`` requires the full window and the
+        downstream ±80% clamp nulls out any mixed-unit / restructuring
+        artifact, so a genuinely thin or corrupt name still resolves to
+        None and STAYS ``data_limited``.
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return []
+    try:
+        from sqlalchemy import text
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "").upper()
+        rows = db.execute(text("""
+            SELECT fiscal_year, revenue
+            FROM v_financials_unified
+            WHERE ticker = :t
+              AND revenue IS NOT NULL
+              AND revenue > 0
+            ORDER BY fiscal_year ASC
+        """), {"t": db_ticker}).mappings().all()
+        if not rows:
+            return []
+        # Collapse to one revenue per fiscal year (keep the row that
+        # sorts last for a given FY — the ORDER BY above is ASC so the
+        # later assignment wins, which for a one-row-per-FY view is a
+        # no-op but guards against any future grain change).
+        by_fy: dict[int, float] = {}
+        for r in rows:
+            fy = r.get("fiscal_year")
+            rev = r.get("revenue")
+            if fy is None or rev is None:
+                continue
+            try:
+                fy_i = int(fy)
+                rev_f = float(rev)
+            except (TypeError, ValueError):
+                continue
+            if rev_f > 0:
+                by_fy[fy_i] = rev_f
+        return [by_fy[fy] for fy in sorted(by_fy)]
+    except Exception:
+        return []
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def _market_cap_cr(ticker: str) -> float | None:
     """Latest market cap in ₹ crore from MarketMetrics, or None.
 

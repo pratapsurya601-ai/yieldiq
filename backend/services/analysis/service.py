@@ -4503,6 +4503,64 @@ class AnalysisService(NarrativeMixin):
                     _rev_cagr_5y = _rcagr(_rev_series, 5)
         except Exception:
             pass
+
+        # ── DB-backed CAGR fallback (null-CAGR data_limited fix,
+        #    2026-06-13) ────────────────────────────────────────────
+        # The income_df above is only as deep as whatever source served
+        # this ticker. The local-DB assembler caps annual rows at
+        # LIMIT 5 and the yfinance collector frequently returns only a
+        # TTM / 1-2yr income statement for thin-coverage mid-caps. When
+        # that leaves BOTH 3y and 5y CAGR None, the downstream null-CAGR
+        # gate (FIX 1 below) forces data_limited — even for names that
+        # have ≥3 years of genuine annual revenue in the financials DB
+        # and a fully-formed, sound DCF (e.g. AARTIIND: 11 annual rows
+        # FY2018→FY2026, complete scenario triangle, FV/price ~0.31).
+        #
+        # Fix: when (and only when) a CAGR is still missing, recompute it
+        # from `v_financials_unified` — the reconciliation view that
+        # emits exactly one DE-DUPED row per (ticker, fiscal_year),
+        # already collapsing the cf_has_duplicate_fy / cf_is_corrupt
+        # cohort (e.g. AARTIIND's duplicate FY2023 & FY2024 rows). This
+        # is ADDITIVE: it can only fill a None CAGR, never overwrite a
+        # value income_df already produced. Genuinely thin nano-caps
+        # (no/too-few annual rows in the view) get [] back → CAGR stays
+        # None → they correctly STAY data_limited. The ±80% clamp below
+        # still nulls out any mixed-unit / restructuring artifact.
+        if _rev_cagr_3y is None or _rev_cagr_5y is None:
+            try:
+                import logging as _cagr_fb_logging
+                from backend.services.analysis.db import (
+                    _fetch_annual_revenue_series,
+                )
+                _cagr_fb_log = _cagr_fb_logging.getLogger("yieldiq.analysis")
+                _db_rev_series = _fetch_annual_revenue_series(ticker)
+                # compute_revenue_cagr requires the full (years + 1)
+                # window of consecutive non-None values; <4 rows can
+                # never yield a 3y CAGR, <6 a 5y CAGR. The helper itself
+                # returns None below the threshold, so the len guards
+                # are purely to skip the call.
+                if len(_db_rev_series) >= 4 and _rev_cagr_3y is None:
+                    _db_cagr_3y = _rcagr(_db_rev_series, 3)
+                    if _db_cagr_3y is not None:
+                        _rev_cagr_3y = _db_cagr_3y
+                        _cagr_fb_log.info(
+                            "cagr_db_fallback.filled_3y ticker=%s n=%d",
+                            ticker, len(_db_rev_series),
+                        )
+                if len(_db_rev_series) >= 6 and _rev_cagr_5y is None:
+                    _db_cagr_5y = _rcagr(_db_rev_series, 5)
+                    if _db_cagr_5y is not None:
+                        _rev_cagr_5y = _db_cagr_5y
+                        _cagr_fb_log.info(
+                            "cagr_db_fallback.filled_5y ticker=%s n=%d",
+                            ticker, len(_db_rev_series),
+                        )
+            except Exception:
+                # Never let the fallback regress a ticker: any failure
+                # leaves the income_df-derived CAGR (possibly None)
+                # untouched, preserving pre-fix behaviour exactly.
+                pass
+
         # Sanity clamp: CAGR outside ±80% is almost certainly a data
         # artifact (currency conversion error, one-off spinoff/demerger,
         # bad yfinance row). Audit feedback: HCLTECH showed -75.5% 3y
