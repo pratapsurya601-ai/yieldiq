@@ -31,7 +31,7 @@ export default function DemoClient() {
   const [tier, setTier] = useState<DemoTier>("free")
 
   return (
-    <div className="mx-auto max-w-[1060px] px-3 pb-16 md:px-5">
+    <div className="mx-auto max-w-[1060px] px-3 pb-16 pt-3 md:px-5">
       <DemoStyles />
 
       {/* A · demo banner + M · demo-only tier preview toggle */}
@@ -99,6 +99,8 @@ function TierButton({ on, onClick, children }: { on: boolean; onClick: () => voi
 function DemoStyles() {
   return (
     <style>{`
+/* Demo-scoped tinted canvas so the white/elevated cards float (figure-ground). */
+body { background-color: #e9edf3 !important; }
 @keyframes demo-march { to { stroke-dashoffset: -11; } }
 @keyframes demo-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 @keyframes demo-breathe { 0%, 100% { fill-opacity: .55; } 50% { fill-opacity: .65; } }

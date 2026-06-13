@@ -53,17 +53,17 @@ export default function ChromeHeader() {
       </div>
 
       {/* Quick-stats strip — scannable factual header */}
-      <div className="mb-3 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border/60 bg-border/60 sm:grid-cols-6">
+      <div className="mb-3 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border/70 bg-border/70 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)] sm:grid-cols-6">
         {QUICK_STATS.map((s) => (
-          <div key={s.label} className="bg-surface px-3 py-2">
+          <div key={s.label} className="bg-raised px-3 py-2.5 transition-colors hover:bg-surface">
             <div className="text-[10.5px] text-caption">{s.label}</div>
-            <div className="num mt-px text-[15px] font-medium text-ink">{s.value}</div>
+            <div className="num mt-px text-[15.5px] font-semibold text-ink">{s.value}</div>
           </div>
         ))}
       </div>
 
       {/* Provenance bar — trust at a glance */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border/60 bg-raised px-3.5 py-2 text-[12px] text-caption">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-border/60 bg-raised px-3.5 py-2 text-[12px] text-caption shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)]">
         <span>
           <Dot color={DEMO_COLORS.teal} pulse />
           Price live · NSE
