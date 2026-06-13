@@ -141,7 +141,7 @@ export default function SectionAnalysts() {
       </div>
 
       <Muted className="mt-3">
-        Aggregated from {BROKERS} broker estimates and shown for context — this is the Street&apos;s view, not
+        Aggregated from {BROKERS}{" "}broker estimates and shown for context — this is the Street&apos;s view, not
         YieldIQ&apos;s. Our own fair value (₹2,010) lands just under the Street mean (₹2,090); both sit above
         today&apos;s ₹1,684.
       </Muted>
