@@ -34,7 +34,7 @@ function isMarketHoursIST(): boolean {
 
 function Skeleton() {
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4">
+    <div className="bg-surface border border-border rounded-2xl p-4 min-h-[260px]">
       <div className="h-4 w-32 bg-border rounded animate-pulse mb-3" />
       {[...Array(5)].map((_, i) => (
         <div key={i} className="h-8 bg-border/60 rounded animate-pulse mb-1.5" />

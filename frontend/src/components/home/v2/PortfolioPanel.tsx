@@ -125,8 +125,10 @@ function Skeleton() {
 
 export default function PortfolioPanel() {
   const token = useAuthStore(s => s.token)
+  // Canonical ["holdings-live"] key, shared with PortfolioQualityCard so
+  // both panels resolve from a single /portfolio/holdings-live request.
   const { data, isLoading } = useQuery({
-    queryKey: ["holdings-live-home-v2"],
+    queryKey: ["holdings-live"],
     queryFn: getHoldingsLive,
     enabled: !!token,
     staleTime: 60 * 1000,
