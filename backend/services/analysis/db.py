@@ -11,6 +11,14 @@ from datetime import datetime
 
 from backend.services.analysis.utils import _fx_multiplier
 
+import logging as _logging
+# Module-level logger. Several helpers (notably `_convert_row_to_inr`)
+# log on the FX path but historically referenced a `_logger` name that
+# was only bound inside *other* functions — a latent NameError masked
+# only because callers swallow exceptions. Bind it at module scope so
+# the FX_SKIP / FX_CONVERT diagnostics actually emit.
+_logger = _logging.getLogger("yieldiq.db")
+
 
 # Track consecutive DB failures. After 3 failures, enter a 60-second
 # cooldown (not 5 minutes — that was too aggressive). This allows
@@ -92,25 +100,91 @@ def _fetch_current_assets(ticker: str) -> float | None:
             pass
 
 
+def _market_cap_cr(ticker: str) -> float | None:
+    """Latest market cap in ₹ crore from MarketMetrics, or None.
+
+    Used by `_convert_row_to_inr` to anchor the USD→INR double-convert
+    guard against a unit that is reliably stored in crore. Defensive:
+    never raises — returns None on any failure so the FX path degrades
+    to the magnitude-only heuristic.
+    """
+    try:
+        db = _get_pipeline_session()
+        if db is None:
+            return None
+        try:
+            from data_pipeline.models import MarketMetrics
+            from sqlalchemy import desc
+            db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+            row = (
+                db.query(MarketMetrics)
+                .filter(MarketMetrics.ticker == db_ticker)
+                .order_by(desc(MarketMetrics.trade_date))
+                .first()
+            )
+            if row is None or row.market_cap_cr is None:
+                return None
+            mc = float(row.market_cap_cr)
+            return mc if mc > 0 else None
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+    except Exception:
+        return None
+
+
+# When converting USD→INR would push revenue ABOVE this multiple of the
+# company's market cap, the row is already INR — applying ×83.5 a second
+# time is the double-convert bug. Rationale: revenue/market-cap (an
+# inverse P/S) is reliably < ~1 for healthy listed firms (TCS 0.34,
+# RELIANCE 0.61, NESTLEIND 0.08; even a genuine USD reporter converts to
+# ~0.35 — INFY). The ×83.5 double-convert pushes this ratio to 15–35
+# (PERSISTENT 15.6, KPITTECH 25.5, HCLTECH 34.8). A threshold of 2.0
+# cleanly separates the two populations with a comfortable margin: no
+# real business sustains revenue above 2× its entire market value.
+_REV_OVER_MCAP_CEILING = 2.0
+
+
 def _convert_row_to_inr(ticker: str, row) -> tuple[float | None, float | None, float | None]:
     """
     Read fcf / revenue / pat off a Financials row and convert to INR
     based on the row's `currency` column.
 
-    IDEMPOTENCY GUARD: our ingestion layers have historically converted
-    USD → INR *before* writing to the Financials table (data/collector.py
-    ::_detect_financial_currency multiplies by APPROX_USD_TO_INR for
-    HCLTECH, INFY etc). If the migration backfill then tagged the same
-    rows as currency='USD', a read-side _fx_multiplier would double-
-    convert, producing fcf_base ≈ 83× real (HCLTECH bug, commit b31a7e9
-    canary showed FV ₹6,073 vs real ~₹1,500).
+    IDEMPOTENCY GUARD (B1 DCF scale-fix, 2026-06-13): our ingestion layer
+    (data/collector.py::_detect_financial_currency) multiplies USD-reporter
+    statement values by APPROX_USD_TO_INR *before* writing to the
+    `financials` table, but leaves the `currency` column tagged 'USD'
+    (the tag records the SOURCE currency, not whether conversion ran).
+    A naive read-side _fx_multiplier therefore double-converts, producing
+    fcf_base ≈ 83.5× real. This is the documented PERSISTENT blow-up
+    (pv_fcfs ≈ ₹9.66 TRILLION on a ₹0.79T company) and the earlier
+    HCLTECH FV ₹6,073-vs-real-₹1,500 case (commit b31a7e9).
 
-    Heuristic: for any large-cap Indian stock, TTM revenue should be
-    at least ₹100 crore (₹1 billion = 1e9). If the raw row value already
-    exceeds that threshold, treat it as already-INR regardless of the
-    currency tag. A genuine USD row would have revenue in the $100M-$10B
-    range (1e8–1e10), whereas an INR-already row for the same company
-    is 83× larger (1e10–1e12). The boundary is clean.
+    The PREVIOUS guard compared raw revenue against 1e10, on the
+    assumption that the table stored ABSOLUTE rupees. It does not — the
+    `financials` table stores revenue/fcf/pat in ₹ CRORE (TCS revenue is
+    stored as 267021, i.e. ₹2.67 lakh crore, NOT 2.67e12). So the old
+    1e10 threshold was ~7 orders of magnitude too high and NEVER fired,
+    leaving every already-converted USD-reporter exposed to the
+    double-convert. That is the B1 root cause.
+
+    New guard — two crore-aware checks, either of which suppresses the
+    second multiply:
+
+      1. Market-cap anchor (primary). market_cap_cr is reliably stored in
+         ₹ crore. If revenue×83.5 would exceed `_REV_OVER_MCAP_CEILING`
+         (2.0) × market cap, the row is already INR — skip FX. This
+         cleanly separates PERSISTENT (rev 14,748 cr / mcap 78,717 cr →
+         already-INR rev/mcap 0.19; ×83.5 would push it to 15.6) from a
+         genuine USD row (INFY rev 2,015 → 0.35× mcap only AFTER ×83.5).
+
+      2. Crore-magnitude fallback (when mcap unavailable). Post-ingest
+         INR-crore revenue for a real listed company is comfortably
+         above ₹5,000 crore for these large/mid-cap USD reporters; a
+         genuine still-USD row is ~83× smaller. Threshold 5,000 (cr)
+         replaces the broken 1e10.
     """
     ccy = getattr(row, "currency", None) or "INR"
     mult = _fx_multiplier(ccy)
@@ -120,14 +194,31 @@ def _convert_row_to_inr(ticker: str, row) -> tuple[float | None, float | None, f
     raw_pat = row.pat
 
     if mult != 1.0:
-        # Idempotency: if revenue is already in ₹-crore magnitude
-        # (> ₹100 crore = 1e9), the ingestion layer already converted.
-        # Do NOT multiply again.
-        _rev_magnitude = float(raw_rev or 0)
-        if _rev_magnitude > 1e10:  # ₹1,000 crore — unmistakably INR-already
+        _rev_cr = float(raw_rev or 0)
+        _already_inr = False
+        _reason = ""
+
+        # Check 1 — market-cap anchor (primary, most robust).
+        _mcap_cr = _market_cap_cr(ticker)
+        if _mcap_cr and _rev_cr > 0:
+            _rev_over_mcap_after_fx = (_rev_cr * mult) / _mcap_cr
+            if _rev_over_mcap_after_fx > _REV_OVER_MCAP_CEILING:
+                _already_inr = True
+                _reason = (
+                    f"mcap-anchor: rev×{mult:.0f}/mcap={_rev_over_mcap_after_fx:.1f} "
+                    f"> {_REV_OVER_MCAP_CEILING:.1f} (mcap={_mcap_cr:.0f}cr) — "
+                    f"revenue cannot exceed market cap by that much"
+                )
+
+        # Check 2 — crore-magnitude fallback (mcap unavailable).
+        if not _already_inr and _mcap_cr is None and _rev_cr > 5_000.0:
+            _already_inr = True
+            _reason = f"crore-magnitude: rev={_rev_cr:.0f}cr > 5,000cr"
+
+        if _already_inr:
             _logger.info(
-                "FX_SKIP: %s tagged %s but revenue=%.2e suggests INR-"
-                "already (double-convert guard)", ticker, ccy, _rev_magnitude,
+                "FX_SKIP: %s tagged %s but %s — treating as INR-already "
+                "(double-convert guard)", ticker, ccy, _reason,
             )
             mult = 1.0
 
