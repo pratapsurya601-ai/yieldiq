@@ -28,6 +28,28 @@ MAX_TERMINAL_GROWTH = 0.04
 IV_HARD_CAP_MULT    = 5.0
 TV_WARNING_PCT      = 0.75
 
+# B1 DCF scale-fix (2026-06-13) — hard PV(FCFs)/market-cap sanity bound.
+# The per-share IV_HARD_CAP_MULT clamp (5× price) MASKS unit/FX defects:
+# when a USD-reporter's FCF is accidentally inflated ~83.5× (PERSISTENT
+# pv_fcfs ≈ ₹9.66 TRILLION on a ₹0.79T company), the enterprise value is
+# garbage but the per-share IV still gets quietly clamped to 5× price and
+# the ticker silently degrades to data_limited — hiding the real cause.
+# This backstop rejects the DCF OUTRIGHT when the present value of the
+# explicit-horizon FCFs (sum_pv_fcfs) exceeds EV_SANITY_MULT × market cap.
+#
+# Calibration (measured on the B1 universe, 2026-06-13): the present
+# value of the explicit 10-year FCF stream lands at 0.03–0.55× market cap
+# for healthy names (NESTLEIND 0.03, RELIANCE 0.34, TCS 0.52, INFY 0.55)
+# and at 14–43× for the documented unit/FX-leak cases (PERSISTENT 14.3,
+# KPITTECH 35.8, HCLTECH 42.8). A multiplier of 10 sits squarely in the
+# ~25× gap between the two populations: it catches every documented
+# garbage case with ~18× margin above the healthiest legitimate DCF,
+# while remaining far above any plausible high-growth valuation (no real
+# business has a 10-year discounted FCF stream worth 10× its entire
+# market value). This is a backstop — the primary fix is the read-path
+# double-convert guard in backend/services/analysis/db.py.
+EV_SANITY_MULT      = 10.0
+
 # In-memory ring buffer of recent DCF traces — one entry per ticker,
 # overwritten on each new DCF call. Exposed via /api/v1/debug/dcf-trace
 # so the last blow-up can be inspected without scraping Railway logs.
@@ -378,10 +400,61 @@ class DCFEngine:
         ev_dict      = self.enterprise_value(projected_fcfs, terminal_fcf_norm)
         equity_value = ev_dict["enterprise_value"] - total_debt + total_cash
 
+        # ── B1 HARD SANITY CLAMP: EV/market-cap bound ────────────────
+        # Backstop for unit/FX defects upstream (USD-as-INR FCF leak).
+        # Resolve a market-cap reference: prefer the explicit param,
+        # else derive from price × shares. Only fires when we actually
+        # have a positive reference to compare against (never penalises
+        # a ticker just because mcap is missing).
+        _mcap_ref = market_cap
+        if not _mcap_ref or _mcap_ref <= 0:
+            if current_price > 0 and shares_outstanding > 0:
+                _mcap_ref = current_price * shares_outstanding
+        _sum_pv_fcfs = ev_dict.get("sum_pv_fcfs", 0.0) or 0.0
+        if _mcap_ref and _mcap_ref > 0 and _sum_pv_fcfs > EV_SANITY_MULT * _mcap_ref:
+            # The explicit-horizon discounted FCF stream alone is worth
+            # >50× the whole company — physically impossible without an
+            # upstream units/FX error. Reject the DCF rather than let the
+            # 5×-price IV cap launder garbage into a plausible-looking FV.
+            _ratio = _sum_pv_fcfs / _mcap_ref
+            self.edge_flags.add_flag(
+                f"❌ DCF rejected: PV(FCFs) ₹{_sum_pv_fcfs:.3e} = {_ratio:.0f}× "
+                f"market cap ₹{_mcap_ref:.3e} (units/FX defect — estimator unavailable)",
+                penalty=60,
+            )
+            log.warning(
+                "[%s] DCF_SCALE_REJECT: sum_pv_fcfs=%.3e > %.0f× mcap=%.3e "
+                "(ratio %.1f) — rejecting DCF, falling back to estimator",
+                ticker, _sum_pv_fcfs, EV_SANITY_MULT, _mcap_ref, _ratio,
+            )
+            try:
+                DCF_TRACES[ticker] = {
+                    "ticker": ticker,
+                    "dcf_scale_rejected": True,
+                    "sum_pv_fcfs": float(_sum_pv_fcfs),
+                    "enterprise_value": float(ev_dict.get("enterprise_value") or 0.0),
+                    "market_cap_ref": float(_mcap_ref),
+                    "ev_over_mcap": round(float(_ratio), 2),
+                    "shares": float(shares_outstanding or 0),
+                    "price": float(current_price or 0.0),
+                    "projected_fcfs": [round(float(x), 2) for x in projected_fcfs[:10]],
+                }
+                log.info("DCF_TRACE %s", DCF_TRACES[ticker])
+            except Exception:
+                pass
+            result = self._build_result(
+                0.0, ticker, suspicious=True,
+                equity_value=equity_value, ev_dict=ev_dict,
+                shares=shares_outstanding, total_debt=total_debt,
+                total_cash=total_cash,
+            )
+            result["dcf_scale_rejected"] = True
+            return result
+
         # Terminal value sanity check
         if ev_dict["tv_pct_of_ev"] > TV_WARNING_PCT:
             self.edge_flags.add_flag(
-                f"⚠️ Terminal Value = {ev_dict['tv_pct_of_ev']:.0%} of EV (highly sensitive)", 
+                f"⚠️ Terminal Value = {ev_dict['tv_pct_of_ev']:.0%} of EV (highly sensitive)",
                 penalty=15
             )
 
