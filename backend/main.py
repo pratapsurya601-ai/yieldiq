@@ -1084,6 +1084,17 @@ app.include_router(public_stats_router.router)
 from backend.routers import calibration as calibration_router
 app.include_router(calibration_router.router)
 
+# Accuracy measurement loop — verdict→forward-return backtest. Reads
+# clean-epoch fair_value_history (date >= v_init_2026_05_22) joined to
+# forward daily_prices at 21/30/90/180d horizons and returns the parity
+# scorecard: per-verdict-band forward returns, direction hit-rates, and
+# the MoS-decile→forward-return calibration curve, overall + per sector.
+# 24h router cache. SEBI-safe (factual metrics + below/near/above_fair_value
+# band names only; low-n buckets flagged).
+#   GET /api/v1/public/backtest-accuracy
+from backend.routers import backtest_accuracy as backtest_accuracy_router
+app.include_router(backtest_accuracy_router.router)
+
 
 @app.get("/health")
 async def health_check():
