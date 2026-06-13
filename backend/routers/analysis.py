@@ -3988,7 +3988,20 @@ async def get_og_data(
                 _suspicious = True
             if _px > 0 and _fv > 0:
                 _r = _fv / _px
-                if _r > 3.0 or _r < 0.1:
+                # Inclusive at the 3.0 boundary (2026-06-13,
+                # fix/prod-forbidden-values). The +200% MoS display clamp
+                # (display_mos → max(-100, min(200, ·))) and the composite
+                # headline-FV cap back-project a headline fair_value of
+                # ~3× cmp for clamped names. Observed on prod: MFSL
+                # 4737.0/1579.0 == EXACTLY 3.0; ITC 855.3/285.1 and LICI
+                # 2490.6/830.2 == 2.9999996 (just *under* 3.0 in float —
+                # they only *round* to 3.000 for display). So `>= 3.0`
+                # catches MFSL; the < 3.0 pair is caught by the mos and
+                # bull-case guards below. With the previous strict `> 3.0`
+                # even the exact-3.0 case slipped past this defense-in-depth
+                # gate and reached the canary as a forbidden_values
+                # violation (fv/cmp outside the [0.35, 2.7] band).
+                if _r >= 3.0 or _r < 0.1:
                     _suspicious = True
             # Reverted from |mos|>=95 → >200 on 2026-05-16. The tighter
             # threshold was added to catch a -100% case, but that case is
@@ -4000,8 +4013,34 @@ async def get_og_data(
             # never applied this gate and was already serving the correct
             # value, so divergence between og-data and stock-summary was
             # entirely produced by this single line.
-            if abs(_mos) > 200:
+            # 2026-06-13 (fix/prod-forbidden-values): inclusive at +200%.
+            # The display clamp pins raw mos for the clamped class on
+            # EXACTLY 200.0 (ITC / LICI / MFSL all surfaced mos == 200.0),
+            # and strict `> 200` let it through to the canary as
+            # |mos| == 200.00% > 150%. `>= 200` catches the clamp ceiling —
+            # this is the bound that catches all three names regardless of
+            # the float-rounding on the ratio above.
+            if abs(_mos) >= 200:
                 _suspicious = True
+            # 2026-06-13 (fix/prod-forbidden-values): headline-FV-exceeds-
+            # bull-scenario guard. A genuine DCF headline FV can never
+            # exceed its own bull-case scenario IV — the headline is the
+            # base/composite read and bull is the optimistic tail. When
+            # fair_value > bull_case, the headline is a clamp / cap
+            # artifact (the +200% mos clamp + composite cap back-project a
+            # headline above every scenario). Verified on prod: ITC
+            # fv=855.3 > bull=780.23, LICI / MFSL likewise. This is the
+            # float-robust discriminator — it does not depend on the
+            # ratio rounding to exactly 3.0 — and it can never fire on a
+            # well-ordered real valuation (headline <= bull).
+            try:
+                _bull = float(
+                    getattr(result.valuation, "bull_case", None) or 0
+                )
+                if _fv > 0 and _bull > 0 and _fv > _bull:
+                    _suspicious = True
+            except (TypeError, ValueError):
+                pass
         except Exception:
             pass
         if _suspicious:
@@ -4193,10 +4232,27 @@ async def get_analysis_preview(ticker: str):
             _suspicious = False
             if _px > 0 and _fv > 0:
                 _r = _fv / _px
-                if _r > 3.0 or _r < 0.1:
+                # Inclusive at the 3.0 boundary — parity with the og-data
+                # gate (2026-06-13, fix/prod-forbidden-values). The +200%
+                # MoS display clamp + composite headline-FV cap produce a
+                # headline fair_value of exactly 3× cmp for clamped names;
+                # strict `> 3.0` let those artifacts through.
+                if _r >= 3.0 or _r < 0.1:
                     _suspicious = True
-            if abs(_mos) > 200:
+            if abs(_mos) >= 200:
                 _suspicious = True
+            # Headline-FV-exceeds-bull-scenario guard — parity with the
+            # og-data gate (2026-06-13, fix/prod-forbidden-values). A real
+            # DCF headline can never exceed its own bull-case IV; when it
+            # does the headline is a clamp/cap artifact.
+            try:
+                _bull = float(
+                    getattr(result.valuation, "bull_case", None) or 0
+                )
+                if _fv > 0 and _bull > 0 and _fv > _bull:
+                    _suspicious = True
+            except (TypeError, ValueError):
+                pass
             if _suspicious:
                 _verdict = "data_limited"
                 _fv = 0.0

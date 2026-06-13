@@ -202,6 +202,74 @@ def test_og_data_suspicious_payload_nulls_scenarios_keeps_ratios():
     assert og["ev_ebitda"] == 14.8
 
 
+# ── Test 4b: exact-boundary clamp artifacts are suppressed ──────
+#
+# Regression lock for fix/prod-forbidden-values (2026-06-13). The
+# +200% MoS display clamp + composite headline-FV cap back-project a
+# headline fair_value of EXACTLY 3× cmp with mos == EXACTLY 200.0 for
+# clamped names (observed on prod for ITC / LICI / MFSL — all at
+# fv/cmp == 3.0000, mos == 200.0, with headline_fv > bull_case, an
+# impossible ordering for a real DCF). The og-data sanity gate must
+# treat these boundary values as suspicious — previously the strict
+# `> 3.0` / `> 200` let them through and they reached the canary as
+# forbidden_values violations on every PR.
+
+
+def test_og_data_ratio_exactly_3x_is_suppressed():
+    # fv/px == 3.0 exactly (MFSL on prod: 4737.0/1579.0 == 3.0). Strict
+    # `> 3.0` served this verbatim; inclusive `>= 3.0` suppresses it.
+    # Keep mos below the 200 ceiling so this isolates the ratio bound.
+    fake = _fake_analysis_response(fv=4737.0, px=1579.0, mos=185.0)
+    og = _call_og(fake)
+    assert og["verdict"] == "data_limited"
+    assert og["fair_value"] == 0.0
+    assert og["mos"] == 0.0
+
+
+def test_og_data_mos_exactly_200_is_suppressed():
+    # |mos| == 200.0 exactly — the display-clamp ceiling that the
+    # ITC/LICI/MFSL clamp class all land on. This is the bound that
+    # catches the whole class: their ratios round to 3.000 for display
+    # but are actually 2.9999996 (< 3.0) in float, so the ratio gate
+    # alone would miss ITC/LICI — the mos boundary is the real catch.
+    # Ratio kept inside (0.1, 3.0) to isolate the mos bound.
+    fake = _fake_analysis_response(fv=2400.0, px=1200.0, mos=200.0)
+    og = _call_og(fake)
+    assert og["verdict"] == "data_limited"
+    assert og["fair_value"] == 0.0
+    assert og["mos"] == 0.0
+
+
+def test_og_data_just_inside_boundary_still_served():
+    # Guard against over-suppression: fv/cmp just under 3.0, |mos| just
+    # under 200, and a well-ordered fv <= bull must remain a real,
+    # served valuation.
+    fake = _fake_analysis_response(
+        fv=2390.0, px=1200.0, mos=99.0, bull=2500.0, base=2000.0,
+    )
+    og = _call_og(fake)
+    assert og["verdict"] == "undervalued"
+    assert og["fair_value"] == 2390.0
+    assert og["mos"] == 99.0
+
+
+def test_og_data_headline_above_bull_is_suppressed():
+    # Headline fair_value > bull_case is impossible for a real DCF —
+    # the clamp/cap class (ITC fv=855.3 > bull=780.23) lands here. This
+    # is the float-robust discriminator that catches the < 3.0-ratio
+    # members of the clamp class (ITC/LICI) regardless of ratio rounding.
+    # Ratio (855.3/285.1 ≈ 2.9999996) and mos (185) both kept inside the
+    # other two bounds so this isolates the bull-case guard.
+    fake = _fake_analysis_response(
+        fv=855.3, px=285.1, mos=185.0,
+        bear=367.3, base=655.65, bull=780.23,
+    )
+    og = _call_og(fake)
+    assert og["verdict"] == "data_limited"
+    assert og["fair_value"] == 0.0
+    assert og["mos"] == 0.0
+
+
 # ── Test 5: canary field-name compatibility ─────────────────────
 #
 # scripts/canary_diff.py:extract_fields reads bear_case / base_case /

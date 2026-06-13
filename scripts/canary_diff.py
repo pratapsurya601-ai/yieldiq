@@ -307,6 +307,25 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
     "MSUMI":      {"fv_cmp_min_override": 0.30},
     "TIMKEN":     {"fv_cmp_min_override": 0.25},
     "MEDANTA":    {"fv_cmp_min_override": 0.20},
+    # 2026-06-13 (fix/prod-forbidden-values): two premium-multiple names
+    # whose legitimate, internally-consistent DCF reads land just below
+    # the 0.35 floor and recur on every PR's forbidden_values gate. Both
+    # verified against prod og-data: overvalued verdict, ordered
+    # bear<base<bull scenarios, headline fv == base_case, mos consistent
+    # with the ratio (NOT a clamp artifact — the 3×/200% clamp class is
+    # fixed at source in backend/routers/analysis.py). These are genuine
+    # "market pays a multiple no DCF will justify" reads, same class as
+    # MOTHERSON / BERGEPAINT above. Floor lowered to 0.30 so the gate
+    # still catches catastrophic engine breakage (fv/cmp < 0.30) while
+    # not firing on these.
+    #   SAPPHIRE (Sapphire Foods — QSR franchisee, Pizza Hut/KFC):
+    #     fv≈55.99 / cmp≈169.25, fv/cmp≈0.331, mos≈-66.9%. High QSR
+    #     consumer-discretionary multiple vs conservative DCF.
+    #   ENDURANCE (Endurance Technologies — premium auto-ancillary):
+    #     fv≈830.73 / cmp≈2502.6, fv/cmp≈0.332, mos≈-66.8%. Premium
+    #     auto-component multiple vs conservative DCF.
+    "SAPPHIRE":   {"fv_cmp_min_override": 0.30},
+    "ENDURANCE":  {"fv_cmp_min_override": 0.30},
     # NATCOPHARM trades at a *premium* to DCF — fv/cmp=2.707 is just
     # over the symmetric 2.7 ceiling. Engine output is correct; market
     # discount on the pharma-export generic cohort hasn't compressed.
