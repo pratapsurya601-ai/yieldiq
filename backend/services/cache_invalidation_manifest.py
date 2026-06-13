@@ -502,6 +502,76 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # NULL-CAGR DATA-LIMITED FIX (2026-06-13) — the single largest
+        # non-gap cause of the "limited data" verdict was the null-CAGR
+        # gate (analysis/service.py FIX 1): any non-financial,
+        # non-bellwether ticker whose income_df was too short to yield
+        # a 3y OR 5y revenue growth figure was forced to data_limited —
+        # even when the financials DB held >=3 years of genuine annual
+        # revenue and the model had produced a complete scenario
+        # triangle. The income_df was only as deep as whatever source
+        # served the ticker (local-DB LIMIT-5, or a yfinance income
+        # statement that for thin-coverage mid-caps was often just a
+        # TTM row).
+        #
+        # FIX: backend/services/analysis/db._fetch_annual_revenue_series
+        # loads a DE-DUPED annual revenue series from
+        # v_financials_unified (migration 076), which emits exactly one
+        # reconciled row per (ticker, fiscal_year) and already collapses
+        # the cf_has_duplicate_fy / cf_is_corrupt cohort (e.g. AARTIIND's
+        # duplicate FY2023 & FY2024 rows). service.py uses it as an
+        # ADDITIVE fallback that can only FILL a missing growth figure,
+        # never overwrite one income_df already produced. The flip off
+        # data_limited is gated on a soundness check: the scenario
+        # triangle must be complete AND fair value / price must sit in
+        # [0.1, 3.5]. Genuinely-thin nano-caps (no annual history in the
+        # view) get an empty series back, keep null growth, and STAY
+        # data_limited. The ±80% growth-artifact clamp still nulls out
+        # any mixed-unit / restructuring distortion.
+        #
+        # The 33 tickers in scope below are the names whose verdict flips
+        # off data_limited as a result (computed by running the gate
+        # logic over the non-gap data_limited cohort). fields=["*"]
+        # because the verdict flip changes the full headline payload
+        # (verdict, fair value display, growth panel) for these names.
+        "version_id": "v_null_cagr_db_fallback_2026_06_13",
+        "title_public": (
+            "Revenue-growth history recomputed from reconciled "
+            "financials, lifting the limited-data flag for mid-caps"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "AGROPHOS", "ANSALAPI", "ASIANENE", "CINEVISTA",
+                "CONSOFINVT", "DEEDEV", "EIEL", "GENUSPOWER",
+                "HEADSUP", "IBULLSLTD", "KAUSHALYA", "KERNEX",
+                "KRISHANA", "LIBAS", "LPDC", "MADRASFERT", "MCX",
+                "MICEL", "MOKSH", "MORARJEE", "NILASPACES",
+                "OILCOUNTUB", "OMKARCHEM", "SIGMAADV", "SOMATEX",
+                "SPARC", "SUPERSPIN", "TIL", "TREJHARA", "TSFINV",
+                "ULTRACEMCO", "UNIENTER", "WEBELSOLAR",
+            ],
+            "fields": ["*"],
+        },
+        "rationale": (
+            "Null-CAGR limited-data fix. The analysis path now backfills "
+            "a missing 3y/5y revenue-growth figure from "
+            "v_financials_unified — the reconciliation view that emits "
+            "one de-duped annual row per fiscal year and collapses the "
+            "duplicate-FY / corrupt-FY cohort — instead of leaving it "
+            "null whenever the in-memory income statement was too short. "
+            "With a growth figure now computable, the engine lifts the "
+            "limited-data flag for these names, but only when the model "
+            "is sound: a complete scenario triangle and a fair-value / "
+            "price ratio within [0.1, 3.5]. Thin nano-caps with no "
+            "annual history in the view keep a null growth figure and "
+            "remain limited-data. The growth math itself and the ±80% "
+            "artifact clamp are unchanged; only the input series source "
+            "(and therefore the limited-data flag) changes for the 33 "
+            "tickers in scope."
+        ),
+    },
+    {
         # P0 ENGINE BUG (2026-06-11) — Composite Composition panel for
         # banks (HDFCBANK et al.) was reading "2 of 7 estimators
         # populated · MINIMAL confidence" because:
