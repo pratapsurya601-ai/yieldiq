@@ -165,14 +165,17 @@ def iter_scheme_master_rows(text: str) -> Iterator[dict]:
             }
 
 
+# Batched via psycopg2.extras.execute_values: the VALUES list is filled
+# in with one row-group per scheme, so the whole ~14k-row master lands in
+# a handful of multi-row INSERTs instead of 14k single-row round-trips.
+# (The row-by-row executemany this replaced blew the workflow's
+# 15-minute timeout against the remote DB — the weekly cron was being
+# cancelled mid-run, so the master never refreshed.)
 UPSERT_SQL = """
 INSERT INTO funds (
     scheme_code, isin_growth, isin_div, scheme_name, amc,
     category, plan, option, is_active, updated_at
-) VALUES (
-    %(scheme_code)s, %(isin_growth)s, %(isin_div)s, %(scheme_name)s, %(amc)s,
-    %(category)s, %(plan)s, %(option)s, TRUE, now()
-)
+) VALUES %s
 ON CONFLICT (scheme_code) DO UPDATE SET
     isin_growth = COALESCE(EXCLUDED.isin_growth, funds.isin_growth),
     isin_div    = COALESCE(EXCLUDED.isin_div,    funds.isin_div),
@@ -184,6 +187,13 @@ ON CONFLICT (scheme_code) DO UPDATE SET
     is_active   = TRUE,
     updated_at  = now()
 """
+
+# Per-row template for execute_values. Named placeholders match the dict
+# rows from iter_scheme_master_rows; TRUE / now() are per-row literals.
+UPSERT_TEMPLATE = (
+    "(%(scheme_code)s, %(isin_growth)s, %(isin_div)s, %(scheme_name)s, "
+    "%(amc)s, %(category)s, %(plan)s, %(option)s, TRUE, now())"
+)
 
 # Schemes that were active last run but are absent this run get soft-
 # deactivated. The historical NAV partitions are NOT touched — they
@@ -197,17 +207,41 @@ UPDATE funds
 """
 
 
+def _dedupe_last_by_scheme_code(rows: list[dict]) -> list[dict]:
+    """Keep one row per scheme_code, last occurrence wins.
+
+    scheme_code is AMFI's primary key so duplicates are not expected — but
+    a single multi-row VALUES batch with ON CONFLICT DO UPDATE raises
+    "cannot affect row a second time" if the same code appears twice in
+    one page. Deduping makes the batched upsert robust to a malformed
+    feed while preserving the per-row path's last-write-wins behaviour.
+    """
+    by_code: dict[str, dict] = {}
+    for r in rows:
+        by_code[r["scheme_code"]] = r
+    return list(by_code.values())
+
+
 def upsert_funds(rows: Iterable[dict], conn) -> tuple[int, int]:
     """Upsert each row to funds, then soft-deactivate missing schemes.
 
     Returns (upserted_count, deactivated_count).
     """
-    rows = list(rows)
+    rows = _dedupe_last_by_scheme_code(list(rows))
     if not rows:
         return (0, 0)
-    active_codes = tuple({r["scheme_code"] for r in rows})
+    # Lazy import so the parse-only path (and tests that import
+    # iter_scheme_master_rows) don't require psycopg2 to be installed.
+    from psycopg2.extras import execute_values
+
+    active_codes = tuple(r["scheme_code"] for r in rows)
     with conn.cursor() as cur:
-        cur.executemany(UPSERT_SQL, rows)
+        # Batched multi-row upsert — see UPSERT_SQL for why this replaced
+        # the row-by-row executemany (15-min workflow timeout).
+        execute_values(
+            cur, UPSERT_SQL, rows,
+            template=UPSERT_TEMPLATE, page_size=1000,
+        )
         # NOT IN () is a syntax error in psycopg2 if the tuple is
         # empty — guarded above by the rows-empty early return.
         cur.execute(SOFT_DEACTIVATE_SQL, {"active_codes": active_codes})
