@@ -20,13 +20,19 @@
 # ─────────────────────────────────────────────────────────────────
 # Quarantine awareness
 # ─────────────────────────────────────────────────────────────────
-# fair_value_history carries a `quarantine_reason` column populated
-# by the at-rest gate (backend.services.fair_value_history_gate).
-# Rows with quarantine_reason IS NOT NULL are pre-manifest-epoch or
-# step-unverified rows that should NEVER be projected onto a public
-# accuracy claim. The SQL filter rejects them by construction —
-# `WHERE quarantine_reason IS NULL` — and the meta block documents
-# this so the consumer page can name the policy.
+# Pre-manifest-epoch and write-gate-rejected rows must NEVER be
+# projected onto a public accuracy claim. The exclusion contract is
+# enforced by whichever mechanisms exist on the live schema:
+#   * an unconditional date floor (date >= v_init_2026_05_22 epoch),
+#   * the at-rest `quarantine_reason` marker column when present
+#     (migration 202606031123; absent on prod as of 2026-06-13), and
+#   * an anti-join against the sibling `fair_value_history_quarantine`
+#     table when it exists (migration 202606111430).
+# The SQL provider probes information_schema / to_regclass and only
+# references the optional column / table when they are present — so a
+# DB on which the superset migration never ran still serves a correct
+# (non-empty) payload rather than erroring into a blank page. The meta
+# block documents this so the consumer page can name the policy.
 #
 # ─────────────────────────────────────────────────────────────────
 # SEBI vocabulary
@@ -298,6 +304,31 @@ def _default_data_provider(lookback_days: int) -> list[dict]:
 
     sess = Session()
     try:
+        # ── Quarantine-exclusion contract (schema-robust) ─────────────
+        # The quarantine epoch is enforced in prod by TWO mechanisms,
+        # only one of which is guaranteed to exist on a given DB:
+        #
+        #   1. DATE FLOOR — rows dated before the manifest epoch
+        #      (v_init_2026_05_22) are pre-epoch and never servable.
+        #      Always applied below.
+        #
+        #   2. fair_value_history.quarantine_reason — an at-rest marker
+        #      column added by migration 202606031123_fair_value_history_
+        #      superset.sql. That migration has NOT been applied on every
+        #      environment (prod, as of 2026-06-13, has no such column).
+        #      Referencing it unconditionally makes the whole query throw,
+        #      and the except-wrapper below then silently returns [] — so
+        #      the public /calibration page serves a blank payload. We
+        #      therefore PROBE information_schema first and only AND the
+        #      predicate when the column is present (mirrors the
+        #      column-probe in services/data_quality/db_loaders.py).
+        #
+        #   3. fair_value_history_quarantine — a SEPARATE sibling table
+        #      (migration 202606111430) holding write-gate-rejected rows
+        #      (daily |Δ| > 25% without corroboration). When it exists we
+        #      anti-join it out by (ticker, date). Guarded by to_regclass
+        #      so a DB without the table still works.
+        #
         # The publish-side price is fair_value_history.price (the price
         # the engine saw at publish time). The forward-side price is the
         # most-recent daily_prices.close on or before publish_date + 90d
@@ -308,10 +339,51 @@ def _default_data_provider(lookback_days: int) -> list[dict]:
         # bare ("TCS") or .NS-suffixed ("TCS.NS") in fair_value_history
         # depending on the write path — we normalise to bare for the
         # JOIN against stocks.
-        #
-        # quarantine_reason filter is the contract — any non-null reason
-        # marks the row as not-servable for public claims.
-        sql = """
+
+        # Probe: which optional quarantine artifacts exist on THIS db?
+        try:
+            has_qr_col = bool(
+                sess.execute(
+                    text(
+                        """
+                        SELECT 1
+                          FROM information_schema.columns
+                         WHERE table_name = 'fair_value_history'
+                           AND column_name = 'quarantine_reason'
+                         LIMIT 1
+                        """
+                    )
+                ).first()
+            )
+        except Exception:
+            has_qr_col = False
+        try:
+            has_q_table = (
+                sess.execute(
+                    text("SELECT to_regclass('public.fair_value_history_quarantine')")
+                ).scalar()
+                is not None
+            )
+        except Exception:
+            has_q_table = False
+
+        # Build the quarantine predicate from only the mechanisms that
+        # exist on this schema. The date floor is unconditional.
+        quarantine_col_clause = (
+            "AND fvh.quarantine_reason IS NULL\n" if has_qr_col else ""
+        )
+        quarantine_table_clause = (
+            """AND NOT EXISTS (
+                      SELECT 1 FROM fair_value_history_quarantine q
+                       WHERE q.ticker = fvh.ticker
+                         AND q.date = fvh.date
+                  )
+                  """
+            if has_q_table
+            else ""
+        )
+
+        sql = f"""
             WITH fv_publish AS (
                 SELECT
                     UPPER(REPLACE(REPLACE(fvh.ticker, '.NS', ''), '.BO', '')) AS bare_ticker,
@@ -320,9 +392,9 @@ def _default_data_provider(lookback_days: int) -> list[dict]:
                     fvh.price AS publish_price,
                     fvh.mos_pct
                 FROM fair_value_history fvh
-                WHERE fvh.quarantine_reason IS NULL
-                  AND fvh.date >= (CURRENT_DATE - (:lookback_days || ' days')::interval)::date
-                  AND fvh.fair_value IS NOT NULL
+                WHERE fvh.date >= (CURRENT_DATE - (:lookback_days || ' days')::interval)::date
+                  AND fvh.date >= DATE '2026-05-22'
+                  {quarantine_col_clause}{quarantine_table_clause}AND fvh.fair_value IS NOT NULL
                   AND fvh.price IS NOT NULL
                   AND fvh.price > 0
             ),
@@ -454,9 +526,11 @@ def compute_sector_calibration(
 # ─────────────────────────────────────────────────────────────────
 QUARANTINE_POLICY_TEXT = (
     "Pre-manifest-epoch rows (fair_value_history.date before "
-    "2026-05-22) and step-unverified rows are excluded by the "
-    "at-rest quarantine gate. Only rows with quarantine_reason IS "
-    "NULL contribute to the published stats."
+    "2026-05-22) are excluded by a date floor, and write-gate-rejected "
+    "rows captured in the fair_value_history_quarantine table are "
+    "anti-joined out. Where the at-rest quarantine_reason marker "
+    "column exists, only rows with quarantine_reason IS NULL contribute "
+    "to the published stats."
 )
 
 
