@@ -71,6 +71,23 @@ function fmtPlain(v: number | null | undefined): string {
   return v.toFixed(2)
 }
 
+// Scheme trailing return for display, in PERCENT. The API stores returns
+// as decimal fractions (ret_3y=0.77 ⇒ 77% cumulative), so we must ×100 —
+// the previous code fed the raw fraction straight into fmtPct, rendering
+// 0.0494 as "0.05%" (a 100× understatement) on every fund page. For
+// windows ≥ 3y we annualize to CAGR using the same method as the
+// benchmark row (`benchmarkReturnPct`), so the caption ("CAGR for 3y+")
+// is honest and Scheme/Benchmark/Excess are apples-to-apples. 1Y is
+// absolute; SI is handled separately (cumulative since first NAV).
+function schemeReturnPct(
+  retFraction: number | null | undefined,
+  years: number,
+): number | null {
+  if (retFraction == null || !Number.isFinite(retFraction)) return null
+  if (years <= 1) return retFraction * 100
+  return (Math.pow(1 + retFraction, 1 / years) - 1) * 100
+}
+
 function inceptionYear(d: string | null | undefined): string {
   if (!d) return DASH
   const m = /^(\d{4})/.exec(d)
@@ -109,6 +126,18 @@ function navReturnSI(navHist: FundNavPoint[]): number | null {
   const last = navHist[navHist.length - 1].nav
   if (!first) return null
   return ((last / first) - 1) * 100
+}
+
+// Benchmark SI as CUMULATIVE total return (not annualized) so it sits on
+// the same basis as the scheme's ret_si, keeping the Excess SI cell
+// meaningful. Returns null when the TRI series is absent (most schemes →
+// em-dash, which is honest). Percent.
+function benchmarkReturnSICum(benchHist: FundBenchmarkPoint[]): number | null {
+  if (benchHist.length < 2) return null
+  const first = benchHist[0]
+  const last = benchHist[benchHist.length - 1]
+  if (!first || !last || first.tri_value === 0) return null
+  return (last.tri_value / first.tri_value - 1) * 100
 }
 
 function excess(scheme: number | null, bench: number | null): number | null {
@@ -182,19 +211,23 @@ function ReturnsTable({
   benchHist: FundBenchmarkPoint[]
   navHist: FundNavPoint[]
 }) {
+  // 1Y absolute; 3Y/5Y/10Y annualized to CAGR; SI cumulative since first
+  // NAV. All converted from decimal fractions to percent.
   const schemeRow = [
-    metrics?.ret_1y ?? null,
-    metrics?.ret_3y ?? null,
-    metrics?.ret_5y ?? null,
-    metrics?.ret_10y ?? null,
-    metrics?.ret_si ?? null,
+    schemeReturnPct(metrics?.ret_1y, 1),
+    schemeReturnPct(metrics?.ret_3y, 3),
+    schemeReturnPct(metrics?.ret_5y, 5),
+    schemeReturnPct(metrics?.ret_10y, 10),
+    metrics?.ret_si != null && Number.isFinite(metrics.ret_si)
+      ? metrics.ret_si * 100
+      : null,
   ]
   const benchRow = [
     benchmarkReturnPct(benchHist, 1),
     benchmarkReturnPct(benchHist, 3),
     benchmarkReturnPct(benchHist, 5),
     benchmarkReturnPct(benchHist, 10),
-    benchmarkReturnPct(benchHist, Math.max(1, Math.floor(navHist.length / 12))),
+    benchmarkReturnSICum(benchHist),
   ]
   // SI excess uses scheme SI return when present, otherwise derive from
   // NAV series so the row is still meaningful pre-Phase-2.
@@ -265,9 +298,10 @@ function ReturnsTable({
         </table>
       </div>
       <p className="mt-2 text-xs text-caption">
-        Trailing returns are CAGR for windows of 3 years or more, absolute for 1Y.
-        Benchmark returns derived from the scheme&apos;s mandated TRI index.
-        SI = since inception.
+        Trailing returns are annualized (CAGR) for 3Y / 5Y / 10Y and absolute
+        for 1Y. SI is total return since the first available NAV. Benchmark
+        returns are derived from the scheme&apos;s mandated TRI index where
+        available.
       </p>
     </section>
   )
