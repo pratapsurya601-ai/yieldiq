@@ -87,14 +87,25 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
       "Price is what you pay, value is what you get. The gap between price and fair value is the margin of safety.",
   },
   mos: {
-    title: "Discount to FV",
+    title: "Implied upside",
     oneLine:
-      "How much of a discount (or premium) the current price offers versus our fair-value estimate.",
+      "How far the current price sits below (or above) our fair-value estimate, expressed as a percentage of the current price.",
     // Fixed 2026-04-25: was "÷ Fair Value", backend has always
     // computed "÷ Current Price". See docs/FORMULA_SOURCE_OF_TRUTH.md.
+    // NOTE: this is the IMPLIED UPSIDE (price → fair value), shown as a
+    // secondary line. The headline "Margin of Safety" uses `true_mos`
+    // below ((1 − price/FV)), per the 2026-06-14 rollout.
     formula: "(Fair Value − Current Price) ÷ Current Price × 100",
     good:
-      "Above +30% is a deep discount to model fair value, +10-30% is a moderate discount, -10% to +10% is roughly at model fair value, below -20% is well above model fair value. Benjamin Graham documented a ~33% discount-to-FV threshold in The Intelligent Investor as the historical hurdle for value-investing methodology.",
+      "The implied move from today's price to our model fair value — distinct from the Margin of Safety, which divides by fair value rather than price. A +50% implied upside corresponds to a ~33% margin of safety. Treat it as a centre of gravity, not a precise number.",
+  },
+  true_mos: {
+    title: "Margin of Safety",
+    oneLine:
+      "The cushion between the current price and our fair-value estimate, as a percentage of fair value — Benjamin Graham's margin of safety.",
+    formula: "(1 − Current Price ÷ Fair Value) × 100",
+    good:
+      "Above +30% is a wide margin of safety, +10-30% is moderate, -10% to +10% is roughly at model fair value, below -10% means the price sits above our fair-value estimate. Naturally bounded at +100%. Graham documented a ~33% margin of safety in The Intelligent Investor as the historical hurdle for value-investing methodology.",
   },
   bear_case: {
     title: "Bear Case",

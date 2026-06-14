@@ -84,8 +84,23 @@ export interface HeroSignals {
   headlineFairValueMethod: "composite" | "dcf" | null
   /** Whether the headline FV is sitting at the +/-200% display clamp. */
   fairValueClamped: boolean
-  /** Signed discount-to-FV percent (MoS), clamped to the backend's display range. Null when unreliable. */
+  /**
+   * Implied upside % = (FV − price) / price × 100 (the backend
+   * `margin_of_safety` field). Clamped to the backend's display range,
+   * null when unreliable. NOTE: this is the IMPLIED UPSIDE, NOT the
+   * margin of safety — surfaces label it "Implied upside" and read
+   * `trueMos` below for the headline "Margin of Safety".
+   */
   discount: number | null
+  /**
+   * TRUE (Buffett) Margin of Safety % = (1 − price / headlineFV) × 100
+   * — the cushion below fair value, naturally bounded at +100%. This is
+   * the headline "Margin of Safety" value (2026-06-14 rollout). Derived
+   * from the canonical `headlineFairValue` + current price so it stays
+   * defined even when the backend suppresses the extreme upside-% field.
+   * Null when FV or price is missing / non-positive or data-limited.
+   */
+  trueMos: number | null
   /** Worry-Index tier label (sleep_well / normal / watch_closely / read_bears / significant_concerns). */
   worry: WorryTier | null
   /** Composite 0-100 score (yieldiq_score). */
@@ -231,6 +246,19 @@ export function resolveHeroSignals(
       ? v.margin_of_safety
       : null
 
+  // TRUE (Buffett) Margin of Safety = (1 − price / headlineFV) × 100.
+  // Derived from the canonical headline FV + current price so it remains
+  // defined even when the backend suppresses the extreme upside-% field
+  // (mos_is_extreme nulls `margin_of_safety` for FV > 1.8× price names).
+  const trueMos =
+    !dataLimited &&
+    headlineFairValue != null &&
+    headlineFairValue > 0 &&
+    Number.isFinite(v.current_price) &&
+    v.current_price > 0
+      ? (1 - v.current_price / headlineFairValue) * 100
+      : null
+
   // Refraction lives on the Prism payload (not AnalysisResponse). Until
   // we thread a "compactRefraction" off Prism into this hook, leave it
   // null and let the side rail read from prismResolved directly when it
@@ -254,6 +282,7 @@ export function resolveHeroSignals(
     headlineFairValueMethod,
     fairValueClamped,
     discount,
+    trueMos,
     worry: (w?.tier as WorryTier | undefined) ?? null,
     score: Number.isFinite(q.yieldiq_score) ? q.yieldiq_score : null,
     grade: q.grade ?? null,
@@ -276,6 +305,7 @@ const EMPTY: HeroSignals = {
   headlineFairValueMethod: null,
   fairValueClamped: false,
   discount: null,
+  trueMos: null,
   worry: null,
   score: null,
   grade: null,
