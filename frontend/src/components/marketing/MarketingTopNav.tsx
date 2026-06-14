@@ -147,8 +147,15 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
           })}
         </div>
 
-        {/* Right-side actions — auth-aware */}
-        <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+        {/* Right-side actions — auth-aware. `min-h-8` reserves the
+            32px height of the logged-in account button (h-8) from first
+            paint: `token` is falsy on the first client render (auth
+            resolves in an effect), so this cluster would otherwise grow
+            ~24px → 32px when the account menu mounts, making the header
+            taller and nudging the whole page down ~4px. A Chrome trace
+            on /home pinned that nudge as the dominant CLS source
+            (CLS 0.29). Reserving the height keeps the row stable. */}
+        <div className="hidden md:flex items-center gap-3 flex-shrink-0 min-h-8">
           {token ? (
             <>
               {tier === "free" && dailyLimit !== null && (
