@@ -72,9 +72,17 @@ class SectorCalibrationStat:
     median_abs_error_pct: float   # median |FV - price| / price * 100
     median_signed_error_pct: float  # median (FV - price) / price * 100
     p90_abs_error_pct: float      # 90th percentile of |error|
-    direction_accuracy_pct: float  # % of obs where verdict matched
-                                   # 90-day forward price direction
+    # % of obs where verdict matched the 90-day forward price direction.
+    # None — NOT 0.0 — when no observation has a matured 90-day forward
+    # price yet. Emitting 0.0 in that case reads as "0% accurate" on the
+    # public page, which is a false (and self-damaging) claim; null lets
+    # the consumer render "not yet measurable". The forward window cannot
+    # mature until ~90 days after the quarantine epoch (2026-05-22).
+    direction_accuracy_pct: Optional[float]
     last_observation_date: str    # ISO YYYY-MM-DD
+    # Count of observations that HAD a matured forward price (the
+    # denominator behind direction_accuracy_pct). 0 ⇒ not yet measurable.
+    direction_observation_count: int = 0
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -252,10 +260,12 @@ def _aggregate_sector(
     median_signed = _median(signed_errs) or 0.0
     p90_abs = _percentile(abs_errs, 90.0) or 0.0
 
-    direction_pct = (
+    # None (not 0.0) when no observation matured a 90-day forward price —
+    # see the dataclass field note. 0.0 would publish a false "0% accurate".
+    direction_pct: Optional[float] = (
         round((direction_hits / direction_total) * 100.0, 1)
         if direction_total > 0
-        else 0.0
+        else None
     )
 
     return SectorCalibrationStat(
@@ -267,6 +277,7 @@ def _aggregate_sector(
         p90_abs_error_pct=round(p90_abs, 2),
         direction_accuracy_pct=direction_pct,
         last_observation_date=last_dt or "",
+        direction_observation_count=direction_total,
     )
 
 

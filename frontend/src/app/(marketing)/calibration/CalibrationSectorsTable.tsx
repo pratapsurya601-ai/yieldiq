@@ -22,7 +22,10 @@ type SectorStat = {
   median_abs_error_pct: number
   median_signed_error_pct: number
   p90_abs_error_pct: number
-  direction_accuracy_pct: number
+  // null when no observation has matured a 90-day forward price yet
+  // (the first cohort matures ~90 days after the 2026-05-22 epoch).
+  direction_accuracy_pct: number | null
+  direction_observation_count?: number
   last_observation_date: string
 }
 
@@ -118,7 +121,17 @@ export default function CalibrationSectorsTable({
                   {fmtPct(s.p90_abs_error_pct)}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-[color:var(--color-ink)]">
-                  {fmtPct(s.direction_accuracy_pct)}
+                  {s.direction_accuracy_pct === null ||
+                  s.direction_accuracy_pct === undefined ? (
+                    <span
+                      className="text-xs not-italic text-[color:var(--color-caption)]"
+                      title="Needs a 90-day-matured forward price; the first cohort matures ~90 days after the 2026-05-22 backtest epoch."
+                    >
+                      Not yet measurable
+                    </span>
+                  ) : (
+                    fmtPct(s.direction_accuracy_pct)
+                  )}
                 </td>
               </tr>
             )
