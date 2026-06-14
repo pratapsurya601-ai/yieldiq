@@ -73,6 +73,17 @@ def list_annual_reports(
     t = ticker.strip().upper()
     if not t:
         return []
+    # Suffix-tolerant matching: company_annual_reports stores the BARE
+    # ticker ("RELIANCE") while callers pass the .NS-suffixed form
+    # ("RELIANCE.NS"), so an exact `ticker = %s` match returned [] for
+    # every NSE name. Strip .NS/.BO and match the bare + both suffixed
+    # forms — identical to get_latest_signals_for_ticker in
+    # backend/routers/annual_reports.py (the AR-signals endpoint).
+    bare = t
+    for suffix in (".NS", ".BO"):
+        if bare.endswith(suffix):
+            bare = bare[: -len(suffix)]
+            break
 
     owns_conn = False
     if conn is None:
@@ -90,11 +101,11 @@ def list_annual_reports(
                 """
                 SELECT fiscal_year, published_at, ar_url
                   FROM company_annual_reports
-                 WHERE ticker = %s
+                 WHERE ticker IN (%s, %s, %s)
                  ORDER BY fiscal_year DESC
                  LIMIT %s
                 """,
-                (t, limit),
+                (bare, f"{bare}.NS", f"{bare}.BO", limit),
             )
             rows = cur.fetchall() or []
     except Exception as exc:

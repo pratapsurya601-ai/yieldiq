@@ -251,12 +251,15 @@ class TestDirectionAccuracy:
             data_provider=_make_provider(rows),
         )
         assert result[0].direction_accuracy_pct == 50.0
+        # All 30 rows matured a forward price → they form the denominator.
+        assert result[0].direction_observation_count == 30
 
-    def test_no_forward_price_means_zero_direction_pct(self):
-        # When NO row carries a forward_price, direction_accuracy_pct
-        # is zero (no observation could be evaluated). The publisher
-        # documents this as the empty-direction default rather than
-        # emitting a confusing null.
+    def test_no_forward_price_means_null_direction_pct(self):
+        # When NO row carries a forward_price, direction_accuracy_pct is
+        # None (not 0.0). 0.0 published a false "0% accurate" on the public
+        # /calibration page; null lets the consumer render "not yet
+        # measurable". direction_observation_count carries the (zero)
+        # denominator so the page can show why.
         rows = [
             _row("S", f"T{i}",
                  fair_value=110.0, price=100.0, forward_price=None,
@@ -267,7 +270,10 @@ class TestDirectionAccuracy:
             min_observations=30,
             data_provider=_make_provider(rows),
         )
-        assert result[0].direction_accuracy_pct == 0.0
+        assert result[0].direction_accuracy_pct is None
+        assert result[0].direction_observation_count == 0
+        # Error stats are still computed — only direction is unmeasurable.
+        assert result[0].observation_count == 30
 
 
 # ═════════════════════════════════════════════════════════════════
