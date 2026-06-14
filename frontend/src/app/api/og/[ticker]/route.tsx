@@ -29,10 +29,17 @@ interface OgData {
   fair_value?: number
   price?: number
   mos?: number
+  buffett_mos_pct?: number
   score?: number
   verdict?: string
   moat?: string
   description?: string
+}
+
+/** Compute true (Buffett) MoS = (1 - price/fv)*100.  Returns null when inputs are missing/invalid. */
+function computeTrueMos(fairValue: number | null | undefined, price: number | null | undefined): number | null {
+  if (!fairValue || fairValue <= 0 || !price || price <= 0) return null
+  return (1 - price / fairValue) * 100
 }
 
 // SEBI-safe verdict labels: descriptive, never imperative.
@@ -115,6 +122,13 @@ export async function GET(
   const mos = ogData.mos ?? 0
   const score = Math.max(0, Math.min(100, Math.round(ogData.score ?? 0)))
 
+  // True (Buffett) MoS = (1 - price/fv)*100.
+  // Prefer backend-supplied buffett_mos_pct when present, else derive locally.
+  const rawTrueMos: number | null =
+    ogData.buffett_mos_pct !== undefined && ogData.buffett_mos_pct !== null
+      ? ogData.buffett_mos_pct
+      : computeTrueMos(fairValueNum, priceNum)
+
   // data_limited / unavailable / FV<=0 => render "Under Review" with em dashes
   // for the valuation fields. Price can still show if we have one.
   const isUnderReview =
@@ -133,14 +147,22 @@ export async function GET(
 
   const fairValue = isUnderReview ? "\u2014" : fmtPrice(fairValueNum)
   const price = fmtPrice(priceNum)
-  const mosText = isUnderReview
+
+  // True MoS headline (Margin of Safety column)
+  const trueMos = isUnderReview || rawTrueMos === null ? null : rawTrueMos
+  const trueMosText = trueMos === null
     ? "\u2014"
-    : `${mos >= 0 ? "+" : ""}${mos.toFixed(1)}%`
-  const mosColor = isUnderReview
+    : `${trueMos >= 0 ? "+" : ""}${trueMos.toFixed(1)}%`
+  const trueMosColor = trueMos === null
     ? "#94A3B8"
-    : mos >= 0
+    : trueMos >= 0
       ? "#10B981"
       : "#EF4444"
+
+  // Implied upside (secondary, smaller label below the headline value)
+  const impliedUpsideText = isUnderReview
+    ? "\u2014"
+    : `${mos >= 0 ? "+" : ""}${mos.toFixed(1)}%`
 
   const ringColor = scoreRingColor(score)
 
@@ -442,18 +464,28 @@ export async function GET(
                   display: "flex",
                 }}
               >
-                Discount to FV
+                Margin of Safety
               </span>
               <span
                 style={{
-                  color: mosColor,
+                  color: trueMosColor,
                   fontSize: 38,
                   fontWeight: 800,
                   marginTop: 6,
                   display: "flex",
                 }}
               >
-                {mosText}
+                {trueMosText}
+              </span>
+              <span
+                style={{
+                  color: "#64748B",
+                  fontSize: 12,
+                  marginTop: 2,
+                  display: "flex",
+                }}
+              >
+                Implied upside {impliedUpsideText}
               </span>
             </div>
           </div>

@@ -38,7 +38,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { History } from "lucide-react"
 import { getStockSummaryStatus, type StockSummaryStatus } from "@/lib/api"
-import { displayMos } from "@/lib/utils"
+import { displayMos, computeTrueMos } from "@/lib/utils"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
 const STORAGE_KEY = "yq:recent-views"
@@ -195,17 +195,30 @@ function renderStatus(row: RowData | undefined, loading: boolean) {
   }
   // kind === "ok"
   const s = row.status.summary
-  const mosLabel = displayMos(s.mos, null, null)
+  // Compute true (Buffett) MoS = (1 - price/FV)*100. Same sign as upside.
+  const trueMos =
+    (s as unknown as Record<string, unknown>).buffett_mos_pct != null &&
+    typeof (s as unknown as Record<string, unknown>).buffett_mos_pct === "number"
+      ? (s as unknown as Record<string, unknown>).buffett_mos_pct as number
+      : computeTrueMos(s.fair_value, s.current_price)
+  const mosLabel = trueMos != null ? (displayMos(trueMos, null, null) ?? null) : null
   return (
     <>
       {typeof s.current_price === "number" && (
         <span className="text-body">₹{s.current_price.toFixed(2)}</span>
       )}
-      {mosLabel && (
-        <span className={s.mos >= 0 ? "text-green-600" : "text-red-600"}>
-          {mosLabel}
+      {mosLabel && trueMos != null ? (
+        <span className="inline-flex flex-col items-end gap-0">
+          <span className={trueMos >= 0 ? "text-green-600" : "text-red-600"}>
+            {mosLabel}
+          </span>
+          {typeof s.mos === "number" && (
+            <span className="text-[10px] text-caption font-mono">
+              {s.mos >= 0 ? "+" : ""}{s.mos.toFixed(1)}% upside
+            </span>
+          )}
         </span>
-      )}
+      ) : null}
     </>
   )
 }

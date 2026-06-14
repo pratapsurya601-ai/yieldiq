@@ -70,6 +70,7 @@ import {
   verdictDisplayLabel,
   verdictFromMos,
   verdictRegion,
+  computeTrueMos,
 } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
 
@@ -486,61 +487,61 @@ export default function EditorialHero({
             />
             <div>
               {/*
-                Step C (2026-05-17): drop the "Upside / Downside" framing
-                entirely. Label switches dynamically based on sign:
-                  marginOfSafety >= 0  →  "Discount to FV"  (FV > price)
-                  marginOfSafety  < 0  →  "Premium to FV"   (price > FV)
-                The Buffett MoS chip below stays separate and is hidden
-                for overvalued names (negative Buffett MoS is confusing
-                in chip form — cleaner UX to just omit it).
+                True (Buffett) MoS = (FV − price) / FV × 100.
+                Both fairValue and currentPrice are props here.
+                The old implied-upside value ((FV−price)/price × 100 =
+                marginOfSafety) is demoted to the smaller secondary line.
+                The buffettMosPct chip is removed — the headline now IS
+                the Buffett MoS so the chip would duplicate it.
               */}
               <MetricTooltip metricKey="mos">
                 <dt
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
-                  title="Discount or premium of current price relative to fair value. Computed as (Fair Value - Price) / Price × 100."
+                  title="True Margin of Safety: how far below fair value the current price sits. Computed as (Fair Value - Price) / Fair Value × 100."
                 >
-                  {marginOfSafety >= 0 ? "Discount to FV" : "Premium to FV"}
+                  Margin of Safety
                 </dt>
               </MetricTooltip>
-              <dd
-                className={`font-mono tabular-nums text-lg font-semibold ${
-                  marginOfSafety >= 0 ? "text-success" : "text-danger"
-                }`}
-              >
-                {
-                  // Show the magnitude as a positive number; the label
-                  // ("Discount" vs "Premium") conveys direction. Caps at
-                  // ±200% so the layout doesn't overflow.
-                  (() => {
-                    const mag = Math.abs(marginOfSafety)
-                    if (marginOfSafety > 200) return ">200%"
-                    if (marginOfSafety < -200) return ">200%"
-                    return formatPct(mag)
-                  })()
-                }
-              </dd>
+              {(() => {
+                const trueMos = computeTrueMos(
+                  fairValue > 0 ? fairValue : null,
+                  currentPrice > 0 ? currentPrice : null,
+                )
+                const isPositive = trueMos !== null && trueMos >= 0
+                return (
+                  <>
+                    <dd
+                      className={`font-mono tabular-nums text-lg font-semibold ${
+                        trueMos === null || !Number.isFinite(trueMos)
+                          ? "text-ink"
+                          : isPositive
+                          ? "text-success"
+                          : "text-danger"
+                      }`}
+                    >
+                      {trueMos === null || !Number.isFinite(trueMos)
+                        ? "—"
+                        : (() => {
+                            const abs = Math.abs(trueMos)
+                            if (abs > 200) return ">200%"
+                            return formatPct(abs)
+                          })()}
+                    </dd>
+                    {/* Secondary "Implied upside" line — the old (FV−P)/P metric */}
+                    {Number.isFinite(marginOfSafety) && (
+                      <p className="text-[10px] text-caption mt-0.5">
+                        Implied upside:{" "}
+                        {(() => {
+                          const mag = Math.abs(marginOfSafety)
+                          if (mag > 200) return ">200%"
+                          return `${marginOfSafety >= 0 ? "+" : "-"}${formatPct(mag)}`
+                        })()}
+                      </p>
+                    )}
+                  </>
+                )
+              })()}
             </div>
-            {/* Buffett MoS + Moat — demoted from the headline grid into
-                the "Confidence and methodology" disclosure rendered below
-                the hero in AnalysisBody when `compactSummary` is on. This
-                keeps the above-the-fold triad to Verdict + Fair Value +
-                Discount-to-FV. See .audit/competitor-walk-hdfcbank-
-                2026-05-26.md gap #2. */}
-            {!compactSummary && buffettMosPct != null && Number.isFinite(buffettMosPct) && buffettMosPct >= 0 && (
-              <div>
-                <dt
-                  className="text-[10px] uppercase tracking-[0.15em] text-caption"
-                  title="How much room below current price the model says exists. Buffett-style: (Fair Value - Price) / Fair Value."
-                >
-                  Discount to FV (Buffett)
-                </dt>
-                <dd
-                  className="font-mono tabular-nums text-lg font-semibold text-success"
-                >
-                  {formatPct(buffettMosPct)}
-                </dd>
-              </div>
-            )}
             {!compactSummary && (
               <Stat label="Moat" value={moat || "Not rated"} metricKey="moat" />
             )}

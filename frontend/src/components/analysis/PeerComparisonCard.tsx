@@ -3,7 +3,7 @@ import { useMemo } from "react"
 import type { PublicPeersResponse } from "@/lib/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import { verdictClassesWithDark } from "@/lib/constants"
-import { formatNumberWithSuffix, formatPctSigned, cn } from "@/lib/utils"
+import { formatNumberWithSuffix, formatPctSigned, cn, trueMosFromUpside } from "@/lib/utils"
 import { metricToneClass } from "@/lib/metricTone"
 import { DataCard } from "@/components/cards"
 import TickerAvatar from "@/components/common/TickerAvatar"
@@ -163,16 +163,25 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
                       </div>
                     </div>
                   </td>
-                  <td
-                    className={`py-2 px-2 text-right font-mono tabular-nums ${
-                      peer.margin_of_safety != null
-                        ? peer.margin_of_safety >= 0
-                          ? "text-green-600"
-                          : "text-red-600"
-                        : "text-caption"
-                    }`}
-                  >
-                    {fmtPct(peer.margin_of_safety)}
+                  <td className="py-2 px-2 text-right">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span
+                        className={`font-mono tabular-nums ${
+                          peer.margin_of_safety != null
+                            ? peer.margin_of_safety >= 0
+                              ? "text-green-600"
+                              : "text-red-600"
+                            : "text-caption"
+                        }`}
+                      >
+                        {fmtPct(trueMosFromUpside(peer.margin_of_safety))}
+                      </span>
+                      {peer.margin_of_safety != null && (
+                        <span className="text-[10px] text-caption tabular-nums">
+                          {fmtPct(peer.margin_of_safety)} upside
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-2 px-2 text-right font-mono tabular-nums text-ink">
                     {peer.score != null ? peer.score.toFixed(0) : "\u2014"}

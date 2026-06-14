@@ -107,10 +107,11 @@ describe("StressTestScenarios — sector-aware sensitivity math", () => {
 
   it("MoS is computed from stressed price and stressed FV", () => {
     // 2008 GFC + Private Bank, price 1600 → 720; FV 1800 → 1710
-    // MoS = (1710 - 720) / 720 * 100 = +137.5%
+    // True MoS = (1 - 720/1710) * 100 = (990/1710) * 100 ≈ +57.9%
+    // (Old upside calc was (1710-720)/720*100 = +137.5%; replaced by true Buffett MoS)
     renderPanel({ sector: "Private Bank", currentPrice: 1600, baseFairValue: 1800 })
     const mosCard = screen.getByTestId("stress-test-mos")
-    expect(within(mosCard).getByTestId("stress-test-mos-value").textContent).toContain("+137.5%")
+    expect(within(mosCard).getByTestId("stress-test-mos-value").textContent).toContain("+57.9%")
   })
 })
 

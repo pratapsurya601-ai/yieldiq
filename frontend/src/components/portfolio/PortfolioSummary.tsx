@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { cache } from "react"
 import { getStockSummary, type StockSummary } from "@/lib/api"
+import { computeTrueMos } from "@/lib/utils"
 
 /**
  * Portfolio summary (Task C3 — server half).
@@ -69,7 +70,10 @@ export default async function PortfolioSummary({ holdings }: Props) {
     const pnlAbs = currentValue - invested
     const pnlPct = invested > 0 ? (pnlAbs / invested) * 100 : 0
     const weightedFV = s ? s.fair_value * h.quantity : null
-    const weightedMos = s ? s.mos : null
+    // trueMos: computeTrueMos(fair_value, current_price); falls back to
+    // the upside-based s.mos only if FV or price is missing.
+    const trueMosVal = s ? computeTrueMos(s.fair_value, s.current_price) : null
+    const weightedMos = trueMosVal !== null ? trueMosVal : (s ? s.mos : null)
     return { h, s, invested, currentValue, pnlAbs, pnlPct, weightedFV, weightedMos }
   })
 
@@ -81,10 +85,14 @@ export default async function PortfolioSummary({ holdings }: Props) {
   // Weighted aggregates (skip holdings with no summary).
   const priced = resolved.filter(r => r.s)
   const aggFV = priced.reduce((a, r) => a + (r.weightedFV ?? 0), 0)
+  // Weighted MoS uses TRUE (Buffett) MoS per row (stored in r.weightedMos).
+  // Skip rows where the true MoS is null in BOTH numerator and denominator weight
+  // so a single un-priced holding doesn't dilute the aggregate to zero.
   const weightedMos = (() => {
-    const totalWeight = priced.reduce((a, r) => a + r.currentValue, 0)
+    const mosRows = priced.filter(r => r.weightedMos !== null)
+    const totalWeight = mosRows.reduce((a, r) => a + r.currentValue, 0)
     if (totalWeight <= 0) return 0
-    const num = priced.reduce((a, r) => a + (r.s!.mos * r.currentValue), 0)
+    const num = mosRows.reduce((a, r) => a + (r.weightedMos! * r.currentValue), 0)
     return num / totalWeight
   })()
 
@@ -174,7 +182,10 @@ export default async function PortfolioSummary({ holdings }: Props) {
               {resolved.map(r => {
                 const cmp = r.s?.current_price ?? r.h.buy_price
                 const fv = r.s?.fair_value ?? null
-                const mos = r.s?.mos ?? null
+                // trueMos: computed per-row in resolved (stored in r.weightedMos)
+                const trueMos = r.weightedMos
+                // upsideMos: the legacy upside-% field for the secondary sub-label
+                const upsideMos = r.s?.mos ?? null
                 return (
                   <tr
                     key={r.h.ticker}
@@ -204,8 +215,13 @@ export default async function PortfolioSummary({ holdings }: Props) {
                       {pct(r.pnlPct)}
                     </td>
                     <td className="px-2 py-2 text-right">{fv != null ? fmt(fv) : "—"}</td>
-                    <td className={`px-2 py-2 text-right ${mos != null && mos >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {mos != null ? pct(mos) : "—"}
+                    <td className={`px-2 py-2 text-right ${trueMos != null && trueMos >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {trueMos != null ? pct(trueMos) : "—"}
+                      {upsideMos != null && (
+                        <div className="text-[10px] text-caption">
+                          {pct(upsideMos)}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )

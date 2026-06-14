@@ -36,7 +36,7 @@ import {
   type StockSummary,
 } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
-import { displayMos } from "@/lib/utils"
+import { displayMos, computeTrueMos } from "@/lib/utils"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
 // ── Thresholds ─────────────────────────────────────────────────────
@@ -182,8 +182,14 @@ function computeAggregate(summaries: StockSummary[]): Aggregate {
   const scores = summaries
     .map(s => s.score)
     .filter((v): v is number => v != null && Number.isFinite(v))
+  // Average the TRUE (Buffett) MoS: prefer buffett_mos_pct if/when backend
+  // adds it; otherwise derive from fair_value + current_price.
   const mos = summaries
-    .map(s => s.mos)
+    .map(s => {
+      const bmos = (s as unknown as Record<string, unknown>).buffett_mos_pct
+      if (typeof bmos === "number" && Number.isFinite(bmos)) return bmos
+      return computeTrueMos(s.fair_value, s.current_price)
+    })
     .filter((v): v is number => v != null && Number.isFinite(v))
   const piotroskis = summaries
     .map(s => s.piotroski)
@@ -478,7 +484,16 @@ export default function PortfolioQualityCard() {
           <tbody>
             {rows.slice(0, 8).map(({ holding, summary }) => {
               const sScore = summary?.score ?? null
-              const sMos = summary?.mos ?? null
+              // sUpside = the old "MoS" field — actually implied upside (FV-price)/price
+              const sUpside = summary?.mos ?? null
+              // sTrueMos = Buffett MoS = (1 - price/FV)*100; same sign as upside
+              const sTrueMos: number | null = summary
+                ? (() => {
+                    const bmos = (summary as unknown as Record<string, unknown>).buffett_mos_pct
+                    if (typeof bmos === "number" && Number.isFinite(bmos)) return bmos
+                    return computeTrueMos(summary.fair_value, summary.current_price)
+                  })()
+                : null
               const sPio = summary?.piotroski ?? null
               const sConf = summary?.confidence ?? null
               const sMoat = summary?.moat ?? null
@@ -510,12 +525,19 @@ export default function PortfolioQualityCard() {
                     />
                   </td>
                   <td className="px-2 py-2 text-right">
-                    {sMos != null ? (
-                      <ScoreNum
-                        value={sMos}
-                        light={mosLight(sMos)}
-                        format={v => displayMos(v, null, null) ?? "—"}
-                      />
+                    {sTrueMos != null ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <ScoreNum
+                          value={sTrueMos}
+                          light={mosLight(sTrueMos)}
+                          format={v => displayMos(v, null, null) ?? "—"}
+                        />
+                        {sUpside != null && (
+                          <span className="text-[10px] text-caption font-mono">
+                            {sUpside >= 0 ? "+" : ""}{sUpside.toFixed(1)}% upside
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-caption font-mono text-[11px]">—</span>
                     )}
@@ -538,7 +560,7 @@ export default function PortfolioQualityCard() {
                     <MoatPill moat={sMoat} />
                   </td>
                   <td className="px-2 py-2 text-right">
-                    <TrafficLights score={sScore} mos={sMos} piotroski={sPio} />
+                    <TrafficLights score={sScore} mos={sTrueMos} piotroski={sPio} />
                   </td>
                 </tr>
               )

@@ -14,7 +14,7 @@
  */
 
 import { useState } from "react"
-import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
+import { formatCurrency, formatPct, formatCompanyName, computeTrueMos } from "@/lib/utils"
 import type { AnalysisResponse } from "@/types/api"
 
 interface FAQItem {
@@ -124,18 +124,27 @@ function buildFAQ(data: AnalysisResponse): FAQItem[] {
     Number.isFinite(valuation.margin_of_safety) &&
     headlineFv != null
   ) {
-    // Recompute MoS off the headline FV when the canonical number is
+    // Recompute implied upside off the headline FV when the canonical number is
     // the composite — otherwise the stored MoS (DCF-keyed) and the
     // direction sentence read off mismatched anchors.
-    const mos =
+    const oldMos =
       headlineMethod === "composite"
         ? ((headlineFv - valuation.current_price) / valuation.current_price) * 100
         : valuation.margin_of_safety
+    // True (Buffett) MoS = (1 - price/FV) × 100; falls back to upside-derived
+    // value when fair_value or current_price is missing/zero.
+    const trueMos =
+      computeTrueMos(headlineFv, valuation.current_price) ??
+      oldMos
     const direction = valuation.current_price < headlineFv ? "below" : "above"
+    const impliedUpsideSuffix =
+      trueMos !== oldMos
+        ? ` (implied upside ${formatPct(oldMos)})`
+        : ""
     items.push({
       q: `Is ${name} below or above its fair value?`,
-      a: `${mosLabel(mos)}. Margin of safety ${formatPct(mos)}. Current price ${cur(valuation.current_price)} ${direction} fair value ${cur(headlineFv)}.`,
-      chip: `MoS: ${formatPct(mos)}`,
+      a: `${mosLabel(trueMos)}. Margin of safety ${formatPct(trueMos)}${impliedUpsideSuffix}. Current price ${cur(valuation.current_price)} ${direction} fair value ${cur(headlineFv)}.`,
+      chip: `MoS: ${formatPct(trueMos)}`,
     })
   }
 

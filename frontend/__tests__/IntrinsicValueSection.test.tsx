@@ -75,8 +75,9 @@ describe("IntrinsicValueSection — narrative templates", () => {
     const text = p.textContent ?? ""
     expect(text).toContain("The intrinsic value of Test Industries (TEST)")
     expect(text).toContain("under the base case")
-    // pct = |1200 − 1000| / 1000 = 20.0
-    expect(text).toMatch(/trades 20\.0%\s+below/)
+    // trueMos = (1 − 1000/1200) × 100 = 16.666…% → 16.7%
+    // (old upside 20.0% drops to the secondary iv-hero-upside line)
+    expect(text).toMatch(/trades 16\.7%\s+below/)
     expect(text).toContain("intrinsic value")
   })
 
@@ -91,8 +92,9 @@ describe("IntrinsicValueSection — narrative templates", () => {
     )
     const p = screen.getByTestId("iv-narrative")
     expect(p.getAttribute("data-template")).toBe("trades-above")
-    // pct = |800 − 1000| / 1000 = 20.0
-    expect(p.textContent ?? "").toMatch(/trades 20\.0%\s+above/)
+    // trueMos = (1 − 1000/800) × 100 = −25.0%; |trueMos| = 25.0%
+    // (old |upside| 20.0% drops to the secondary iv-hero-upside line)
+    expect(p.textContent ?? "").toMatch(/trades 25\.0%\s+above/)
   })
 
   it("renders the near-parity template inside the 5% band", () => {
@@ -125,7 +127,8 @@ describe("IntrinsicValueSection — narrative templates", () => {
     const boldText = bold.map((b) => b.textContent ?? "").join(" | ")
     expect(boldText).toContain("1,200")
     expect(boldText).toContain("1,000")
-    expect(boldText).toContain("20.0%")
+    // trueMos = (1 − 1000/1200) × 100 = 16.7% is now the bolded headline pct
+    expect(boldText).toContain("16.7%")
   })
 
   it("renders the data-limited template and hides every numeric surface", () => {
@@ -301,7 +304,8 @@ describe("IntrinsicValueSection — heading + hero composition", () => {
     expect(hero.getAttribute("data-direction")).toBe("below")
     const pct = screen.getByTestId("iv-hero-pct")
     expect(pct.getAttribute("data-direction")).toBe("discount")
-    expect(pct.textContent).toContain("20.0%")
+    // trueMos = (1 − 1000/1200) × 100 = 16.7% is now the headline numeral
+    expect(pct.textContent).toContain("16.7%")
     // The retired IntrinsicValueCard surface must not exist anymore.
     expect(screen.queryByTestId("iv-card")).toBeNull()
   })

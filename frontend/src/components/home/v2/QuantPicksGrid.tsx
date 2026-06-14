@@ -25,6 +25,7 @@ import {
 import { Shield, TrendingDown, Rocket, Coins } from "lucide-react"
 import HoverCard from "@/components/motion/HoverCard"
 import RevealStagger from "@/components/motion/RevealStagger"
+import { trueMosFromUpside } from "@/lib/utils"
 
 type TileConfig = QuantPresetConfig & {
   icon: React.ComponentType<{ className?: string }>
@@ -134,9 +135,18 @@ function Tile({ cfg }: { cfg: TileConfig }) {
                 {underReview ? (
                   <span className="text-caption italic flex-shrink-0">Under Review</span>
                 ) : (
-                  <span className="text-green-600 dark:text-green-400 flex-shrink-0 tabular-nums">
-                    MoS {s.margin_of_safety >= 0 ? "+" : ""}
-                    {s.margin_of_safety.toFixed(0)}%
+                  <span className="flex flex-col items-end flex-shrink-0">
+                    <span className="text-green-600 dark:text-green-400 tabular-nums">
+                      MoS {(() => {
+                        const trueMos = trueMosFromUpside(s.margin_of_safety)
+                        return trueMos != null
+                          ? `${trueMos >= 0 ? "+" : ""}${trueMos.toFixed(0)}%`
+                          : "—"
+                      })()}
+                    </span>
+                    <span className="text-[10px] text-caption tabular-nums">
+                      Implied upside {s.margin_of_safety >= 0 ? "+" : ""}{s.margin_of_safety.toFixed(0)}%
+                    </span>
                   </span>
                 )}
               </Link>

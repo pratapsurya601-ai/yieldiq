@@ -39,6 +39,7 @@ import {
   formatCompanyName,
   verdictDisplayLabel,
   displayMos,
+  computeTrueMos,
 } from "@/lib/utils"
 
 /**
@@ -367,15 +368,27 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
               }
             />
             <Stat
-              label={<MetricTooltip metricKey="mos">Margin of safety</MetricTooltip>}
-              // displayMos() is the canonical render path: prefers the
-              // backend's clamped mos_pct, caps at ±200% as defense in
-              // depth, and returns null on data-limited tickers whose
-              // value would overflow the cap (WIPRO +321% bug class —
-              // fix/mos-clamp-enforce, 2026-05-26). When it returns
-              // null we render "—" rather than a misleading number.
-              value={displayMos(mos_pct, mos_clamped, data_limited) ?? "—"}
+              label={<MetricTooltip metricKey="mos">Margin of Safety</MetricTooltip>}
+              // True (Buffett) MoS = (FV − price) / FV × 100.
+              // Both fair_value and price are in scope here.
+              // Falls back to "—" when either is missing/non-positive.
+              value={(() => {
+                const trueMos = computeTrueMos(fair_value ?? null, price ?? null)
+                if (trueMos === null || !Number.isFinite(trueMos)) return "—"
+                const abs = Math.abs(trueMos)
+                if (abs > 200) return ">200%"
+                return `${trueMos >= 0 ? "+" : ""}${trueMos.toFixed(1)}%`
+              })()}
               emphasis={mosTone === "positive"}
+              subtext={(() => {
+                const impliedUpside = displayMos(mos_pct, mos_clamped, data_limited)
+                if (!impliedUpside) return null
+                return (
+                  <p className="text-[10px] text-caption mt-0.5">
+                    Implied upside: {impliedUpside}
+                  </p>
+                )
+              })()}
             />
             <Stat
               label={<MetricTooltip metricKey="yieldiq_score">YieldIQ score</MetricTooltip>}

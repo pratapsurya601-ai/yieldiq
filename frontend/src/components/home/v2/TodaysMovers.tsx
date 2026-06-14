@@ -39,7 +39,7 @@ import { RefreshCw } from "lucide-react"
 import TickerAvatar from "@/components/common/TickerAvatar"
 import { Sparkline } from "@/components/common/Sparkline"
 import { getSparklines, getTodayMovers } from "@/lib/api"
-import { formatPct } from "@/lib/utils"
+import { formatPct, trueMosFromUpside } from "@/lib/utils"
 import type { TodayMover, TodayMoversResponse, ScreenerResponse } from "@/types/api"
 import {
   QUANT_PRESETS,
@@ -292,9 +292,18 @@ function WorthALookPreview({
                           Under Review
                         </span>
                       ) : (
-                        <span className="ml-auto font-mono text-sm tabular-nums text-green-600 dark:text-green-400 flex-shrink-0">
-                          MoS {s.margin_of_safety >= 0 ? "+" : ""}
-                          {s.margin_of_safety.toFixed(0)}%
+                        <span className="ml-auto flex flex-col items-end flex-shrink-0">
+                          <span className="font-mono text-sm tabular-nums text-green-600 dark:text-green-400">
+                            MoS {(() => {
+                              const trueMos = trueMosFromUpside(s.margin_of_safety)
+                              return trueMos != null
+                                ? `${trueMos >= 0 ? "+" : ""}${trueMos.toFixed(0)}%`
+                                : "—"
+                            })()}
+                          </span>
+                          <span className="text-[10px] text-caption tabular-nums">
+                            Implied upside {s.margin_of_safety >= 0 ? "+" : ""}{s.margin_of_safety.toFixed(0)}%
+                          </span>
                         </span>
                       )}
                     </Link>

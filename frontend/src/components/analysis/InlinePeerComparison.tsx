@@ -29,6 +29,7 @@ import {
   formatCurrency,
   formatCompanyName,
   verdictDisplayLabel,
+  trueMosFromUpside,
 } from "@/lib/utils"
 import { formatMultiple, formatPct } from "@/lib/formatNumbers"
 import { metricToneClass } from "@/lib/metricTone"
@@ -386,8 +387,15 @@ export default function InlinePeerComparison({
                     ) : null}
                   </span>
                 </span>
-                <span className={cn("text-xs font-mono tabular-nums", mosToneClass(row.mos_pct))}>
-                  {formatPct(row.mos_pct, { signed: true })}
+                <span className="flex flex-col items-end gap-0">
+                  <span className={cn("text-xs font-mono tabular-nums font-medium", mosToneClass(row.mos_pct))}>
+                    {formatPct(trueMosFromUpside(row.mos_pct), { signed: true })}
+                  </span>
+                  {row.mos_pct != null && (
+                    <span className="text-[10px] text-caption tabular-nums">
+                      {formatPct(row.mos_pct, { signed: true })} upside
+                    </span>
+                  )}
                 </span>
               </div>
               <p className="text-[11px] text-caption truncate mb-2">
@@ -453,7 +461,7 @@ export default function InlinePeerComparison({
               <SortHeader label="Verdict" sortKey="verdict" align="left" sort={sort} onSort={handleSort} />
               <SortHeader label="Price" sortKey="current_price" sort={sort} onSort={handleSort} />
               <SortHeader label="Fair Value" sortKey="fair_value" sort={sort} onSort={handleSort} />
-              <SortHeader label="Discount to FV" sortKey="mos_pct" sort={sort} onSort={handleSort} />
+              <SortHeader label="Margin of Safety" sortKey="mos_pct" sort={sort} onSort={handleSort} />
               <SortHeader label="P/E" sortKey="pe_ratio" sort={sort} onSort={handleSort} />
               <SortHeader label="ROE" sortKey="roe_pct" sort={sort} onSort={handleSort} />
             </tr>
@@ -506,13 +514,22 @@ export default function InlinePeerComparison({
                       ? formatCurrency(row.fair_value, currency, row.ticker)
                       : "—"}
                   </td>
-                  <td
-                    className={cn(
-                      "py-2 px-2 text-right font-mono tabular-nums font-medium",
-                      mosToneClass(row.mos_pct),
-                    )}
-                  >
-                    {formatPct(row.mos_pct, { signed: true })}
+                  <td className="py-2 px-2 text-right">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span
+                        className={cn(
+                          "font-mono tabular-nums font-medium text-xs",
+                          mosToneClass(row.mos_pct),
+                        )}
+                      >
+                        {formatPct(trueMosFromUpside(row.mos_pct), { signed: true })}
+                      </span>
+                      {row.mos_pct != null && (
+                        <span className="text-[10px] text-caption tabular-nums">
+                          {formatPct(row.mos_pct, { signed: true })} upside
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td
                     className={cn(
@@ -543,7 +560,7 @@ export default function InlinePeerComparison({
 
       <p className="mt-3 text-[10px] text-caption">
         Click a peer row to open its analysis. Current price is derived from
-        fair value and discount-to-FV on the cohort snapshot.
+        fair value and margin of safety on the cohort snapshot.
       </p>
     </section>
   )

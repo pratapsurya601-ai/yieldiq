@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { trueMosFromUpside } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 
 const THRESHOLD_STEPS = [
@@ -193,6 +194,20 @@ export default function MosBandAlertModal({
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
+  // currentMos is the implied upside % from the backend (legacy field).
+  // We derive the true (Buffett) MoS from it via the algebraic identity.
+  const trueMosValue = useMemo<number | null>(
+    () => trueMosFromUpside(currentMos),
+    [currentMos],
+  )
+
+  const trueMosLabel = useMemo<string>(() => {
+    if (trueMosValue == null || !Number.isFinite(trueMosValue)) return "n/a"
+    const r = Math.round(trueMosValue * 10) / 10
+    return `${r > 0 ? "+" : ""}${r.toFixed(1)}%`
+  }, [trueMosValue])
+
+  // Keep the raw implied-upside label for the secondary note.
   const currentMosLabel = useMemo<string>(() => {
     if (currentMos == null || !Number.isFinite(currentMos)) return "n/a"
     const r = Math.round(currentMos * 10) / 10
@@ -240,8 +255,15 @@ export default function MosBandAlertModal({
               <p className="text-[12px] text-caption">
                 Current margin of safety:{" "}
                 <span className="font-mono font-semibold text-ink">
-                  {currentMosLabel}
+                  {trueMosLabel}
                 </span>
+                {currentMos != null &&
+                  Number.isFinite(currentMos) &&
+                  currentMosLabel !== "n/a" && (
+                    <span className="ml-1.5 text-[10px] text-caption font-normal">
+                      (implied upside {currentMosLabel})
+                    </span>
+                  )}
               </p>
 
               <fieldset

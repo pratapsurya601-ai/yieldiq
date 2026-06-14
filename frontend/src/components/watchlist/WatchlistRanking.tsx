@@ -26,7 +26,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import type { WatchlistItemResponse } from "@/types/api"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, computeTrueMos } from "@/lib/utils"
 import { useInViewOnce } from "@/components/anim/useInViewOnce"
 import { useReducedMotion } from "@/lib/motion/useReducedMotion"
 import { DURATION, cssEase } from "@/lib/motion/timing"
@@ -97,7 +97,10 @@ export function compareBy(
     return a.ticker.localeCompare(b.ticker)
   }
   if (key === "mos") {
-    return compareNullable(a.mos_pct, b.mos_pct)
+    // Sort on true (Buffett) MoS: prefer buffett_mos_pct, else compute from fv+price
+    const aTrueMos = a.buffett_mos_pct ?? computeTrueMos(a.fair_value ?? null, a.added_price ?? null)
+    const bTrueMos = b.buffett_mos_pct ?? computeTrueMos(b.fair_value ?? null, b.added_price ?? null)
+    return compareNullable(aTrueMos, bTrueMos)
   }
   if (key === "fv_gap") {
     return compareNullable(fvGapAbs(a), fvGapAbs(b))
@@ -150,13 +153,18 @@ export function priceChangePct(h: WatchlistItemResponse): number | null {
 // the rank. Kept SEBI-safe ("Margin of Safety", purely
 // descriptive). Returns "—" when the underlying value is
 // missing so the row still aligns visually.
+//
+// For the "mos" key the headline is the TRUE (Buffett) MoS:
+//   buffett_mos_pct  ??  computeTrueMos(fair_value, added_price)
+// The old implied-upside (mos_pct) becomes a secondary line
+// rendered at the call site via mosUpsideSecondary().
 export function formatMetric(h: WatchlistItemResponse, key: WatchlistSortKey): string {
   if (key === "alphabetical") return ""
   if (key === "mos") {
-    const v = h.mos_pct
-    if (v === null || v === undefined || Number.isNaN(v)) return "—"
-    const sign = v > 0 ? "+" : ""
-    return `MoS ${sign}${v.toFixed(1)}%`
+    const trueMos = h.buffett_mos_pct ?? computeTrueMos(h.fair_value ?? null, h.added_price ?? null)
+    if (trueMos === null || Number.isNaN(trueMos)) return "—"
+    const sign = trueMos > 0 ? "+" : ""
+    return `MoS ${sign}${trueMos.toFixed(1)}%`
   }
   if (key === "fv_gap") {
     const v = fvGapAbs(h)
@@ -169,6 +177,15 @@ export function formatMetric(h: WatchlistItemResponse, key: WatchlistSortKey): s
   if (v === null || Number.isNaN(v)) return "—"
   const sign = v > 0 ? "+" : ""
   return `${sign}${v.toFixed(1)}%`
+}
+
+// Returns the secondary "Implied upside" string for the MoS sort key,
+// or null if no upside data is available. Rendered as a small sub-label.
+export function mosUpsideSecondary(h: WatchlistItemResponse): string | null {
+  const v = h.mos_pct
+  if (v === null || v === undefined || Number.isNaN(v)) return null
+  const sign = v > 0 ? "+" : ""
+  return `Implied upside ${sign}${v.toFixed(1)}%`
 }
 
 // ── Component ────────────────────────────────────────────────
@@ -338,14 +355,21 @@ export function WatchlistRanking({ holdings, onRemove, removeDisabled }: Watchli
                   </p>
                 </div>
                 {metric && (
-                  <span
-                    data-testid={`watchlist-ranking-metric-${h.ticker}`}
-                    className={`font-mono font-semibold text-xs sm:text-sm shrink-0 ${
-                      metricToneClass(h, sortKey)
-                    }`}
-                  >
-                    {metric}
-                  </span>
+                  <div className="text-right shrink-0">
+                    <span
+                      data-testid={`watchlist-ranking-metric-${h.ticker}`}
+                      className={`font-mono font-semibold text-xs sm:text-sm ${
+                        metricToneClass(h, sortKey)
+                      }`}
+                    >
+                      {metric}
+                    </span>
+                    {sortKey === "mos" && mosUpsideSecondary(h) && (
+                      <p className="text-[10px] text-caption font-mono">
+                        {mosUpsideSecondary(h)}
+                      </p>
+                    )}
+                  </div>
                 )}
               </Link>
               {onRemove && (
@@ -429,12 +453,17 @@ export function TopOpportunityHighlight({
 
 // Green for positive MoS / FV-gap / price-change, amber for
 // negative, neutral otherwise. Alphabetical has no tone.
+// For the "mos" key, tone is keyed on the TRUE (Buffett) MoS value.
 function metricToneClass(h: WatchlistItemResponse, key: WatchlistSortKey): string {
   if (key === "alphabetical") return "text-caption"
   let v: number | null = null
-  if (key === "mos") v = h.mos_pct ?? null
-  else if (key === "fv_gap") v = fvGapAbs(h)
-  else v = priceChangePct(h)
+  if (key === "mos") {
+    v = h.buffett_mos_pct ?? computeTrueMos(h.fair_value ?? null, h.added_price ?? null)
+  } else if (key === "fv_gap") {
+    v = fvGapAbs(h)
+  } else {
+    v = priceChangePct(h)
+  }
   if (v === null || Number.isNaN(v)) return "text-caption"
   if (v > 0) return "text-green-600 dark:text-green-400"
   if (v < 0) return "text-amber-600 dark:text-amber-400"

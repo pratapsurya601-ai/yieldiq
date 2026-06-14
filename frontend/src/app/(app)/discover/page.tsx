@@ -32,7 +32,7 @@ import {
   BUILD_ID,
 } from "@/lib/api"
 import axios from "axios"
-import { formatMoS } from "@/lib/utils"
+import { formatMoS, trueMosFromUpside } from "@/lib/utils"
 import TopPickCard from "@/components/discover/TopPickCard"
 import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
 import { SectorLeaders } from "@/components/discover/DiscoverRails"
@@ -291,27 +291,30 @@ export default function DiscoverPage() {
                     #{i + 1}
                   </span>
                   <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
-                  <div className="mt-1 flex items-baseline justify-center gap-1.5">
-                    <span className="text-base font-bold text-blue-700 font-mono">{formatMoS(s.margin_of_safety)}</span>
-                    <span className="text-xs text-gray-300">·</span>
-                    {/*
-                      2026-06-11: score sentinel guard. When the backend
-                      flags `score_estimated=true` the displayed `score`
-                      is a synth proxy from MoS, not a real persisted
-                      YieldIQ score. Render "—" with a "Pending" hover
-                      hint instead of "50/100" — three banks all reading
-                      "50/100" was the visible bug this fix closes.
-                    */}
-                    {s.score_estimated ? (
-                      <span
-                        className="text-sm font-mono text-caption"
-                        title="YieldIQ score pending — will fill in after the next analysis run"
-                      >
-                        &mdash;<span className="text-[10px] text-caption">/100</span>
-                      </span>
-                    ) : (
-                      <span className="text-sm font-mono text-ink">{s.score}<span className="text-[10px] text-caption">/100</span></span>
-                    )}
+                  <div className="mt-1 flex flex-col items-center justify-center gap-0.5">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-base font-bold text-blue-700 font-mono">{formatMoS(trueMosFromUpside(s.margin_of_safety) ?? s.margin_of_safety)}</span>
+                      <span className="text-xs text-gray-300">·</span>
+                      {/*
+                        2026-06-11: score sentinel guard. When the backend
+                        flags `score_estimated=true` the displayed `score`
+                        is a synth proxy from MoS, not a real persisted
+                        YieldIQ score. Render "—" with a "Pending" hover
+                        hint instead of "50/100" — three banks all reading
+                        "50/100" was the visible bug this fix closes.
+                      */}
+                      {s.score_estimated ? (
+                        <span
+                          className="text-sm font-mono text-caption"
+                          title="YieldIQ score pending — will fill in after the next analysis run"
+                        >
+                          &mdash;<span className="text-[10px] text-caption">/100</span>
+                        </span>
+                      ) : (
+                        <span className="text-sm font-mono text-ink">{s.score}<span className="text-[10px] text-caption">/100</span></span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-caption">Implied upside {formatMoS(s.margin_of_safety)}</span>
                   </div>
                   {Math.abs(s.margin_of_safety) >= 100 && (
                     <p className="mt-1 text-[10px] text-caption leading-tight">uncertain</p>
@@ -334,7 +337,7 @@ export default function DiscoverPage() {
                       <th className="text-left px-3 py-2">#</th>
                       <th className="text-left px-3 py-2">Ticker</th>
                       <th className="text-right px-3 py-2">Score</th>
-                      <th className="text-right px-3 py-2">Discount</th>
+                      <th className="text-right px-3 py-2">Margin of Safety</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -358,7 +361,10 @@ export default function DiscoverPage() {
                             s.score
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono">{formatMoS(s.margin_of_safety)}</td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          <span className="block">{formatMoS(trueMosFromUpside(s.margin_of_safety) ?? s.margin_of_safety)}</span>
+                          <span className="text-[10px] text-caption">Implied upside {formatMoS(s.margin_of_safety)}</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -382,10 +388,10 @@ export default function DiscoverPage() {
           // for ~1,700 tickers).
           <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
             <p className="text-xs font-semibold text-ink mb-1">
-              Top 5 Discount gainers
+              Top 5 highest Margin of Safety
             </p>
             <p className="text-[11px] text-caption mb-3">
-              Largest discounts to fair value right now. Refreshes with the daily run.
+              Largest gap below fair value right now. Refreshes with the daily run.
             </p>
             {mosGainers && mosGainers.length > 0 ? (
               <ul className="divide-y divide-border">
@@ -404,8 +410,9 @@ export default function DiscoverPage() {
                         </span>
                       </div>
                       <div className="flex items-baseline gap-3 font-mono">
-                        <span className="text-sm text-brand">
-                          {formatMoS(s.margin_of_safety)}
+                        <span className="text-sm text-brand flex flex-col items-end">
+                          <span>{formatMoS(trueMosFromUpside(s.margin_of_safety) ?? s.margin_of_safety)}</span>
+                          <span className="text-[10px] text-caption font-normal">Implied upside {formatMoS(s.margin_of_safety)}</span>
                         </span>
                         <span className="text-xs text-caption">
                           {s.score_estimated ? (

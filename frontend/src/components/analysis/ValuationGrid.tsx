@@ -26,7 +26,7 @@
  * `scenarioBlock` in AnalysisBody.
  */
 
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, trueMosFromUpside } from "@/lib/utils"
 import { SummaryCard } from "@/components/cards"
 import MetricTooltip from "@/components/common/MetricTooltip"
 
@@ -145,8 +145,11 @@ export default function ValuationGrid({
                   </span>
                 }
               />
-              <p className={`text-xs font-mono mt-1 ${mosTone(data.mos_pct)}`}>
-                Discount {fmtMos(data.mos_pct)}
+              <p className={`text-xs font-mono mt-1 ${mosTone(trueMosFromUpside(data.mos_pct))}`}>
+                Margin of Safety {fmtMos(trueMosFromUpside(data.mos_pct))}
+              </p>
+              <p className="text-[10px] text-caption mt-0.5 tabular-nums">
+                Implied upside {fmtMos(data.mos_pct)}
               </p>
               {data.verdict ? (
                 <p className="text-[10px] text-caption mt-1 capitalize">

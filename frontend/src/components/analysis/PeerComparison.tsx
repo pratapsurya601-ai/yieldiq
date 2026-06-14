@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { Star } from "lucide-react"
 import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
-import { cn } from "@/lib/utils"
+import { cn, trueMosFromUpside } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
 import { formatMarketCap } from "@/lib/formatters"
 import { formatMultiple, formatPct } from "@/lib/formatNumbers"
@@ -158,16 +158,23 @@ const buildColumns = (currency: string | null | undefined, ticker: string): Colu
   },
   {
     key: "mos_pct",
-    label: "vs FV",
+    label: "MoS",
     metric: "mos_pct",
     render: row => {
-      const v = row.mos_pct
-      if (v === null || v === undefined) return <span className="text-caption">—</span>
-      const cls = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-caption"
-      // Sign-aware label: "+12% disc" (discount) when undervalued,
-      // "-8% prem" (premium) when overvalued. Drops the "MoS" abbrev
-      // in favor of Discount/Premium to FV framing.
-      return <span className={cn("tabular-nums font-medium", cls)}>{fmtMoS(v)}</span>
+      const upside = row.mos_pct
+      if (upside === null || upside === undefined) return <span className="text-caption">—</span>
+      const trueMos = trueMosFromUpside(upside)
+      const cls = upside > 0 ? "text-green-600" : upside < 0 ? "text-red-500" : "text-caption"
+      return (
+        <div className="flex flex-col items-end gap-0.5">
+          <span className={cn("tabular-nums font-medium", cls)}>
+            {trueMos !== null ? fmtMoS(trueMos) : "—"}
+          </span>
+          <span className="text-[10px] text-caption tabular-nums">
+            {fmtMoS(upside)} upside
+          </span>
+        </div>
+      )
     },
   },
   {
@@ -359,18 +366,25 @@ export default function PeerComparison({ ticker, currency }: Props) {
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-caption">vs FV</dt>
-                  <dd
-                    className={cn(
-                      "font-mono tabular-nums font-medium",
-                      row.mos_pct != null && row.mos_pct > 0
-                        ? "text-green-600"
-                        : row.mos_pct != null && row.mos_pct < 0
-                          ? "text-red-500"
-                          : "text-caption",
+                  <dt className="text-caption">MoS</dt>
+                  <dd className="flex flex-col items-end">
+                    <span
+                      className={cn(
+                        "font-mono tabular-nums font-medium",
+                        row.mos_pct != null && row.mos_pct > 0
+                          ? "text-green-600"
+                          : row.mos_pct != null && row.mos_pct < 0
+                            ? "text-red-500"
+                            : "text-caption",
+                      )}
+                    >
+                      {row.mos_pct != null ? fmtMoS(trueMosFromUpside(row.mos_pct) ?? row.mos_pct) : "—"}
+                    </span>
+                    {row.mos_pct != null && (
+                      <span className="text-[10px] text-caption tabular-nums">
+                        {fmtMoS(row.mos_pct)} upside
+                      </span>
                     )}
-                  >
-                    {fmtMoS(row.mos_pct)}
                   </dd>
                 </div>
                 <div className="flex justify-between">

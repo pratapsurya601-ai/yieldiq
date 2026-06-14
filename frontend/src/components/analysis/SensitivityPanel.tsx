@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { recomputeDcf, type RecomputeResponse, type SavedScenario } from "@/lib/api"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import { computeTrueMos, formatCurrency, formatPct } from "@/lib/utils"
 import SavedScenarios from "@/components/analysis/SavedScenarios"
 import MetricTooltip from "@/components/common/MetricTooltip"
 import { useAuthStore } from "@/store/authStore"
@@ -203,9 +203,21 @@ export default function SensitivityPanel({
   // fall back to the canonical analysis figures so the panel shows
   // something on first paint.
   const fv = result?.fair_value ?? baseFairValue
+  // mos = implied upside % = (FV - price) / price * 100 (old value, now secondary)
   const mos = result?.margin_of_safety ?? baseMosPct
+  // trueMos = Buffett MoS = (1 - price/FV) * 100 (headline value)
+  // If current_price is 0 (seed path from loadScenario), fall back to the
+  // algebraic identity via trueMosFromUpside so the panel still shows something.
+  const currentPriceForMos = result?.current_price ?? null
+  const trueMos =
+    currentPriceForMos && currentPriceForMos > 0 && fv > 0
+      ? computeTrueMos(fv, currentPriceForMos)
+      : null
+  // Headline color is keyed on true MoS when available, otherwise fall back to
+  // implied upside (same sign, different magnitude).
+  const mosSignal = trueMos !== null ? trueMos : mos
   const mosColor =
-    mos >= 20 ? "text-success" : mos >= -10 ? "text-brand" : "text-danger"
+    mosSignal >= 20 ? "text-success" : mosSignal >= -10 ? "text-brand" : "text-danger"
 
   const errorMsg = useMemo(() => {
     const err = mutation.error as { response?: { status?: number; data?: { detail?: unknown } }; message?: string } | null
@@ -251,8 +263,17 @@ export default function SensitivityPanel({
             Margin of safety
           </p>
           <p className={`text-2xl font-bold font-mono tabular-nums mt-0.5 ${mosColor}`}>
-            {Number.isFinite(mos) ? formatPct(mos) : "—"}
+            {trueMos !== null
+              ? formatPct(trueMos)
+              : Number.isFinite(mos)
+              ? formatPct(mos)
+              : "—"}
           </p>
+          {trueMos !== null && Number.isFinite(mos) ? (
+            <p className="text-[10px] text-caption mt-0.5">
+              Implied upside: {formatPct(mos)}
+            </p>
+          ) : null}
         </div>
       </div>
 

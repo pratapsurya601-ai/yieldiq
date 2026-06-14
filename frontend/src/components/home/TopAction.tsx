@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getHoldingsLive, getWatchlist } from "@/lib/api"
+import { computeTrueMos } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 import { ArrowRight } from "lucide-react"
 // PreloadTicker removed 2026-04-27: speculative preload of
@@ -43,13 +44,18 @@ export default function TopAction() {
     : null
 
   if (topHolding) {
-    const mos = topHolding.mos_pct ?? 0
+    // Use true (Buffett) MoS = (1 - price/FV)*100 for both the threshold
+    // gate and the prose claim so the "X% below/above fair value" sentence
+    // is literally accurate. Fall back to 0 only when both fv and price are
+    // unavailable (rare — holdings-live always populates fair_value when the
+    // engine has run).
+    const trueMos = computeTrueMos(topHolding.fair_value, topHolding.current_price) ?? 0
     const reason =
-      mos >= 20
-        ? `now trades ${mos.toFixed(0)}% below fair value — time to revisit your thesis.`
-        : mos <= -10
-        ? `now trades ${Math.abs(mos).toFixed(0)}% above fair value — check whether to trim.`
-        : `has drifted ${mos >= 0 ? mos.toFixed(0) : Math.abs(mos).toFixed(0)}% from fair value.`
+      trueMos >= 20
+        ? `now trades ${trueMos.toFixed(0)}% below fair value — time to revisit your thesis.`
+        : trueMos <= -10
+        ? `now trades ${Math.abs(trueMos).toFixed(0)}% above fair value — check whether to trim.`
+        : `has drifted ${Math.abs(trueMos).toFixed(0)}% from fair value.`
     return (
       <ActionCard
         label="Your top action"
