@@ -8,6 +8,7 @@
  * copy — only AMC-published category labels and the SEBI Riskometer
  * chip. Past-performance disclaimer at the foot of the page.
  */
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { fetchFundCategoriesSSR, fetchFundListSSR } from "@/lib/api"
@@ -92,6 +93,29 @@ function CategoryChip({
       ) : null}
     </Link>
   )
+}
+
+// Route-specific metadata. Without this the /funds hub inherited the
+// root layout's home-page title + OpenGraph tags (audit 2026-06-14),
+// so every fund-section share/SEO surface read "DCF Stock Analysis".
+export const metadata: Metadata = {
+  title: "Mutual Funds — NAV, Returns & Costs | YieldIQ",
+  description:
+    "Browse 14,000+ Indian mutual fund schemes. Trailing returns, NAV-vs-benchmark, risk metrics and expense costs — facts, no fund picks.",
+  alternates: { canonical: "/funds" },
+  openGraph: {
+    title: "Mutual Funds — NAV, Returns & Costs | YieldIQ",
+    description:
+      "Browse 14,000+ Indian mutual fund schemes with trailing returns, NAV-vs-benchmark and cost transparency.",
+    url: "https://yieldiq.in/funds",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Mutual Funds — NAV, Returns & Costs | YieldIQ",
+    description:
+      "Browse 14,000+ Indian mutual fund schemes with trailing returns and cost transparency.",
+  },
 }
 
 interface Props {
