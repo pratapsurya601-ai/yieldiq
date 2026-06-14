@@ -27,10 +27,10 @@ import hashlib
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -214,4 +214,212 @@ async def pwa_funnel(user: dict = Depends(_require_admin_dep())):
         "conversion_rate": round(conversion_rate, 4),
         "dismissal_rate": round(dismissal_rate, 4),
         "daily_breakdown": daily_breakdown,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Web Vitals (RUM) — real-user Core Web Vitals from the client beacon.
+#   POST /api/v1/telemetry/web-vital   -> {"ok": true}   (public)
+#   GET  /api/v1/admin/web-vitals      -> p75 per metric (admin only)
+# CrUX has no field data for this domain yet (traffic too low), so this
+# is our own real-user monitoring. Lab traces measure one machine; p75
+# here is what real visitors actually experience.
+# ═══════════════════════════════════════════════════════════════
+
+WebVitalMetric = Literal["LCP", "CLS", "INP", "TTFB", "FCP"]
+_WEB_VITAL_METRICS: tuple[str, ...] = ("LCP", "CLS", "INP", "TTFB", "FCP")
+_RATINGS: frozenset = frozenset({"good", "needs-improvement", "poor"})
+
+# Per-metric sane upper bounds — reject garbage / hostile payloads. CLS
+# is a unitless score; the others are milliseconds.
+_METRIC_MAX: dict = {
+    "LCP": 600_000.0,
+    "INP": 600_000.0,
+    "TTFB": 600_000.0,
+    "FCP": 600_000.0,
+    "CLS": 100.0,
+}
+
+
+class WebVitalItem(BaseModel):
+    name: WebVitalMetric
+    value: float
+    rating: Optional[str] = None
+
+
+class WebVitalsBatch(BaseModel):
+    # One beacon carries every metric collected for a single page view.
+    metrics: List[WebVitalItem] = Field(default_factory=list)
+    path: Optional[str] = None
+    nav_type: Optional[str] = None
+    conn: Optional[str] = None
+
+
+def _device_from_ua(ua: Optional[str]) -> str:
+    """Coarse mobile/desktop bucket from the UA. Not fingerprintable."""
+    if ua and "Mobi" in ua:
+        return "mobile"
+    return "desktop"
+
+
+def _sanitize_path(path: Optional[str]) -> Optional[str]:
+    """Defence in depth: strip query/hash, cap length. The client sends
+    a route TEMPLATE (/analysis/[ticker]); this guards against a raw URL
+    slipping through."""
+    if not path:
+        return None
+    p = path.split("?", 1)[0].split("#", 1)[0]
+    return p[:120] or None
+
+
+def _persist_web_vitals(
+    batch: WebVitalsBatch, device: str, ip_hash: Optional[str]
+) -> None:
+    """Best-effort insert of each metric. Never raises — a fire-and-forget
+    sendBeacon must never 500 the client. Out-of-range / NaN values drop."""
+    session = _get_session()
+    if session is None:
+        return
+    try:
+        from backend.models.web_vital_event import WebVitalEvent
+
+        path = _sanitize_path(batch.path)
+        nav_type = (batch.nav_type or None)
+        conn = (batch.conn or None)
+        if nav_type:
+            nav_type = nav_type[:24]
+        if conn:
+            conn = conn[:24]
+
+        added = 0
+        for item in batch.metrics[:10]:  # cap items per beacon
+            if item.name not in _WEB_VITAL_METRICS:
+                continue
+            v = float(item.value)
+            if v != v or v < 0 or v > _METRIC_MAX.get(item.name, 600_000.0):
+                continue  # NaN / negative / out-of-range -> skip
+            # Derive the good/needs/poor band from the value using the same
+            # p75 thresholds the admin summary uses (single source of truth).
+            # A client-supplied rating, if any, is honoured when valid.
+            rating = (
+                item.rating
+                if item.rating in _RATINGS
+                else _cwv_band(item.name, v)
+            )
+            session.add(
+                WebVitalEvent(
+                    metric=item.name,
+                    value=v,
+                    rating=rating,
+                    path=path,
+                    nav_type=nav_type,
+                    conn_type=conn,
+                    device=device,
+                    ip_hash=ip_hash,
+                )
+            )
+            added += 1
+        if added:
+            session.commit()
+    except Exception as exc:
+        logger.warning("web_vitals: persist failed: %s", exc)
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
+
+
+@router.post("/web-vital")
+async def web_vital(batch: WebVitalsBatch, request: Request):
+    """Ingest one page view's worth of real-user Core Web Vitals.
+
+    Fire-and-forget from navigator.sendBeacon on page-hide. Returns a
+    bare {"ok": true} so unload is never blocked. Garbage values are
+    dropped in _persist_web_vitals; the endpoint never 500s.
+    """
+    ua = request.headers.get("user-agent", "")[:200]
+    remote_ip = request.client.host if request.client else None
+    _persist_web_vitals(batch, _device_from_ua(ua), _hash_ip(remote_ip))
+    return {"ok": True}
+
+
+# Google's Core-Web-Vitals "good" / "needs-improvement" p75 thresholds.
+# CLS is unitless; the rest are milliseconds.
+_CWV_GOOD: dict = {"LCP": 2500, "INP": 200, "CLS": 0.1, "FCP": 1800, "TTFB": 800}
+_CWV_NEEDS: dict = {"LCP": 4000, "INP": 500, "CLS": 0.25, "FCP": 3000, "TTFB": 1800}
+
+
+def _cwv_band(metric: str, p75: Optional[float]) -> Optional[str]:
+    if p75 is None or metric not in _CWV_GOOD:
+        return None
+    if p75 <= _CWV_GOOD[metric]:
+        return "good"
+    if p75 <= _CWV_NEEDS[metric]:
+        return "needs-improvement"
+    return "poor"
+
+
+@admin_router.get("/web-vitals")
+async def web_vitals_summary(
+    days: int = 28, user: dict = Depends(_require_admin_dep())
+):
+    """Real-user Core Web Vitals — p75 (the percentile Google grades on),
+    p50 and sample count per metric over the window. If p75 lands in the
+    "good" band, real visitors are having a fast experience regardless of
+    what one lab machine measured.
+    """
+    window_days = max(1, min(int(days or 28), 90))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+
+    metrics: dict = {}
+    session = _get_session()
+    if session is not None:
+        try:
+            from backend.models.web_vital_event import WebVitalEvent
+            from sqlalchemy import func
+
+            p75 = func.percentile_cont(0.75).within_group(
+                WebVitalEvent.value.asc()
+            )
+            p50 = func.percentile_cont(0.5).within_group(
+                WebVitalEvent.value.asc()
+            )
+            rows = (
+                session.query(
+                    WebVitalEvent.metric,
+                    p75.label("p75"),
+                    p50.label("p50"),
+                    func.count(WebVitalEvent.id).label("n"),
+                )
+                .filter(WebVitalEvent.created_at >= cutoff)
+                .group_by(WebVitalEvent.metric)
+                .all()
+            )
+            for r in rows:
+                val = float(r.p75) if r.p75 is not None else None
+                metrics[r.metric] = {
+                    "p75": round(val, 3) if val is not None else None,
+                    "p50": (
+                        round(float(r.p50), 3) if r.p50 is not None else None
+                    ),
+                    "samples": int(r.n or 0),
+                    "band": _cwv_band(r.metric, val),
+                }
+        except Exception as exc:
+            logger.warning("web_vitals_summary: aggregation failed: %s", exc)
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+
+    return {
+        "window_days": window_days,
+        "metrics": metrics,
+        "thresholds_good": _CWV_GOOD,
     }
