@@ -233,6 +233,13 @@ function ReturnsTable({
   // NAV series so the row is still meaningful pre-Phase-2.
   if (schemeRow[4] == null) schemeRow[4] = navReturnSI(navHist)
 
+  // Benchmark index mapping + TRI history aren't ingested yet (scheme →
+  // benchmark mapping is null universe-wide), so the Benchmark/Excess rows
+  // would be all em-dash. Hide them rather than render rows of dashes that
+  // read as broken; surface them automatically once TRI data lands.
+  const hasBenchmark = benchRow.some(
+    (v) => v != null && Number.isFinite(v),
+  )
   const excessRow = schemeRow.map((s, i) => excess(s, benchRow[i]))
   const cols: { key: string; label: string }[] = [
     { key: "1y", label: "1Y" },
@@ -268,40 +275,45 @@ function ReturnsTable({
                 </td>
               ))}
             </tr>
-            <tr>
-              <td className="py-2 pr-4 font-medium text-ink">Benchmark</td>
-              {benchRow.map((v, i) => (
-                <td key={i} className="py-2 pr-4 tabular-nums text-body">
-                  {fmtPct(v)}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="py-2 pr-4 font-medium text-ink">Excess</td>
-              {excessRow.map((v, i) => (
-                <td
-                  key={i}
-                  className={
-                    "py-2 pr-4 tabular-nums " +
-                    (v == null
-                      ? "text-caption"
-                      : v >= 0
-                        ? "text-success"
-                        : "text-warning")
-                  }
-                >
-                  {fmtPct(v)}
-                </td>
-              ))}
-            </tr>
+            {hasBenchmark ? (
+              <>
+                <tr>
+                  <td className="py-2 pr-4 font-medium text-ink">Benchmark</td>
+                  {benchRow.map((v, i) => (
+                    <td key={i} className="py-2 pr-4 tabular-nums text-body">
+                      {fmtPct(v)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td className="py-2 pr-4 font-medium text-ink">Excess</td>
+                  {excessRow.map((v, i) => (
+                    <td
+                      key={i}
+                      className={
+                        "py-2 pr-4 tabular-nums " +
+                        (v == null
+                          ? "text-caption"
+                          : v >= 0
+                            ? "text-success"
+                            : "text-warning")
+                      }
+                    >
+                      {fmtPct(v)}
+                    </td>
+                  ))}
+                </tr>
+              </>
+            ) : null}
           </tbody>
         </table>
       </div>
       <p className="mt-2 text-xs text-caption">
         Trailing returns are annualized (CAGR) for 3Y / 5Y / 10Y and absolute
-        for 1Y. SI is total return since the first available NAV. Benchmark
-        returns are derived from the scheme&apos;s mandated TRI index where
-        available.
+        for 1Y. SI is total return since the first available NAV.
+        {hasBenchmark
+          ? " Benchmark returns are derived from the scheme's mandated TRI index."
+          : " Benchmark comparison is coming soon."}
       </p>
     </section>
   )
