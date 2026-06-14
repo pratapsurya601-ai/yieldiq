@@ -15,6 +15,7 @@ import { Analytics } from "@vercel/analytics/next";
 import BetaBanner from "@/components/marketing/BetaBanner";
 import IncidentBanner from "@/components/IncidentBanner";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import WebVitalsBeacon from "@/components/WebVitalsBeacon";
 
 // ── Typography (next/font, self-hosted, no FOUT) ──
 // Inter Tight serves as our "display" face (used for headings via
@@ -213,6 +214,8 @@ export default function RootLayout({
         <Providers>{children}</Providers>
         <ServiceWorkerRegister />
         <Analytics />
+        {/* Real-user Core Web Vitals → /api/v1/telemetry/web-vital (RUM). */}
+        <WebVitalsBeacon />
       </body>
     </html>
   );
