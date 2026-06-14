@@ -10,9 +10,13 @@ name: MF NAV backfill (manual)
 # the DATABASE_URL secret without a local prod write. It does NOT run on a
 # schedule — trigger it from the Actions tab (or `gh workflow run`).
 #
-# Runtime: ~14k schemes × throttle. At 0.4s that's ~2.5h; the job budget
-# is 350 min. The checkpoint is cached so a re-dispatch with resume=true
-# continues where a timed-out / failed run left off.
+# Runtime: ~14k schemes, each pulling full history + bulk-upserting to a
+# remote Neon (~7s/scheme observed), so the full universe is several
+# 350-min runs. Resume is DB-driven (--skip-existing): every dispatch
+# processes only funds_table schemes with no NAV rows yet, so a
+# timeout-cancelled run is continued simply by re-dispatching — no
+# dependence on the checkpoint cache (which does NOT survive a
+# timeout-cancellation; that bug made the first run's checkpoint vanish).
 #
 # Secrets required:
 #   - DATABASE_URL : Neon Postgres connection string (read+write).
@@ -83,8 +87,13 @@ jobs:
           fi
           RESUME_FLAG=""
           if [ "${{ inputs.resume }}" = "true" ]; then RESUME_FLAG="--resume"; fi
+          # --skip-existing makes resume DB-driven: each (re-)dispatch
+          # processes only funds_table schemes that have no NAV rows yet,
+          # so a timeout-cancelled run that lost its checkpoint cache still
+          # picks up where it left off instead of redoing from scheme 1.
           python scripts/backfill_mf_nav.py \
             --schemes-source "${{ inputs.schemes_source }}" \
             --source "${{ inputs.source }}" \
             --throttle "${{ inputs.throttle }}" \
+            --skip-existing \
             $RESUME_FLAG
