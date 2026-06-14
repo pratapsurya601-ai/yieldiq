@@ -57,9 +57,31 @@ def test_proxy_skips_nonpositive_closes():
 
 def test_equity_benchmark_codes_are_sourceable():
     m = _mod()
-    # The big-coverage equity codes must resolve to an NSE index name.
+    # The big-coverage equity codes must resolve to an NSE index name
+    # (reused from nse_indices_history.TRI_BENCHMARK_MAP).
     for code in ("NIFTY_100_TRI", "NIFTY_500_TRI", "NIFTY_MIDCAP_150_TRI",
                  "NIFTY_SMALLCAP_250_TRI", "NIFTY_50_TRI"):
-        assert code in m.TRI_CODE_TO_NSE_NAME
+        assert code in m.CODE_TO_NSE_NAME
     # CRISIL debt benchmarks must NOT be claimed as sourceable.
-    assert "CRISIL_LIQUID_DEBT_TRI" not in m.TRI_CODE_TO_NSE_NAME
+    assert "CRISIL_LIQUID_DEBT_TRI" not in m.CODE_TO_NSE_NAME
+
+
+def test_canon_collapses_amfi_verbose_to_sebi_label():
+    m = _mod()
+    # The whole point: the AMFI verbose category and the SEBI short label
+    # must normalize to the SAME key so the mapping join works.
+    cases = [
+        ("Equity Scheme - Large Cap Fund", "Large Cap"),
+        ("Equity Scheme - Large & Mid Cap Fund", "Large & Mid Cap"),
+        ("Equity Scheme - Flexi Cap Fund", "Flexi Cap"),
+        ("Equity Scheme - ELSS", "ELSS"),
+        ("Equity Scheme - Sectoral/ Thematic", "Sectoral/Thematic"),
+        ("Debt Scheme - Liquid Fund", "Liquid"),
+        ("Hybrid Scheme - Aggressive Hybrid Fund", "Aggressive Hybrid"),
+        ("Other Scheme - Index Funds", "Index Funds"),
+    ]
+    for amfi, sebi in cases:
+        assert m._canon(amfi) == m._canon(sebi), f"{amfi!r} != {sebi!r}"
+    # Distinct categories must NOT collapse together.
+    assert m._canon("Large Cap") != m._canon("Mid Cap")
+    assert m._canon("Liquid") != m._canon("Low Duration")
