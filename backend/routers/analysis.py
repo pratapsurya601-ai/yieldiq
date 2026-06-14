@@ -4075,6 +4075,17 @@ async def get_og_data(
             # could be 829 in that case — see EXTREME_MOS_DISPLAY_SUPPRESSION
             # above). Frontend renders "—" for null.
             "mos": _mos_display,
+            # True (Buffett) MoS = (1 − price/FV) × 100. Bounded at +100%,
+            # so it is NEVER suppressed by mos_is_extreme — it stays
+            # defined for deep-value names where the upside-% `mos` above
+            # is nulled. Frontend prefers this for the headline
+            # "Margin of Safety" (2026-06-14 rollout); `mos` becomes the
+            # secondary "implied upside" line.
+            "buffett_mos_pct": (
+                None
+                if _suspicious
+                else getattr(result.valuation, "buffett_mos_pct", None)
+            ),
         }
 
         # ── Scenario + ratio fields (feat/ogdata-add-scenarios-ratios) ──
@@ -4277,6 +4288,13 @@ async def get_analysis_preview(ticker: str):
                 "fair_value": _fv,
                 "current_price": _px,
                 "margin_of_safety": _mos_display,
+                # True (Buffett) MoS — additive (2026-06-14), never
+                # suppressed by mos_is_extreme. Frontend headline.
+                "buffett_mos_pct": (
+                    None
+                    if _suspicious
+                    else getattr(result.valuation, "buffett_mos_pct", None)
+                ),
                 "verdict": _verdict,
                 "wacc": result.valuation.wacc,
                 "confidence_score": result.valuation.confidence_score,

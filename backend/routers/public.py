@@ -404,6 +404,13 @@ def _extract_analysis_summary(result) -> dict:
         "price": _price,
         "mos": _mos,
         "mos_pct": _mos,
+        # True (Buffett) MoS = (1 − price/FV) × 100. Additive (2026-06-14):
+        # bounded at +100%, so it is NOT suppressed by mos_is_extreme like
+        # `mos`/`mos_pct` above — deep-value names (HEROMOTOCO/ITC/SUNTV)
+        # that null the upside-% MoS still carry a real margin of safety
+        # here. Frontend uses this for the headline "Margin of Safety";
+        # `mos`/`mos_pct` remain the secondary "implied upside".
+        "buffett_mos_pct": getattr(v, "buffett_mos_pct", None),
         "verdict": v.verdict,
         "score": _score,
         "score_100": _score,

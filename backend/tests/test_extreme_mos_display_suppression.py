@@ -85,6 +85,10 @@ def test_extract_analysis_summary_suppresses_mos_when_extreme():
     valuation = types.SimpleNamespace(
         current_price=138.09,
         margin_of_safety=829.0,
+        # True (Buffett) MoS = (1 - 138.09/1282.90)*100 ≈ 89.2%, bounded
+        # at +100% — distinct from the 829% upside that triggers extreme
+        # suppression. Surfaced unconditionally for the headline (2026-06-14).
+        buffett_mos_pct=89.2,
         mos_is_extreme=True,
         mos_extreme_note="Model shows significant undervaluation...",
         fair_value=1282.90,
@@ -119,6 +123,10 @@ def test_extract_analysis_summary_suppresses_mos_when_extreme():
     out = _extract_analysis_summary(result)
     assert out["mos"] is None
     assert out["mos_pct"] is None
+    # True MoS (2026-06-14): the bounded Buffett MoS is NOT suppressed by
+    # mos_is_extreme — it survives so deep-value names still show a real
+    # margin of safety as the headline while the upside-% `mos` is hidden.
+    assert out["buffett_mos_pct"] == 89.2
     # Verdict stays — frontend reads chip + note for the user message.
     assert out["verdict"] == "under_review"
 
@@ -132,6 +140,8 @@ def test_extract_analysis_summary_passes_through_normal_mos():
     valuation = types.SimpleNamespace(
         current_price=100.0,
         margin_of_safety=43.0,
+        # True MoS = (1 - 100/143)*100 ≈ 30.1% (vs the 43% upside).
+        buffett_mos_pct=30.1,
         mos_is_extreme=False,
         mos_extreme_note=None,
         fair_value=143.0,
@@ -166,3 +176,5 @@ def test_extract_analysis_summary_passes_through_normal_mos():
     out = _extract_analysis_summary(result)
     assert out["mos"] == 43.0
     assert out["mos_pct"] == 43.0
+    # True MoS surfaces alongside the upside-% in the normal case too.
+    assert out["buffett_mos_pct"] == 30.1
