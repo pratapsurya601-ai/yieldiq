@@ -14,6 +14,10 @@ on:
         description: "First date YYYY-MM-DD"
         type: string
         default: "2014-01-01"
+      end:
+        description: "Last date YYYY-MM-DD (blank = today)"
+        type: string
+        default: ""
       throttle:
         description: "Seconds between day requests"
         type: string
@@ -23,8 +27,12 @@ on:
         type: boolean
         default: true
 
+# Concurrency group is per date-range so several shards (distinct start
+# dates) can run AT THE SAME TIME — the backfill is parallelized by
+# dispatching disjoint year ranges concurrently. Two dispatches with the
+# same start still serialize (safe).
 concurrency:
-  group: nse-indices-backfill
+  group: nse-indices-backfill-${{ github.event.inputs.start }}
   cancel-in-progress: false
 
 jobs:
@@ -52,7 +60,10 @@ jobs:
           fi
           RESUME=""
           if [ "${{ inputs.resume }}" = "true" ]; then RESUME="--resume"; fi
+          END=""
+          if [ -n "${{ inputs.end }}" ]; then END="--end ${{ inputs.end }}"; fi
           python scripts/backfill_nse_indices.py \
             --start "${{ inputs.start }}" \
+            $END \
             --throttle "${{ inputs.throttle }}" \
             $RESUME
