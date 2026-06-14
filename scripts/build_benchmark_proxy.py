@@ -170,9 +170,17 @@ def run(db_url: str, dry_run: bool) -> int:
     from psycopg2.extras import execute_values
     for code, n_funds in sourceable:
         nse_name = CODE_TO_NSE_NAME[code]
+        # Case/whitespace-insensitive match (2026-06-14). NSE's
+        # ind_close_all CSV labels some indices in upper-case — e.g.
+        # "NIFTY LargeMidcap 250", "NIFTY500 Value 50" — while the
+        # TRI_BENCHMARK_MAP keys are title-case ("Nifty LargeMidcap 250").
+        # An exact `=` match left those series at 0 source rows even though
+        # the price history WAS backfilled under the upper-case name, so
+        # ~243 funds (LargeMidcap 250 + Value 50) silently got no proxy.
         cur.execute(
             "SELECT trade_date, close::float8, div_yield::float8 FROM nse_index_history "
-            "WHERE index_name = %s AND close IS NOT NULL ORDER BY trade_date ASC",
+            "WHERE LOWER(TRIM(index_name)) = LOWER(TRIM(%s)) AND close IS NOT NULL "
+            "ORDER BY trade_date ASC",
             (nse_name,),
         )
         series = cur.fetchall()
