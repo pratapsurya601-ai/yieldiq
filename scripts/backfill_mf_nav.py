@@ -147,20 +147,47 @@ def _run_scheme_master_ingest() -> int:
     return rc or 0
 
 
-def _load_funds_table_schemes(db_url: str) -> list[str]:
+def _load_funds_table_schemes(db_url: str, skip_existing: bool = False) -> list[str]:
     """All active scheme_codes from the funds table.
 
     Used when the operator runs the full-universe backfill. Requires
     that amfi_scheme_master has been run at least once.
+
+    When ``skip_existing`` is set, schemes that already have at least one
+    row in ``fund_nav_history`` are excluded. This makes a re-dispatch of
+    the (350-min-capped) CI backfill resume across runs WITHOUT depending
+    on the local checkpoint file — the GH Actions cache that was meant to
+    carry the checkpoint does not survive a timeout-cancellation, so a
+    naive ``--resume`` would restart from scheme 1 and redo everything
+    already done (quadratic waste over successive runs). The DB itself is
+    the source of truth for "what's done", so every dispatch processes
+    only net-new schemes. The NOT EXISTS is one index probe per fund
+    (index on fund_nav_history(scheme_code, nav_date)), so the filter is
+    cheap even though fund_nav_history holds tens of millions of rows.
+
+    Note: a scheme mfapi has no data for stays selected every run (it
+    never gets a row), so it's re-attempted each dispatch — a small fixed
+    set of single cheap calls, not worth tracking separately.
     """
     import psycopg2
     conn = psycopg2.connect(db_url)
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT scheme_code FROM funds WHERE is_active = TRUE "
-                "ORDER BY scheme_code"
-            )
+            if skip_existing:
+                cur.execute(
+                    "SELECT f.scheme_code FROM funds f "
+                    "WHERE f.is_active = TRUE "
+                    "AND NOT EXISTS ("
+                    "    SELECT 1 FROM fund_nav_history h "
+                    "    WHERE h.scheme_code = f.scheme_code"
+                    ") "
+                    "ORDER BY f.scheme_code"
+                )
+            else:
+                cur.execute(
+                    "SELECT scheme_code FROM funds WHERE is_active = TRUE "
+                    "ORDER BY scheme_code"
+                )
             return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()
@@ -231,6 +258,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Sleep between scheme requests (seconds).")
     p.add_argument("--resume", action="store_true",
                    help="Skip schemes already in the checkpoint file.")
+    p.add_argument("--skip-existing", action="store_true",
+                   help="funds_table only: skip schemes that already have "
+                        "NAV rows in the DB. DB-driven resume — survives a "
+                        "timed-out CI run whose checkpoint cache was lost, "
+                        "so each re-dispatch does only net-new work.")
     p.add_argument("--auto-bootstrap", action="store_true",
                    help="If the funds table is empty, run the AMFI "
                         "scheme-master ingest in-process before the NAV "
@@ -284,9 +316,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.schemes_source == "canary":
         schemes = _load_canary_schemes()
     else:
-        schemes = _load_funds_table_schemes(db_url)
-    logger.info("Backfill universe: %d schemes (source=%s)",
-                len(schemes), args.schemes_source)
+        schemes = _load_funds_table_schemes(db_url, skip_existing=args.skip_existing)
+    logger.info("Backfill universe: %d schemes (source=%s, skip_existing=%s)",
+                len(schemes), args.schemes_source, args.skip_existing)
 
     checkpoint = _load_checkpoint() if args.resume else {}
     done: set[str] = set(checkpoint.get("done", []))
