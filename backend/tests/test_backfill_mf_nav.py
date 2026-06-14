@@ -72,6 +72,11 @@ def test_skip_existing_uses_not_exists(monkeypatch):
     sql = captured["sql"]
     assert "NOT EXISTS" in sql
     assert "fund_nav_history" in sql
+    # Must key on a NAV row OLDER than a recency threshold, not "any row":
+    # the daily cron gives every scheme today's row, so "any row" skips the
+    # whole universe (the bug this guards). Require the date-range filter.
+    assert "nav_date" in sql
+    assert "make_interval" in sql or "interval" in sql.lower()
     assert captured.get("closed") is True
 
 

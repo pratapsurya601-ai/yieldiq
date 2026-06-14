@@ -153,23 +153,37 @@ def _load_funds_table_schemes(db_url: str, skip_existing: bool = False) -> list[
     Used when the operator runs the full-universe backfill. Requires
     that amfi_scheme_master has been run at least once.
 
-    When ``skip_existing`` is set, schemes that already have at least one
-    row in ``fund_nav_history`` are excluded. This makes a re-dispatch of
-    the (350-min-capped) CI backfill resume across runs WITHOUT depending
-    on the local checkpoint file — the GH Actions cache that was meant to
+    When ``skip_existing`` is set, schemes that already have *real history*
+    in ``fund_nav_history`` are excluded. This makes a re-dispatch of the
+    (350-min-capped) CI backfill resume across runs WITHOUT depending on
+    the local checkpoint file — the GH Actions cache that was meant to
     carry the checkpoint does not survive a timeout-cancellation, so a
     naive ``--resume`` would restart from scheme 1 and redo everything
-    already done (quadratic waste over successive runs). The DB itself is
-    the source of truth for "what's done", so every dispatch processes
-    only net-new schemes. The NOT EXISTS is one index probe per fund
-    (index on fund_nav_history(scheme_code, nav_date)), so the filter is
-    cheap even though fund_nav_history holds tens of millions of rows.
+    already done (quadratic waste over successive runs). The DB is the
+    source of truth for "what's done", so every dispatch does net-new work.
 
-    Note: a scheme mfapi has no data for stays selected every run (it
-    never gets a row), so it's re-attempted each dispatch — a small fixed
-    set of single cheap calls, not worth tracking separately.
+    "Real history" is keyed on the presence of a NAV row OLDER than
+    HISTORY_DONE_DAYS, NOT merely any row. The daily ingest cron writes one
+    (today's) NAV row for every active scheme, so "has any row" is true for
+    the entire universe and would skip everything — the bug that made the
+    first --skip-existing re-dispatch select 0 schemes. A genuinely
+    backfilled scheme has NAV going back years (row far older than the
+    threshold); a scheme carrying only daily-cron dribble has none. The
+    range NOT EXISTS is one index probe per fund (index on
+    fund_nav_history(scheme_code, nav_date)), cheap at tens of millions of
+    rows.
+
+    Note: a brand-new scheme (history shorter than the threshold) and a
+    scheme mfapi has no data for both stay selected every run and are
+    re-attempted each dispatch — a small bounded set of cheap idempotent
+    re-fetches, not worth tracking separately.
     """
     import psycopg2
+    # A scheme is "backfilled" once it has a NAV row older than this. Set
+    # well beyond the daily cron's age but far short of real multi-year
+    # history, so daily-only schemes are selected and truly-backfilled ones
+    # are skipped. See the docstring for why "any row" is insufficient.
+    HISTORY_DONE_DAYS = 180
     conn = psycopg2.connect(db_url)
     try:
         with conn.cursor() as cur:
@@ -179,9 +193,11 @@ def _load_funds_table_schemes(db_url: str, skip_existing: bool = False) -> list[
                     "WHERE f.is_active = TRUE "
                     "AND NOT EXISTS ("
                     "    SELECT 1 FROM fund_nav_history h "
-                    "    WHERE h.scheme_code = f.scheme_code"
+                    "    WHERE h.scheme_code = f.scheme_code "
+                    "    AND h.nav_date < CURRENT_DATE - make_interval(days => %s)"
                     ") "
-                    "ORDER BY f.scheme_code"
+                    "ORDER BY f.scheme_code",
+                    (HISTORY_DONE_DAYS,),
                 )
             else:
                 cur.execute(
