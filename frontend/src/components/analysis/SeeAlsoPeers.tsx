@@ -20,6 +20,7 @@ import {
   formatCurrency,
   formatPct,
   formatCompanyName,
+  trueMosFromUpside,
   verdictDisplayLabel,
 } from "@/lib/utils"
 import TickerAvatar from "@/components/common/TickerAvatar"
@@ -51,6 +52,10 @@ function PeerCard({
 }) {
   const t = displayTicker(peer.ticker)
   const mos = peer.mos_pct
+  // Headline = true (Buffett) MoS. Peer rows carry only the upside-%
+  // field, so derive via the algebraic identity (= same number a
+  // FV+price computation would give). 2026-06-14 true-MoS rollout.
+  const trueMos = trueMosFromUpside(mos)
   const verdict = verdictDisplayLabel(peer.verdict ?? "")
   // Current price isn't on PeerRow — derive from fair_value + MoS so we
   // can render *something* in the price slot. Falls back to N/A.
@@ -80,11 +85,16 @@ function PeerCard({
         {formatCompanyName(peer.company_name)}
       </p>
       <div className="flex items-center gap-2 flex-wrap">
-        {mos != null && Number.isFinite(mos) && (
+        {trueMos != null && Number.isFinite(trueMos) && (
           <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums ${mosTone(mos)}`}
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums ${mosTone(trueMos)}`}
           >
-            MoS {formatPct(mos)}
+            MoS {formatPct(trueMos)}
+          </span>
+        )}
+        {mos != null && Number.isFinite(mos) && (
+          <span className="text-[10px] font-mono tabular-nums text-caption">
+            upside {formatPct(mos)}
           </span>
         )}
         {verdict && (
