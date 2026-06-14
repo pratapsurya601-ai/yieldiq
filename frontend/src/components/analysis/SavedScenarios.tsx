@@ -28,7 +28,7 @@ import {
   saveScenario,
   type SavedScenario,
 } from "@/lib/api"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import { formatCurrency, formatPct, trueMosFromUpside } from "@/lib/utils"
 
 interface Props {
   ticker: string
@@ -198,10 +198,14 @@ export default function SavedScenarios({
           {scenarios.map(s => {
             const fv = Number(s.result?.fair_value ?? 0)
             const mos = Number(s.result?.margin_of_safety ?? 0)
+            const trueMos = trueMosFromUpside(Number.isFinite(mos) ? mos : null)
+            const trueMosDisplay = trueMos != null && Number.isFinite(trueMos)
+              ? formatPct(trueMos)
+              : null
             const mosColor =
-              mos >= 20
+              (trueMos ?? mos) >= 20
                 ? "text-success"
-                : mos >= -10
+                : (trueMos ?? mos) >= -10
                 ? "text-brand"
                 : "text-danger"
             return (
@@ -231,8 +235,13 @@ export default function SavedScenarios({
                     {fv > 0 ? formatCurrency(fv, currency) : "—"}
                   </p>
                   <p className={`text-[10px] font-mono tabular-nums ${mosColor}`}>
-                    {Number.isFinite(mos) ? formatPct(mos) : "—"}
+                    {trueMosDisplay ?? "—"}
                   </p>
+                  {Number.isFinite(mos) && trueMosDisplay && (
+                    <p className="text-[10px] font-mono tabular-nums text-caption">
+                      Implied upside {formatPct(mos)}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"

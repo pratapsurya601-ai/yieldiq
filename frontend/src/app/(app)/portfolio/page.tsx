@@ -17,7 +17,7 @@ import UpdatesFeed from "@/components/portfolio/UpdatesFeed"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { WatchlistRanking } from "@/components/watchlist/WatchlistRanking"
 import TickerAvatar from "@/components/common/TickerAvatar"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, computeTrueMos } from "@/lib/utils"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -427,8 +427,10 @@ function PortfolioInner() {
                     hotfix-#5: when a holding has no fair value (e.g.
                     commodity ETFs like TATSILV / GOLDBEES) render an
                     explicit "not modeled" line instead of leaving a
-                    blank gap that reads as a broken row. */}
-                {h.fair_value != null && h.mos_pct != null ? (
+                    blank gap that reads as a broken row.
+                    Guard expanded: show when fair_value + current_price
+                    are present even if mos_pct is null. */}
+                {h.fair_value != null && h.current_price != null ? (
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-border text-[10px] gap-2">
                     <span className="text-caption shrink-0">
                       Fair Value: <span className="font-mono text-ink">{formatCurrency(h.fair_value, "INR")}</span>
@@ -439,9 +441,22 @@ function PortfolioInner() {
                     <div onClick={(e) => e.preventDefault()} className="hidden sm:block">
                       <HoldingSparkline data={sparklineBatch?.[h.ticker]?.data} />
                     </div>
-                    <span className={`font-semibold shrink-0 ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
-                      Discount {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
-                    </span>
+                    {(() => {
+                      const trueMos = computeTrueMos(h.fair_value, h.current_price)
+                      if (trueMos === null) return null
+                      return (
+                        <div className="text-right shrink-0">
+                          <span className={`font-semibold ${trueMos >= 0 ? "text-green-600" : "text-amber-600"}`}>
+                            Margin of Safety {trueMos >= 0 ? "+" : ""}{trueMos.toFixed(1)}%
+                          </span>
+                          {h.mos_pct != null && (
+                            <p className="text-[10px] text-caption font-mono">
+                              Implied upside {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 ) : (
                   <div className="mt-2 pt-2 border-t border-border text-[10px] text-caption">

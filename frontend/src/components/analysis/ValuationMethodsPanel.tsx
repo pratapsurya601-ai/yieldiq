@@ -38,7 +38,7 @@ import * as React from "react"
 
 import { SummaryCard } from "@/components/cards"
 import MetricTooltip from "@/components/common/MetricTooltip"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn, computeTrueMos, formatCurrency } from "@/lib/utils"
 import type { AnalysisResponse } from "@/types/api"
 
 type BadgeKind = "primary" | "supporting" | "floor" | "consensus"
@@ -382,8 +382,10 @@ function MethodRow({
       ? formatCurrency(entry.value, currency, ticker)
       : "—"
   const gap = computeGapPct(entry.value, currentPrice)
-  const gapText = formatGap(gap)
-  const gapTone = toneForGap(gap)
+  const trueMos = computeTrueMos(entry.value, currentPrice)
+  const trueMosText = formatTrueMos(trueMos)
+  const gapTone = toneForGap(trueMos)
+  const impliedUpsideText = formatImpliedUpside(gap)
   const methodTag = entry.method ? prettifyMethodTag(entry.method) : null
 
   return (
@@ -433,16 +435,23 @@ function MethodRow({
             </span>
           }
         />
-        {gapText && (
-          <span
-            data-testid={`valuation-method-${entry.key}-gap`}
-            className={cn(
-              "font-mono tabular-nums text-[12px]",
-              gapTone,
+        {trueMosText && (
+          <div className="flex flex-col items-end gap-0.5">
+            <span
+              data-testid={`valuation-method-${entry.key}-gap`}
+              className={cn(
+                "font-mono tabular-nums text-[12px]",
+                gapTone,
+              )}
+            >
+              {trueMosText}
+            </span>
+            {impliedUpsideText && (
+              <span className="font-mono tabular-nums text-[10px] text-caption">
+                Implied upside {impliedUpsideText}
+              </span>
             )}
-          >
-            {gapText}
-          </span>
+          </div>
         )}
       </div>
 
@@ -510,22 +519,35 @@ function computeGapPct(value: number | null, currentPrice: number | null): numbe
 }
 
 /**
- * Descriptive gap line. Positive values frame as "MoS +N% vs current
- * price" (the engine's estimate sits above current); negative values
- * read as "-N% vs current price". Descriptive only — never imperative.
+ * Primary MoS display — true (Buffett) Margin of Safety:
+ * (1 - price/FV) * 100. Positive means FV > price.
+ * Labelled "Margin of Safety +N% vs current price".
  */
-function formatGap(gap: number | null): string | null {
+function formatTrueMos(trueMos: number | null): string | null {
+  if (trueMos == null || !Number.isFinite(trueMos)) return null
+  const rounded = Math.round(trueMos * 10) / 10
+  if (rounded >= 0) {
+    return `Margin of Safety +${rounded.toFixed(1)}% vs current price`
+  }
+  return `Margin of Safety ${rounded.toFixed(1)}% vs current price`
+}
+
+/**
+ * Secondary implied-upside line — the classic (FV-price)/price upside %.
+ * Shown in small caption below the primary MoS line.
+ */
+function formatImpliedUpside(gap: number | null): string | null {
   if (gap == null || !Number.isFinite(gap)) return null
   const rounded = Math.round(gap * 10) / 10
   if (rounded >= 0) {
-    return `MoS +${rounded.toFixed(1)}% vs current price`
+    return `+${rounded.toFixed(1)}%`
   }
-  return `${rounded.toFixed(1)}% vs current price`
+  return `${rounded.toFixed(1)}%`
 }
 
-function toneForGap(gap: number | null): string {
-  if (gap == null || !Number.isFinite(gap)) return "text-caption"
-  if (gap >= 0) return "text-emerald-700 dark:text-emerald-300"
+function toneForGap(trueMos: number | null): string {
+  if (trueMos == null || !Number.isFinite(trueMos)) return "text-caption"
+  if (trueMos >= 0) return "text-emerald-700 dark:text-emerald-300"
   return "text-rose-700 dark:text-rose-300"
 }
 

@@ -258,15 +258,19 @@ describe("ValuationMethodsPanel — render coverage", () => {
     const payload = fullyPopulatedPayload()
     render(<ValuationMethodsPanel data={payload} />)
 
-    // Composite IV = 1200 vs current price 1000 -> +20.0% gap.
+    // Composite IV = 1200 vs current price 1000.
+    // True (Buffett) MoS = (1 - 1000/1200) * 100 = 16.666...% -> +16.7%.
+    // (Old implied upside was +20.0% — no longer the headline.)
     const composite = screen.getByTestId("valuation-method-composite")
     expect(within(composite).getByText(/Composite Intrinsic Value/)).toBeInTheDocument()
     const gap = screen.getByTestId("valuation-method-composite-gap")
-    expect(gap.textContent ?? "").toMatch(/\+20\.0%/)
+    expect(gap.textContent ?? "").toMatch(/Margin of Safety \+16\.7% vs current price/)
 
-    // EPV = 850 vs current price 1000 -> -15.0% gap.
+    // EPV = 850 vs current price 1000.
+    // True MoS = (1 - 1000/850) * 100 = -17.647...% -> -17.6%.
+    // (Old implied upside was -15.0% — no longer the headline.)
     const epvGap = screen.getByTestId("valuation-method-epv-gap")
-    expect(epvGap.textContent ?? "").toMatch(/-15\.0%/)
+    expect(epvGap.textContent ?? "").toMatch(/Margin of Safety -17\.6% vs current price/)
   })
 
   it("renders correct semantic badges per row", () => {

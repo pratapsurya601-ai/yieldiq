@@ -113,10 +113,16 @@ describe("QuantPicksGrid", () => {
     // Footer shows "See {total - 3} more →" — here 14 - 3 = 11.
     expect(container.textContent).toContain("See 11 more")
 
-    // MoS labels render with the "MoS +XX%" pattern (the previous design
-    // showed just "+44%" which was ambiguous as a row signal).
-    expect(container.textContent).toContain("MoS +44%")
+    // MoS labels now show TRUE (Buffett) MoS as the headline value.
+    // trueMosFromUpside(u) = u / (1 + u/100)
+    //   upside=44 → 44/1.44 = 30.56 → rounds to 31%
+    //   upside=31 → 31/1.31 = 23.66 → rounds to 24%
+    //   upside=28 → 28/1.28 = 21.875 → rounds to 22%
     expect(container.textContent).toContain("MoS +31%")
+    expect(container.textContent).toContain("MoS +24%")
+    // Secondary "Implied upside" line carries the old backend upside value.
+    expect(container.textContent).toContain("Implied upside +44%")
+    expect(container.textContent).toContain("Implied upside +31%")
   })
 
   it("shows 'Tap to refine filters →' when a preset returns < 3 results", async () => {

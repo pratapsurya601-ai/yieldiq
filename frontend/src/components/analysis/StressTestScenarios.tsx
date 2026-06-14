@@ -36,7 +36,7 @@ import * as React from "react"
 
 import { SummaryCard } from "@/components/cards"
 import { normalizeSector } from "@/lib/sector-taxonomy"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn, computeTrueMos, formatCurrency, formatPct } from "@/lib/utils"
 
 /* ─── scenario catalog ────────────────────────────────────────────── */
 
@@ -262,11 +262,18 @@ export default function StressTestScenarios({
     return baseFairValue * (1 + waccImpact + growthImpact)
   }, [baseFairValue, effectiveGrowthPp, effectiveWaccBps, fvOk])
 
+  // stressedMosPct = implied upside % = (FV - price) / price * 100 (now secondary)
   const stressedMosPct =
     stressedPrice !== null &&
     stressedFv !== null &&
     stressedPrice > 0
       ? ((stressedFv - stressedPrice) / stressedPrice) * 100
+      : null
+
+  // stressedTrueMos = Buffett MoS = (1 - price/FV) * 100 (headline value)
+  const stressedTrueMos =
+    stressedFv !== null && stressedPrice !== null
+      ? computeTrueMos(stressedFv, stressedPrice)
       : null
 
   const priceDeltaPct =
@@ -425,16 +432,21 @@ export default function StressTestScenarios({
               label="Stressed Margin of Safety"
               testId="stress-test-mos"
               value={
-                stressedMosPct !== null
-                  ? `${stressedMosPct >= 0 ? "+" : ""}${stressedMosPct.toFixed(
-                      1,
-                    )}%`
+                stressedTrueMos !== null
+                  ? `${stressedTrueMos >= 0 ? "+" : ""}${stressedTrueMos.toFixed(1)}%`
+                  : stressedMosPct !== null
+                  ? `${stressedMosPct >= 0 ? "+" : ""}${stressedMosPct.toFixed(1)}%`
                   : "—"
               }
               deltaPct={null}
-              caption="(FV − price) / price"
+              caption="(1 - price/FV) × 100"
+              secondaryCaption={
+                stressedMosPct !== null
+                  ? `Implied upside: ${formatPct(stressedMosPct)}`
+                  : undefined
+              }
               valueColored
-              rawValue={stressedMosPct}
+              rawValue={stressedTrueMos ?? stressedMosPct}
             />
           </div>
 
@@ -507,6 +519,8 @@ interface ResultCardProps {
   value: string
   deltaPct: number | null
   caption?: string
+  /** Small secondary line below caption — used for the implied upside sub-label. */
+  secondaryCaption?: string
   /** Color the value by sign — used for the MoS readout. */
   valueColored?: boolean
   /** Raw numeric for color decision when valueColored=true. */
@@ -519,6 +533,7 @@ function ResultCard({
   value,
   deltaPct,
   caption,
+  secondaryCaption,
   valueColored,
   rawValue,
 }: ResultCardProps) {
@@ -558,6 +573,11 @@ function ResultCard({
       {caption ? (
         <span className="text-[10px] text-caption leading-tight">
           {caption}
+        </span>
+      ) : null}
+      {secondaryCaption ? (
+        <span className="text-[10px] text-caption leading-tight">
+          {secondaryCaption}
         </span>
       ) : null}
     </div>

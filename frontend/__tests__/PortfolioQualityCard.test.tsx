@@ -190,7 +190,9 @@ describe("PortfolioQualityCard", () => {
     const agg = container.querySelector("[data-testid='quality-card-aggregate']")
     expect(agg).not.toBeNull()
     expect(agg!.textContent).toContain("72/100")
-    expect(agg!.textContent).toContain("+45.0%")
+    // True (Buffett) MoS = (1 - price/FV)*100 = (1 - 1000/1200)*100 = 16.667% → "+16.7%"
+    // fixture: fair_value=1200, current_price=1000 (already set in stockSummary helper defaults)
+    expect(agg!.textContent).toContain("+16.7%")
     expect(agg!.textContent).toContain("8.0/9")
     expect(agg!.textContent).toContain("88%")
     // Moat distribution: 1W, 0N, 0—

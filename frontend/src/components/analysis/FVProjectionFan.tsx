@@ -53,7 +53,7 @@ import {
   Label,
 } from "recharts"
 import { getChartData, getFVHistory, type FVHistoryPoint } from "@/lib/api"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import { formatCurrency, formatPct, computeTrueMos } from "@/lib/utils"
 
 /** Subset of `/chart-data` we read. The endpoint returns more fields
  *  (financials etc.) but we only need the price series here. */
@@ -652,7 +652,11 @@ export default function FVProjectionFan({
           <span className="text-caption">Bull</span>
           <span className="ml-auto font-mono tabular-nums text-ink">
             {formatCurrency(scenarios.bull.iv, currency)} ·{" "}
-            {formatPct(scenarios.bull.mos_pct)} · {bullCagr.toFixed(1)}% CAGR
+            MoS: {formatPct(computeTrueMos(scenarios.bull.iv, currentPrice) ?? 0)}
+            <span className="text-[10px] text-caption ml-1">
+              (Implied upside: {formatPct(scenarios.bull.mos_pct)})
+            </span>
+            {" "}· {bullCagr.toFixed(1)}% CAGR
           </span>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5">
@@ -660,7 +664,11 @@ export default function FVProjectionFan({
           <span className="text-caption">Base</span>
           <span className="ml-auto font-mono tabular-nums text-ink">
             {formatCurrency(scenarios.base.iv, currency)} ·{" "}
-            {formatPct(scenarios.base.mos_pct)} · {baseCagr.toFixed(1)}% CAGR
+            MoS: {formatPct(computeTrueMos(scenarios.base.iv, currentPrice) ?? 0)}
+            <span className="text-[10px] text-caption ml-1">
+              (Implied upside: {formatPct(scenarios.base.mos_pct)})
+            </span>
+            {" "}· {baseCagr.toFixed(1)}% CAGR
           </span>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5">
@@ -668,7 +676,11 @@ export default function FVProjectionFan({
           <span className="text-caption">Bear</span>
           <span className="ml-auto font-mono tabular-nums text-ink">
             {formatCurrency(scenarios.bear.iv, currency)} ·{" "}
-            {formatPct(scenarios.bear.mos_pct)} · {bearCagr.toFixed(1)}% CAGR
+            MoS: {formatPct(computeTrueMos(scenarios.bear.iv, currentPrice) ?? 0)}
+            <span className="text-[10px] text-caption ml-1">
+              (Implied upside: {formatPct(scenarios.bear.mos_pct)})
+            </span>
+            {" "}· {bearCagr.toFixed(1)}% CAGR
           </span>
         </div>
       </div>
@@ -698,7 +710,12 @@ export default function FVProjectionFan({
                 <p className={`text-lg font-bold font-mono tabular-nums ${color}`}>
                   {formatCurrency(sc.iv, currency, ticker)}
                 </p>
-                <p className="text-xs text-caption">MoS: {formatPct(sc.mos_pct)}</p>
+                <p className="text-xs text-caption">
+                  MoS: {formatPct(computeTrueMos(sc.iv, currentPrice) ?? 0)}
+                </p>
+                <p className="text-[10px] text-caption">
+                  Implied upside: {formatPct(sc.mos_pct)}
+                </p>
               </div>
             )
           })}

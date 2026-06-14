@@ -21,6 +21,8 @@
  * fetch so all values are populated at render time.
  */
 
+import { computeTrueMos } from "@/lib/utils"
+
 export interface FaqEntry {
   question: string
   answer: string
@@ -88,10 +90,22 @@ export default function FairValueJsonLd({
       unitCode: "INR",
     })
   }
+  const trueMosValue = computeTrueMos(
+    fairValue ?? null,
+    currentPrice ?? null,
+  )
+  if (trueMosValue !== null && Number.isFinite(trueMosValue)) {
+    additionalProperty.push({
+      "@type": "PropertyValue",
+      name: "Margin of Safety",
+      value: trueMosValue.toFixed(1),
+      unitText: "PERCENT",
+    })
+  }
   if (mosPct !== null && mosPct !== undefined && Number.isFinite(mosPct)) {
     additionalProperty.push({
       "@type": "PropertyValue",
-      name: "Discount to FV",
+      name: "Implied upside",
       value: mosPct.toFixed(1),
       unitText: "PERCENT",
     })

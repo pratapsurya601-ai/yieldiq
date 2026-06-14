@@ -23,6 +23,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import api from "@/lib/api"
+import { trueMosFromUpside } from "@/lib/utils"
 import {
   loadSavedQueries,
   saveSavedQueries,
@@ -611,7 +612,7 @@ function SmartScreenerInner() {
               </h2>
               <p className="text-xs text-caption">
                 {runData.summary.median_mos !== null && (
-                  <>median MoS {runData.summary.median_mos.toFixed(1)}% · </>
+                  <>median implied upside {runData.summary.median_mos.toFixed(1)}% · </>
                 )}
                 {runData.summary.median_score !== null && (
                   <>median score {runData.summary.median_score.toFixed(0)} · </>
@@ -654,7 +655,12 @@ function SmartScreenerInner() {
                         </td>
                         <td className="py-2 pr-3 text-caption">{m.sector || "—"}</td>
                         <td className="py-2 pr-3 text-right">
-                          {m.mos !== null ? `${m.mos.toFixed(1)}%` : "—"}
+                          {m.mos !== null ? (
+                            <>
+                              <span className="block">{(trueMosFromUpside(m.mos) ?? m.mos).toFixed(1)}%</span>
+                              <span className="block text-[10px] text-caption">{m.mos.toFixed(1)}% upside</span>
+                            </>
+                          ) : "—"}
                         </td>
                         <td className="py-2 pr-3 text-right">
                           {m.score !== null ? m.score.toFixed(0) : "—"}

@@ -66,11 +66,14 @@ export default function MobileScoreStrip({
       ? formatCurrency(signals.fairValue, currency, ticker)
       : "—"
 
-  const discountDisplay = (() => {
+  const trueMosDisplay = (() => {
     if (signals.degraded) return "+200% (clamp)"
-    if (signals.discount == null) return "—"
-    return formatPct(signals.discount)
+    if (signals.trueMos == null) return "—"
+    return formatPct(signals.trueMos)
   })()
+
+  const impliedUpsideDisplay =
+    signals.discount != null ? formatPct(signals.discount) : "—"
 
   const worryLabel = worryTierLabel(signals.worry)
 
@@ -107,10 +110,11 @@ export default function MobileScoreStrip({
           }
         />
 
-        {/* Discount tile */}
+        {/* Margin of Safety tile (true Buffett MoS; implied upside shown as sub-line) */}
         <Tile
-          label="Discount"
-          value={discountDisplay}
+          label="Margin of Safety"
+          value={trueMosDisplay}
+          trail={`Implied upside: ${impliedUpsideDisplay}`}
           dot={signals.degraded ? "warn" : null}
         />
 

@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getHoldingsLive, getSparklines, type LiveHolding } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { ArrowUpDown, Plus } from "lucide-react"
-import { formatPct } from "@/lib/utils"
+import { formatPct, computeTrueMos } from "@/lib/utils"
 import TickerAvatar from "@/components/common/TickerAvatar"
 import { Sparkline } from "@/components/common/Sparkline"
 
@@ -291,7 +291,30 @@ export default function PortfolioPanel() {
                     <NumCell value={h.fair_value} prefix="₹" />
                   </td>
                   <td className="px-2 py-2 text-right">
-                    <NumCell value={h.mos_pct} pct />
+                    {/* True (Buffett) MoS = (1 - price/FV)*100 as headline;
+                        implied upside = h.mos_pct as secondary sub-line. */}
+                    {(() => {
+                      const trueMos = computeTrueMos(h.fair_value, h.current_price)
+                      if (trueMos == null || !Number.isFinite(trueMos)) {
+                        return <NumCell value={null} pct />
+                      }
+                      const color =
+                        trueMos >= 0
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      return (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className={`font-mono text-xs ${color}`}>
+                            {formatPct(trueMos)}
+                          </span>
+                          {h.mos_pct != null && Number.isFinite(h.mos_pct) && (
+                            <span className="text-[10px] text-caption font-mono">
+                              {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}% upside
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="px-2 py-2 text-right">
                     <NumCell value={h.pnl_pct} pct />

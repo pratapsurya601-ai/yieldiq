@@ -408,14 +408,15 @@ describe("HonestHero — headline reads composite_intrinsic_value", () => {
         payload={payload}
       />,
     )
-    // The headline discount now renders as the hero's huge gap numeral
-    // (price below IV on this fixture → data-direction="discount").
+    // The headline now renders TRUE (Buffett) MoS = (1 − price/FV) × 100,
+    // not the implied upside. (price below IV → data-direction="discount").
     const pctNode = document.querySelector<HTMLElement>(
       '[data-testid="iv-hero-pct"]',
     )
     expect(pctNode).not.toBeNull()
     expect(pctNode!.getAttribute("data-direction")).toBe("discount")
-    // (1147.77 - 738.65) / 738.65 = 55.39%
-    expect(pctNode!.textContent).toMatch(/55\.\d%/)
+    // True MoS = (1 − 738.65 / 1147.77) × 100 = (1 − 0.6436) × 100 ≈ 35.6%
+    // Implied upside (old numeral) = (1147.77 − 738.65) / 738.65 = 55.4% (secondary line).
+    expect(pctNode!.textContent).toMatch(/35\.\d%/)
   })
 })

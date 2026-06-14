@@ -18,6 +18,7 @@
 
 import Link from "next/link"
 
+import { computeTrueMos, trueMosFromUpside } from "@/lib/utils"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
 import type { FaqEntry } from "./JsonLd"
@@ -91,7 +92,9 @@ export function buildFaq(vm: FairValueViewModel): FaqEntry[] {
   const company = vm.companyName
   const ticker = vm.displayTicker
   const fvStr = formatCurrency(vm.fairValue)
-  const mosStr = formatPct(vm.mosPct)
+  const trueMos = computeTrueMos(vm.fairValue, vm.currentPrice)
+  const trueMosStr = formatPct(trueMos)
+  const impliedUpsideStr = formatPct(vm.mosPct)
   return [
     {
       question: `What is ${company}'s fair value?`,
@@ -103,14 +106,17 @@ export function buildFaq(vm: FairValueViewModel): FaqEntry[] {
         `analysis page.`,
     },
     {
-      question: `What does the ${mosStr} margin of safety mean?`,
+      question: `What does the ${trueMosStr} margin of safety mean?`,
       answer:
-        `The margin of safety is the gap between the model's fair-value ` +
-        `estimate and the current market price, expressed as a percent of ` +
-        `the fair value. A positive number means the model's estimate sits ` +
-        `above the current price; a negative number means the model's ` +
-        `estimate sits below it. It is a descriptive distance, not a ` +
-        `forecast of where the price will move.`,
+        `The margin of safety is the percentage gap between the current ` +
+        `market price and the model's fair-value estimate, expressed as ` +
+        `a fraction of the fair value — that is, (fair value − price) ÷ ` +
+        `fair value. A positive number means the current price is below ` +
+        `the model's estimate; a negative number means it is above. ` +
+        `The implied upside (${impliedUpsideStr}) is the same distance ` +
+        `expressed as a percentage of the current price instead of ` +
+        `fair value. Both are descriptive distances, not forecasts of ` +
+        `where the price will move.`,
     },
     {
       question: `How is ${company}'s fair value calculated?`,
@@ -144,6 +150,7 @@ interface PanelProps {
 }
 
 function FairValuePanel({ vm }: PanelProps) {
+  const panelTrueMos = computeTrueMos(vm.fairValue, vm.currentPrice)
   return (
     <section
       aria-label="Fair value summary"
@@ -182,8 +189,11 @@ function FairValuePanel({ vm }: PanelProps) {
             Margin of safety
           </dt>
           <dd className="text-lg font-semibold text-ink">
-            {formatPct(vm.mosPct)}
+            {formatPct(panelTrueMos)}
           </dd>
+          <p className="text-[10px] text-caption mt-0.5">
+            Implied upside: {formatPct(vm.mosPct)}
+          </p>
         </div>
         <div>
           <dt className="text-[11px] uppercase tracking-wider text-caption mb-1">
@@ -243,7 +253,9 @@ export default function FairValueContent({ vm }: { vm: FairValueViewModel }) {
   const faq = buildFaq(vm)
   const fvStr = formatCurrency(vm.fairValue)
   const cmpStr = formatCurrency(vm.currentPrice)
-  const mosStr = formatPct(vm.mosPct)
+  const trueMos = computeTrueMos(vm.fairValue, vm.currentPrice)
+  const trueMosStr = formatPct(trueMos)
+  const impliedUpsideStr = formatPct(vm.mosPct)
   const bearStr = formatCurrency(vm.fairValueBear)
   const bullStr = formatCurrency(vm.fairValueBull)
   const waccStr = vm.waccPct !== null ? `${vm.waccPct.toFixed(1)}%` : "—"
@@ -274,14 +286,18 @@ export default function FairValueContent({ vm }: { vm: FairValueViewModel }) {
           share for {vm.companyName}, against a current market price of{" "}
           {cmpStr}. The base case sits in a bear-to-bull range of {bearStr} to{" "}
           {bullStr}, computed by varying the discount rate and the long-run
-          growth rate within plausible bands. The published margin of safety
-          for the base case is {mosStr}.
+          growth rate within plausible bands. The margin of safety for the
+          base case is {trueMosStr} — the percentage by which the current
+          price is below the model&apos;s fair-value estimate (implied upside:{" "}
+          {impliedUpsideStr}).
         </p>
         <p>
           A margin of safety figure is a descriptive measurement, not a
           forecast. It states the distance, in percent, between the model&apos;s
-          fair-value estimate and the live price. It does not say where the
-          price will move; it only says how far apart the two numbers are
+          fair-value estimate and the current price, expressed as a fraction of
+          the fair value. The implied upside expresses the same distance as a
+          fraction of the current price instead. Neither number says where the
+          price will move; each only states how far apart the two numbers are
           today. The interpretation a reader applies — whether the gap
           matters, what discount rate they would prefer to use, which scenario
           they find most plausible — sits entirely with them and with their
@@ -364,7 +380,14 @@ export default function FairValueContent({ vm }: { vm: FairValueViewModel }) {
                       </Link>
                     </td>
                     <td className="py-2 pr-4">{formatCurrency(p.fairValue)}</td>
-                    <td className="py-2 pr-4">{formatPct(p.mosPct)}</td>
+                    <td className="py-2 pr-4">
+                      {formatPct(trueMosFromUpside(p.mosPct))}
+                      {p.mosPct !== null && (
+                        <span className="block text-[10px] text-caption">
+                          Implied upside: {formatPct(p.mosPct)}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

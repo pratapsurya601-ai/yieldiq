@@ -32,7 +32,7 @@
 import * as React from "react"
 
 import { NumberFlip } from "@/components/motion"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn, computeTrueMos, formatCurrency } from "@/lib/utils"
 
 /** |gap| under this % reads as parity (template C). */
 export const PARITY_BAND_PCT = 5
@@ -90,12 +90,20 @@ export default function IntrinsicHero({
   className,
 }: IntrinsicHeroProps) {
   const fmt = (v: number) => formatCurrency(v, currency, ticker)
-  const gap = dataLimited
+  // Headline numeral = TRUE (Buffett) Margin of Safety = (1 − price/IV)
+  // × 100 — i.e. how far the price sits BELOW intrinsic value. This makes
+  // the existing "X% below intrinsic value" label literally accurate
+  // (price is X% below IV). The implied upside (IV/price − 1, the old
+  // numeral) drops to a secondary line. (2026-06-14 true-MoS rollout)
+  const trueMos = dataLimited
+    ? null
+    : computeTrueMos(intrinsicValue, currentPrice)
+  const impliedUpside = dataLimited
     ? null
     : intrinsicValueGapPct(intrinsicValue, currentPrice)
 
   // ── Template [D] — data-limited / unpublished IV ──────────────────
-  if (gap == null || intrinsicValue == null || currentPrice == null) {
+  if (trueMos == null || intrinsicValue == null || currentPrice == null) {
     return (
       <div data-testid="iv-hero" data-direction="data-limited" className={className}>
         <p
@@ -111,7 +119,7 @@ export default function IntrinsicHero({
     )
   }
 
-  const pct = Math.abs(gap)
+  const pct = Math.abs(trueMos)
   const pctText = pct.toFixed(1)
   const parity = pct < PARITY_BAND_PCT
   const below = currentPrice < intrinsicValue
@@ -195,6 +203,19 @@ export default function IntrinsicHero({
           current market price of <Em>{fmt(currentPrice)}</Em>, the stock
           trades <Em>{pctText}%</Em>{" "}
           {`${direction} the model’s intrinsic value.`}
+        </p>
+      )}
+
+      {impliedUpside != null && Number.isFinite(impliedUpside) && (
+        <p
+          data-testid="iv-hero-upside"
+          className="mt-2 text-[11px] md:text-xs text-caption"
+        >
+          Implied upside to fair value:{" "}
+          <span className="font-mono tabular-nums">
+            {impliedUpside >= 0 ? "+" : ""}
+            {impliedUpside.toFixed(1)}%
+          </span>
         </p>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { cn, formatMoS } from "@/lib/utils"
+import { cn, formatMoS, trueMosFromUpside } from "@/lib/utils"
 import { SCORE_COLOR } from "@/lib/constants"
 import type { MoatGrade } from "@/types/api"
 
@@ -41,7 +41,13 @@ export default function TopPickCard({ ticker, companyName, score, mos, moat, sum
 
         <div className="flex gap-3 mb-3">
           <span className="text-xs text-caption">
-            MoS: <span className="font-medium text-body">{formatMoS(mos)}</span>
+            Margin of Safety:{" "}
+            <span className="font-medium text-body">
+              {formatMoS(trueMosFromUpside(mos) ?? mos)}
+            </span>
+            <span className="block text-[10px] text-caption">
+              Implied upside {formatMoS(mos)}
+            </span>
           </span>
           <span className="text-xs text-caption">
             Moat: <span className="font-medium text-body">{moat}</span>

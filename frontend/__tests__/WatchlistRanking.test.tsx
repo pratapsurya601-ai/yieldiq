@@ -58,9 +58,13 @@ function w(
 // ── Sort logic ───────────────────────────────────────────────
 describe("compareBy / sort math", () => {
   it("orders larger MoS as the more interesting holding", () => {
-    const a = w("A", { mos_pct: 5 })
-    const b = w("B", { mos_pct: 25 })
-    // compareBy returns a.mos - b.mos so b (25) is "greater" — under
+    // compareBy now keys on TRUE (Buffett) MoS via buffett_mos_pct.
+    // trueMos = upside / (1 + upside/100):
+    //   a: 5 / 1.05 ≈ 4.76   b: 25 / 1.25 = 20.0
+    // compareNullable(4.76, 20.0) = −15.24 < 0, so b sorts first when desc.
+    const a = w("A", { mos_pct: 5, buffett_mos_pct: 5 / 1.05 })
+    const b = w("B", { mos_pct: 25, buffett_mos_pct: 25 / 1.25 })
+    // compareBy returns a.trueMos - b.trueMos so b (20.0) is "greater" — under
     // descending the caller negates this so b sorts first.
     expect(compareBy(a, b, "mos")).toBeLessThan(0)
   })
@@ -72,8 +76,9 @@ describe("compareBy / sort math", () => {
   })
 
   it("returns +Infinity when the LHS metric is missing (loses regardless of direction)", () => {
-    const a = w("A", { mos_pct: null })
-    const b = w("B", { mos_pct: 10 })
+    // Must null out buffett_mos_pct AND fair_value so computeTrueMos also returns null.
+    const a = w("A", { mos_pct: null, buffett_mos_pct: null, fair_value: null })
+    const b = w("B", { mos_pct: 10, buffett_mos_pct: 10 / 1.1 })
     expect(compareBy(a, b, "mos")).toBe(Number.POSITIVE_INFINITY)
   })
 
@@ -96,18 +101,26 @@ describe("compareBy / sort math", () => {
   })
 
   it("formatMetric pretty-prints MoS with sign and one decimal", () => {
-    expect(formatMetric(w("A", { mos_pct: 12.345 }), "mos")).toBe("MoS +12.3%")
-    expect(formatMetric(w("A", { mos_pct: -4.4 }), "mos")).toBe("MoS -4.4%")
-    expect(formatMetric(w("A", { mos_pct: null }), "mos")).toBe("—")
+    // formatMetric now reads TRUE (Buffett) MoS from buffett_mos_pct.
+    // trueMos = upside / (1 + upside/100):
+    //   12.345 / 1.12345 ≈ 10.988 → toFixed(1) = "11.0"
+    //   -4.4   / 0.956   ≈ -4.603 → toFixed(1) = "-4.6"
+    // null case: buffett_mos_pct null + fair_value null → computeTrueMos returns null → "—"
+    expect(formatMetric(w("A", { mos_pct: 12.345, buffett_mos_pct: 12.345 / 1.12345 }), "mos")).toBe("MoS +11.0%")
+    expect(formatMetric(w("A", { mos_pct: -4.4, buffett_mos_pct: -4.4 / 0.956 }), "mos")).toBe("MoS -4.6%")
+    expect(formatMetric(w("A", { mos_pct: null, buffett_mos_pct: null, fair_value: null }), "mos")).toBe("—")
   })
 })
 
 // ── Render: default sort = MoS desc ──────────────────────────
 describe("WatchlistRanking — default render", () => {
+  // trueMos from upside:  LOW 2/1.02≈1.96  MID 14/1.14≈12.28  HIGH 35/1.35≈25.93
+  // Descending true-MoS order: HIGH > MID > LOW (same as upside order).
+  // Banner shows HIGH's true-MoS: (1 - 100/135)*100 = 25.926% → "MoS +25.9%"
   const holdings = [
-    w("LOW", { mos_pct: 2 }),
-    w("HIGH", { mos_pct: 35 }),
-    w("MID", { mos_pct: 14 }),
+    w("LOW",  { mos_pct: 2,  buffett_mos_pct: 2  / 1.02  }),
+    w("HIGH", { mos_pct: 35, buffett_mos_pct: 35 / 1.35  }),
+    w("MID",  { mos_pct: 14, buffett_mos_pct: 14 / 1.14  }),
   ]
 
   it("renders the highest MoS holding first", () => {
@@ -123,7 +136,8 @@ describe("WatchlistRanking — default render", () => {
     render(<WatchlistRanking holdings={holdings} />)
     const banner = screen.getByTestId("watchlist-top-opportunity")
     expect(within(banner).getByText(/HIGH/)).toBeInTheDocument()
-    expect(within(banner).getByText(/MoS \+35\.0%/)).toBeInTheDocument()
+    // Headline is true MoS: 35/1.35 ≈ 25.926% → toFixed(1) = "25.9"
+    expect(within(banner).getByText(/MoS \+25\.9%/)).toBeInTheDocument()
   })
 })
 
@@ -131,8 +145,8 @@ describe("WatchlistRanking — default render", () => {
 describe("WatchlistRanking — direction toggle", () => {
   it("toggling direction reverses the present-data order", () => {
     const holdings = [
-      w("A", { mos_pct: 10 }),
-      w("B", { mos_pct: 30 }),
+      w("A", { mos_pct: 10, buffett_mos_pct: 10 / 1.10 }),
+      w("B", { mos_pct: 30, buffett_mos_pct: 30 / 1.30 }),
     ]
     render(<WatchlistRanking holdings={holdings} />)
     let items = within(screen.getByTestId("watchlist-ranking-list")).getAllByRole(
@@ -153,9 +167,9 @@ describe("WatchlistRanking — direction toggle", () => {
 describe("WatchlistRanking — missing data", () => {
   it("rows without MoS sort to the bottom even on ascending direction", () => {
     const holdings = [
-      w("MISSING", { mos_pct: null, fair_value: null }),
-      w("LOW", { mos_pct: 5 }),
-      w("HIGH", { mos_pct: 25 }),
+      w("MISSING", { mos_pct: null, buffett_mos_pct: null, fair_value: null }),
+      w("LOW",  { mos_pct: 5,  buffett_mos_pct: 5  / 1.05 }),
+      w("HIGH", { mos_pct: 25, buffett_mos_pct: 25 / 1.25 }),
     ]
     render(<WatchlistRanking holdings={holdings} />)
     // Flip to ascending — the missing row must still be last.

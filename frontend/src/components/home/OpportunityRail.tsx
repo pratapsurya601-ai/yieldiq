@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getYieldIQ50 } from "@/lib/api"
+import { trueMosFromUpside } from "@/lib/utils"
 
 const MIN_RAIL_ITEMS = 2;
 
@@ -109,9 +110,21 @@ export default function OpportunityRail() {
           >
             <div className="flex items-baseline justify-between gap-2">
               <p className="font-bold text-sm text-ink truncate">{s.ticker}</p>
-              <p className="text-xs font-mono text-green-600 font-bold">
-                {s.margin_of_safety != null ? `${s.margin_of_safety.toFixed(0)}% MoS` : "\u2014"}
-              </p>
+              <div className="flex flex-col items-end min-w-0">
+                <p className="text-xs font-mono text-green-600 font-bold">
+                  {s.margin_of_safety != null
+                    ? (() => {
+                        const trueMos = trueMosFromUpside(s.margin_of_safety)
+                        return trueMos != null ? `${trueMos.toFixed(0)}% MoS` : "\u2014"
+                      })()
+                    : "\u2014"}
+                </p>
+                {s.margin_of_safety != null && (
+                  <p className="text-[10px] text-caption font-mono">
+                    Implied upside {s.margin_of_safety >= 0 ? "+" : ""}{s.margin_of_safety.toFixed(0)}%
+                  </p>
+                )}
+              </div>
             </div>
             <p className="text-[11px] text-caption truncate">{s.company_name}</p>
             <p className="text-[10px] text-caption mt-1">

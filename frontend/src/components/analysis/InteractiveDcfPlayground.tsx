@@ -62,7 +62,7 @@ import * as React from "react"
 
 import { SummaryCard } from "@/components/cards"
 import { isPureBank } from "@/lib/bankTickers"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn, computeTrueMos, formatCurrency } from "@/lib/utils"
 
 /* ─── public API types ────────────────────────────────────────────── */
 
@@ -439,6 +439,12 @@ export default function InteractiveDcfPlayground({
     return ((liveFv - currentPrice) / currentPrice) * 100
   }, [liveFv, currentPrice])
 
+  // liveTrueMos: true (Buffett) MoS = (1 - price/fv)*100
+  // This is the headline value; liveMosPct becomes the secondary "Implied upside".
+  const liveTrueMos = React.useMemo(() => {
+    return computeTrueMos(liveFv, currentPrice)
+  }, [liveFv, currentPrice])
+
   // ─── reverse-DCF computation ────────────────────────────────────
   const reverseSolution = React.useMemo(() => {
     if (mode !== "reverse" || !hasInputs) return null
@@ -535,11 +541,11 @@ export default function InteractiveDcfPlayground({
   )
 
   const mosTone =
-    liveMosPct === null
+    liveTrueMos === null
       ? "text-caption"
-      : liveMosPct >= 25
+      : liveTrueMos >= 25
         ? "text-emerald-700 dark:text-emerald-300"
-        : liveMosPct >= 0
+        : liveTrueMos >= 0
           ? "text-ink"
           : "text-rose-700 dark:text-rose-300"
 
@@ -710,12 +716,18 @@ export default function InteractiveDcfPlayground({
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.1em] text-caption">
-                      Margin of Safety vs current price
+                      Margin of Safety
                     </p>
                     <p
                       data-testid="playground-mos"
                       className={cn("text-sm font-semibold tabular-nums", mosTone)}
                     >
+                      {liveTrueMos === null
+                        ? "—"
+                        : `${liveTrueMos >= 0 ? "+" : ""}${liveTrueMos.toFixed(1)}%`}
+                    </p>
+                    <p className="text-[10px] text-caption mt-0.5 tabular-nums">
+                      Implied upside:{" "}
                       {liveMosPct === null
                         ? "—"
                         : `${liveMosPct >= 0 ? "+" : ""}${liveMosPct.toFixed(1)}%`}

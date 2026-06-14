@@ -1,3 +1,5 @@
+import { computeTrueMos } from "@/lib/utils"
+
 /**
  * Day-40 (2026-05-20): SSR-only JSON-LD emitter for /analysis/[ticker].
  *
@@ -96,6 +98,9 @@ export default function JsonLd({
     }
   }
 
+  // Derive true (Buffett) MoS = (1 - price/fv)*100 from the props already in scope.
+  const trueMosPct = computeTrueMos(fairValue ?? null, currentPrice ?? null)
+
   // YieldIQ-specific fields as additionalProperty entries
   const additionalProperty: Record<string, unknown>[] = []
   if (fairValue && fairValue > 0) {
@@ -114,10 +119,18 @@ export default function JsonLd({
       unitCode: "INR",
     })
   }
+  if (trueMosPct !== null && Number.isFinite(trueMosPct)) {
+    additionalProperty.push({
+      "@type": "PropertyValue",
+      name: "Margin of Safety",
+      value: trueMosPct.toFixed(1),
+      unitText: "PERCENT",
+    })
+  }
   if (mosPct !== null && mosPct !== undefined && Number.isFinite(mosPct)) {
     additionalProperty.push({
       "@type": "PropertyValue",
-      name: "Discount to FV",
+      name: "Implied upside",
       value: mosPct.toFixed(1),
       unitText: "PERCENT",
     })

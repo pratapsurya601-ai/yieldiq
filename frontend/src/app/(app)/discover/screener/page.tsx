@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { Suspense, useCallback } from "react"
 import api from "@/lib/api"
+import { trueMosFromUpside } from "@/lib/utils"
 import Link from "next/link"
 import { useAuthStore } from "@/store/authStore"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -61,12 +62,16 @@ function ScreenerContent() {
       const stocks = res.data.results as ScreenerStock[]
       if (!stocks.length) return
 
-      const headers = ["Ticker", "Score", "Margin of Safety (%)"]
-      const rows = stocks.map((s: ScreenerStock) => [
-        s.ticker,
-        s.score,
-        s.margin_of_safety.toFixed(1),
-      ])
+      const headers = ["Ticker", "Score", "Margin of Safety (%)", "Implied Upside (%)"]
+      const rows = stocks.map((s: ScreenerStock) => {
+        const trueMos = trueMosFromUpside(s.margin_of_safety)
+        return [
+          s.ticker,
+          s.score,
+          trueMos !== null ? trueMos.toFixed(1) : s.margin_of_safety.toFixed(1),
+          s.margin_of_safety.toFixed(1),
+        ]
+      })
       const csv = [headers.join(","), ...rows.map((r: (string | number)[]) => r.join(","))].join("\n")
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
@@ -149,11 +154,13 @@ function ScreenerContent() {
           <div className="divide-y divide-border">
             {data.results.map((stock, i) => {
               const cleanTicker = stock.ticker.replace(".NS", "").replace(".BO", "")
-              const mosColor = stock.margin_of_safety >= 15
+              const trueMos = trueMosFromUpside(stock.margin_of_safety)
+              const displayMos = trueMos ?? stock.margin_of_safety
+              const mosColor = displayMos >= 15
                 ? "text-green-600"
-                : stock.margin_of_safety >= 0
+                : displayMos >= 0
                   ? "text-blue-600"
-                  : stock.margin_of_safety >= -15
+                  : displayMos >= -15
                     ? "text-amber-600"
                     : "text-red-600"
 
@@ -173,9 +180,12 @@ function ScreenerContent() {
                       <span className="text-sm font-bold text-ink">{stock.score}</span>
                       <span className="text-xs text-caption ml-1">score</span>
                     </div>
-                    <div className="text-right w-16">
+                    <div className="text-right w-20">
                       <span className={`text-sm font-semibold ${mosColor}`}>
-                        {stock.margin_of_safety >= 0 ? "+" : ""}{stock.margin_of_safety.toFixed(0)}%
+                        {displayMos >= 0 ? "+" : ""}{displayMos.toFixed(0)}%
+                      </span>
+                      <span className="block text-[10px] text-caption">
+                        {stock.margin_of_safety >= 0 ? "+" : ""}{stock.margin_of_safety.toFixed(0)}% upside
                       </span>
                     </div>
                   </div>
