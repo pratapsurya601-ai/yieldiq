@@ -124,6 +124,55 @@ export function clampMosForDisplay(
   return mosPct
 }
 
+/**
+ * computeTrueMos — canonical TRUE (Buffett) Margin of Safety.
+ *
+ * trueMoS = (1 − currentPrice / fairValue) × 100 — the cushion below
+ * fair value, naturally bounded at +100% (price → 0) and unbounded on
+ * the negative (overvalued) side. This is DISTINCT from the backend
+ * `margin_of_safety` field, which is the IMPLIED UPSIDE
+ * = (FV − P) / P × 100. A name with +65% upside has only a ~39% true
+ * margin of safety; surfacing the true MoS as the headline (with the
+ * upside shown as a secondary line) is the 2026-06-14 rollout.
+ *
+ * Use this anywhere fair value AND current price are both in scope.
+ * Returns null when either input is missing / non-positive.
+ */
+export function computeTrueMos(
+  fairValue: number | null | undefined,
+  currentPrice: number | null | undefined,
+): number | null {
+  if (
+    fairValue == null ||
+    currentPrice == null ||
+    !Number.isFinite(fairValue) ||
+    !Number.isFinite(currentPrice) ||
+    fairValue <= 0 ||
+    currentPrice <= 0
+  )
+    return null
+  return (1 - currentPrice / fairValue) * 100
+}
+
+/**
+ * trueMosFromUpside — derive TRUE MoS from the implied-upside %.
+ *
+ * Algebraic identity: with upside = (FV − P)/P×100 and
+ * trueMoS = (FV − P)/FV×100, then trueMoS = upside / (1 + upside/100).
+ * Use this on surfaces that only carry the backend upside-% field
+ * (peer rows, screener results) without a separate FV + price. Returns
+ * null for null / non-finite input or when upside ≤ −100 (FV ≤ 0,
+ * where the identity degenerates).
+ */
+export function trueMosFromUpside(
+  upsidePct: number | null | undefined,
+): number | null {
+  if (upsidePct == null || !Number.isFinite(upsidePct)) return null
+  const denom = 1 + upsidePct / 100
+  if (denom <= 0) return null
+  return upsidePct / denom
+}
+
 export function formatPct(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }
