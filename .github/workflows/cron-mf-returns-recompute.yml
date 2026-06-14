@@ -32,7 +32,18 @@ concurrency:
 jobs:
   recompute:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # recompute_all is a two-pass in-memory job: pass 1 fetches every
+    # scheme's full NAV series from Neon and computes returns+risk, and
+    # ONLY after pass 1 finishes does pass 2 build category peer-percentiles
+    # and write scores. So the run is all-or-nothing per dispatch — a
+    # cancel during pass 1 writes nothing. At the full ~14k universe (with
+    # multi-year NAV per backfilled scheme) pass 1 alone overran the old
+    # 45-min cap, so the job was cancelled in pass 1 every run and
+    # yieldiq_fund_score stayed null for the whole universe. 300 min gives
+    # pass 1 + pass 2 ample headroom (well under GH's 360-min hard limit).
+    # Follow-up (not blocking): chunk by category / batch the NAV fetch so
+    # the nightly run is far cheaper than its ceiling.
+    timeout-minutes: 300
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PYTHONUNBUFFERED: "1"
