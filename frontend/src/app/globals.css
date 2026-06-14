@@ -245,6 +245,19 @@ html, body {
   color: var(--color-body);
 }
 
+/* Reserve the vertical scrollbar gutter from first paint (2026-06-14).
+   The home page (and other data-heavy routes) start short — skeletons /
+   above-fold only — then grow past the viewport as ~20 async sections
+   (Quant Picks, Movers, Recent Analyses, etc.) fill in around 1.7s. When
+   the page crosses the viewport height the scrollbar is added and the whole
+   layout reflows, nudging the nav + main down. A Chrome perf trace on
+   /home measured this as the dominant CLS culprit (CLS 0.31, LCP was a
+   fast 607ms). `stable` always reserves the gutter so that reflow can't
+   happen. No-op where overlay scrollbars are used (e.g. macOS). */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* ── Landing page animations ─────────────────────────── */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(24px); }
