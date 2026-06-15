@@ -329,6 +329,49 @@ def latest_per_scheme(rows: Iterable[dict]) -> list[dict]:
 # Connector words / tokens left behind after the plan/option regexes run.
 _PLAN_WORD_RE = re.compile(r"\b(plan|option)\b", re.IGNORECASE)
 _GROWTH_RE = re.compile(r"\bgrowth\b", re.IGNORECASE)
+
+# ── Extra option tokens (coverage uplift) ────────────────────────────
+# The scheme-master regexes (_IDCW_REINVEST_RE / _IDCW_RE / _DIRECT_RE /
+# _REGULAR_RE) classify plan+option but leave several *option-suffix*
+# tokens behind in the base key, so non-Growth plan variants of a MATCHED
+# scheme fail to collapse onto the Growth base and miss the TER write.
+# The tokens below are stripped IN ADDITION, all chosen to be option
+# qualifiers that never form part of a fund's identity:
+#
+#   * Payout            — "IDCW Payout" / "Dividend Payout". The IDCW/Div
+#                         word is already stripped; "payout" survived.
+#   * Reinvest(ment)    — defensive: covered by _IDCW_REINVEST_RE, but a
+#                         bare "Reinvestment" with no leading IDCW is kept
+#                         here too so order-of-strip can't leave it behind.
+#   * Bonus             — the (legacy) Bonus plan option. "Bonus" is never
+#                         part of a real scheme's core name, so stripping
+#                         the bare word is safe.
+#
+# CRITICAL over-strip guard for the FREQUENCY qualifiers below.
+_PAYOUT_RE = re.compile(r"\b(payout|reinvest(?:ment)?|bonus)\b", re.IGNORECASE)
+
+# Frequency words (Daily/Weekly/Fortnightly/Monthly/Quarterly/Half-Yearly/
+# Annual/Yearly) qualify a DIVIDEND/IDCW PAYOUT FREQUENCY — e.g. "Monthly
+# IDCW", "Quarterly Dividend Payout". They must be stripped so those
+# variants collapse onto the Growth base.
+#
+# But the SAME words also appear inside genuine FUND IDENTITIES — most
+# importantly "Monthly Income Plan" (a fund TYPE, e.g. an MIP hybrid), and
+# "Annual"/"Yearly" can appear in fixed-maturity / interval scheme names.
+# So we strip a frequency word ONLY when it is immediately followed by an
+# IDCW / Dividend / Div token (optionally through a separator). This
+# matches "Monthly IDCW" but NOT "Monthly Income": "Income" is not a
+# dividend token, so the frequency is preserved and the fund identity is
+# kept intact. The lookahead consumes only the frequency word (the IDCW/
+# Dividend token is removed afterwards by _IDCW_RE), so a later
+# "...Quarterly Dividend Payout" loses "quarterly" here, "dividend" via
+# _IDCW_RE, and "payout" via _PAYOUT_RE — all three gone, base == Growth.
+_FREQ_BEFORE_DIV_RE = re.compile(
+    r"\b(?:daily|weekly|fortnightly|monthly|quarterly|"
+    r"half[\s_-]*yearly|semi[\s_-]*annual(?:ly)?|annual(?:ly)?|yearly)\b"
+    r"(?=[\s_(-]*\b(?:idcw|dividend|div)\b)",
+    re.IGNORECASE,
+)
 # Keep alphanumerics and hyphens (mid-cap); turn everything else to space.
 _PUNCT_RE = re.compile(r"[^a-z0-9\- ]+")
 # A SEPARATOR hyphen — one NOT sitting directly between two alphanumerics —
@@ -354,6 +397,11 @@ def normalize_base_name(name: str) -> str:
     base Scheme_Name and a funds-table per-plan scheme_name reduce to the
     same key.
 
+    Every plan/option variant of one scheme collapses to a SINGLE base so
+    a TER row matched on its (Growth) base name also writes the IDCW /
+    IDCW-Reinvest / IDCW-Payout / Dividend / Dividend-Reinvest / Bonus and
+    frequency-qualified-IDCW plan rows of the same scheme.
+
     Examples:
         "HDFC Mid-Cap Opportunities Fund - Direct Plan - Growth"
             -> "hdfc mid-cap opportunities fund"
@@ -361,14 +409,31 @@ def normalize_base_name(name: str) -> str:
             -> "parag parikh flexi cap fund"
         "ICICI Pru Bluechip Fund & Co - Direct - IDCW Reinvestment"
             -> "icici pru bluechip fund and co"
+        "HDFC Top 100 Fund - Direct Plan - Quarterly IDCW Payout"
+            -> "hdfc top 100 fund"   (frequency + IDCW + payout all stripped)
+
+    Over-strip guard: a frequency word (Monthly/Quarterly/Annual/...) is
+    stripped ONLY when it directly qualifies a dividend token, so a
+    fund-identity "...Monthly Income Plan" KEEPS "monthly income".
     """
     if not name:
         return ""
     s = str(name)
+    # Strip a FREQUENCY qualifier (Monthly/Quarterly/Half-Yearly/Annual/...)
+    # FIRST and ONLY when it immediately precedes an IDCW/Dividend token —
+    # this must run BEFORE the IDCW token is removed so the lookahead can
+    # still see it. "Monthly Income" has no dividend token after it, so it
+    # survives (fund-type preserved).
+    s = _FREQ_BEFORE_DIV_RE.sub(" ", s)
     # Drop plan/option tokens (reinvest before plain IDCW — IDCW is a
     # subset of the reinvest pattern, mirroring parse_plan_option order).
     for rx in (_IDCW_REINVEST_RE, _IDCW_RE, _DIRECT_RE, _REGULAR_RE):
         s = rx.sub(" ", s)
+    # Drop the remaining standalone option suffixes that the IDCW regexes
+    # leave behind: "Payout" (after IDCW/Dividend), a bare "Reinvestment",
+    # and the "Bonus" option. None of these are ever part of a fund's
+    # identity, so the bare-word strip is safe.
+    s = _PAYOUT_RE.sub(" ", s)
     s = s.lower()
     # "&" and "and" must compare equal (AMC names: "ICICI & Co" vs "and").
     s = s.replace("&", " and ")
