@@ -492,6 +492,17 @@ def store_financials(financial_data: dict, db: Session,
         }
         ds = financial_data.get("source", "BSE_API")
         rank = _rank_by_source.get(ds or "", 70)
+        # The `raw_data` column is TEXT (db/migrations) — serialise any
+        # structured payload to a JSON string so the bind doesn't hand a
+        # dict to a text column. NSE XBRL rows now ship a small audit
+        # payload (period_days / period_start / period_end / period_type);
+        # other source paths leave "raw" unset (None) and write NULL.
+        _raw = financial_data.get("raw")
+        if isinstance(_raw, (dict, list)):
+            try:
+                _raw = json.dumps(_raw, default=str, separators=(",", ":"))
+            except (TypeError, ValueError):
+                _raw = None
         stmt = _text("""
             INSERT INTO financials (
                 ticker, period_end, period_type,
@@ -577,7 +588,7 @@ def store_financials(financial_data: dict, db: Session,
             "roe": roe,
             "source": ds,
             "rank": rank,
-            "raw": financial_data.get("raw"),
+            "raw": _raw,
             "currency": _detect_currency(ticker, financial_data),
         })
         db.commit()

@@ -326,36 +326,32 @@ def _extract_contexts(xml_bytes: bytes) -> dict[str, dict[str, Any]]:
     return ctx_map
 
 
-def _detect_period_type_from_contexts(
+# Minimum duration (days) for a filing to be considered a full fiscal
+# year. H1 (~182d) and 9-month (~275d) cumulative filings fall BELOW
+# this and must NEVER be classified as 'annual' — the DCF reads
+# period_type='annual' rows as complete fiscal years, so a 9-month row
+# mislabeled annual craters fair value (RELIANCE FV ₹471 vs ~₹1,535).
+_ANNUAL_MIN_DAYS = 300
+# Lower bound for an interim cumulative filing (H1/9M). Anything in
+# [_INTERIM_MIN_DAYS, _ANNUAL_MIN_DAYS) is interim, never annual.
+_INTERIM_MIN_DAYS = 150
+
+
+def _best_duration_for_period_end(
     contexts: dict[str, dict[str, Any]],
     period_end: date,
-) -> str | None:
-    """Infer 'annual' vs 'quarterly' from the XBRL duration contexts.
+) -> tuple[int | None, date | None]:
+    """Longest duration-context span (in days) that ends on period_end.
 
-    The `<context><period>` duration is the ground truth for a filing —
-    the NSE endpoint label ("Annual"/"Quarterly") is only a hint and
-    occasionally misclassifies (e.g. a Q4+FY combined filing tagged
-    under the Annual endpoint carries a 90-day duration).
-
-    Rules:
-    - Find the duration context whose endDate matches period_end.
-    - Compute (endDate - startDate) in days.
-    - 300+ days → annual; 60-120 days → quarterly.
-    - Return None if no duration context matches period_end (caller
-      falls back to endpoint-based hint).
+    Returns (best_days, best_start). Both are None when no duration
+    context matches period_end. The longest span is the right anchor:
+    a single filing often carries multiple durations (standalone-quarter
+    OneD + year-to-date FourD); the cumulative one defines the reporting
+    period the row actually represents.
     """
     period_end_s = period_end.isoformat()
-    # Ind-AS convention: a "Four"-prefixed context ID denotes the
-    # year-to-date full-FY cumulative duration, even when its
-    # <startDate>/<endDate> pair covers only the final quarter.
-    # If any such context matches period_end, the filing is annual.
-    # This is the permanent fix for the OneD/FourD bug that required
-    # the 2026-04-24 Data Patch X (see docs/ops/TEMP_patch_2026-04-24.md).
-    for cid, info in contexts.items():
-        if (info.get("end") == period_end_s
-                and isinstance(cid, str) and cid.startswith("Four")):
-            return "annual"
     best_days: int | None = None
+    best_start: date | None = None
     for _cid, info in contexts.items():
         if info.get("end") != period_end_s:
             continue
@@ -371,15 +367,71 @@ def _detect_period_type_from_contexts(
             continue
         if best_days is None or days > best_days:
             best_days = days
+            best_start = start_d
+    return best_days, best_start
+
+
+def _detect_period_type_from_contexts(
+    contexts: dict[str, dict[str, Any]],
+    period_end: date,
+) -> str | None:
+    """Infer 'annual' / 'interim' / 'quarterly' from XBRL duration contexts.
+
+    The `<context><period>` duration is the ground truth for a filing —
+    the NSE endpoint label ("Annual"/"Quarterly") is only a hint and
+    occasionally misclassifies. The "Annual" endpoint in particular also
+    serves H1 (Sep-30) and 9-month (Dec-31) CUMULATIVE filings, not just
+    the March full-year; defaulting those to 'annual' is the interim
+    period-type bug this function exists to prevent.
+
+    Bands (best = longest duration ending on period_end):
+    - best_days >= 300            → 'annual'   (~12 months)
+    - 150 <= best_days < 300      → 'interim'  (H1 ~182d, 9M ~275d)
+    - 60  <= best_days <= 120     → 'quarterly'
+    - else                        → None (caller falls back to endpoint hint)
+
+    INVARIANT: a reporting period < ~300 days is NEVER 'annual'.
+
+    Returns None if no duration context matches period_end (caller
+    falls back to endpoint-based hint).
+    """
+    period_end_s = period_end.isoformat()
+    best_days, _best_start = _best_duration_for_period_end(contexts, period_end)
+    # Ind-AS convention: a "Four"-prefixed context ID denotes the
+    # year-to-date cumulative duration. For a Q4 filing the FourD context
+    # legitimately spans the full FY even when a sibling OneD context only
+    # covers the final quarter — that is the OneD/FourD rescue the
+    # 2026-04-24 Data Patch X addressed. BUT a "Four"-prefixed context on
+    # an H1 or 9-month filing is a 6-/9-month cumulative, NOT a full year,
+    # so the shortcut must only promote to 'annual' when the matching
+    # context (or the longest span seen) actually covers ~>=300 days.
+    for cid, info in contexts.items():
+        if not (info.get("end") == period_end_s
+                and isinstance(cid, str) and cid.startswith("Four")):
+            continue
+        start_s = info.get("start")
+        if not start_s:
+            continue
+        try:
+            start_d = datetime.strptime(start_s, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if (period_end - start_d).days >= _ANNUAL_MIN_DAYS:
+            return "annual"
+        # A Four-prefixed context spanning < 300 days (6-/9-month YTD)
+        # must NOT force annual. Fall through to the duration bands.
     if best_days is None:
         return None
-    if best_days >= 300:
+    if best_days >= _ANNUAL_MIN_DAYS:
         return "annual"
+    if _INTERIM_MIN_DAYS <= best_days < _ANNUAL_MIN_DAYS:
+        # Half-year (~182d) or 9-month (~275d) cumulative filings served
+        # under the Annual endpoint. Explicitly 'interim' so they can
+        # never enter the DCF's WHERE period_type='annual' query.
+        return "interim"
     if 60 <= best_days <= 120:
         return "quarterly"
-    # Half-year or 9-month combined filings — treat as annual-adjacent
-    # quarterly since our downstream ratios are annual-only anyway.
-    # Returning None lets the endpoint hint win.
+    # Sub-60-day or other off-cadence span — let the endpoint hint win.
     return None
 
 
@@ -496,6 +548,10 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
         return None
     contexts = _extract_contexts(xml_bytes)
 
+    # Resolve the reporting-period span once so we can both classify the
+    # filing and persist the duration for audit (see "raw" payload below).
+    period_days, period_start = _best_duration_for_period_end(contexts, period_end)
+
     # Context-duration wins over endpoint hint when they disagree.
     inferred = _detect_period_type_from_contexts(contexts, period_end)
     if inferred and inferred != period_type:
@@ -505,9 +561,28 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
         )
         period_type = inferred
 
-    # Context-pick strategy. For annual extraction we prefer the
-    # year-to-date (FourD) context rather than the standalone-quarter
-    # (OneD) context — see `_pick_value_ytd` docstring. Flow items
+    # Hard invariant: a row whose resolved reporting period is shorter
+    # than a full fiscal year must NEVER be written as 'annual'. This is
+    # the last line of defence against an H1/9M cumulative filing (pulled
+    # from NSE's Annual endpoint) reaching the DCF's
+    # WHERE period_type='annual' query and being read as a full year.
+    if (period_type == "annual"
+            and period_days is not None
+            and period_days < _ANNUAL_MIN_DAYS):
+        coerced = "interim" if period_days >= _INTERIM_MIN_DAYS else "quarterly"
+        logger.warning(
+            "nse_xbrl annual-guard: %s %s span=%dd < %dd — coercing "
+            "period_type annual -> %s",
+            ticker, period_end.isoformat(), period_days, _ANNUAL_MIN_DAYS,
+            coerced,
+        )
+        period_type = coerced
+
+    # Context-pick strategy. Only a TRUE full-year ('annual') extraction
+    # uses the year-to-date (FourD) picker — see `_pick_value_ytd`
+    # docstring. Interim (H1/9M) and quarterly rows take the plain
+    # period-end picker so we record the cumulative interim figure as-is
+    # and never treat it like an annualised full year. Flow items
     # (revenue/pat/cfo/capex/...) have BOTH contexts available; balance-
     # sheet items are instants (point-in-time), same value either way.
     _pick_flow = _pick_value_ytd if period_type == "annual" else _pick_value
@@ -617,6 +692,17 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
         "cash": _scale(cash),
         "eps_diluted": eps,  # per-share rupees, not scaled
         "source": "NSE_XBRL",
+        # Audit payload — written to the financials.raw_data column by
+        # store_financials (which already reads financial_data.get("raw")).
+        # Records the resolved reporting-period span so the interim-vs-
+        # annual classification is auditable and a future cleanup pass can
+        # re-derive period_type without re-downloading the XBRL.
+        "raw": {
+            "period_days": int(period_days) if period_days is not None else None,
+            "period_start": period_start.isoformat() if period_start is not None else None,
+            "period_end": period_end.isoformat(),
+            "period_type": period_type,
+        },
     }
 
 
@@ -739,6 +825,34 @@ def fetch_ticker_financials(
             )
             if row:
                 row["source"] = source_label
+                # Defensive guard at the persistence boundary: a row may
+                # only be persisted as period_type='annual' when its
+                # resolved reporting span POSITIVELY confirms ~12 months.
+                # NSE's "Annual" endpoint also serves H1/9M cumulative
+                # filings; parse_nse_xbrl already reclassifies those, but
+                # we re-check here so nothing labelled 'annual' with a
+                # sub-year (or unverifiable) span can ever reach the DCF's
+                # WHERE period_type='annual' query. We DEMOTE (never drop)
+                # so the data is still retained under a non-annual type —
+                # interim rows are kept, matching how quarterly rows are
+                # handled elsewhere.
+                if row.get("period_type") == "annual":
+                    span = (row.get("raw") or {}).get("period_days")
+                    if span is None or span < _ANNUAL_MIN_DAYS:
+                        demoted = (
+                            "interim"
+                            if (span is not None and span >= _INTERIM_MIN_DAYS)
+                            else "quarterly"
+                        )
+                        logger.warning(
+                            "nse_xbrl persist-guard: %s %s annual span=%s "
+                            "not confirmed >=%dd — persisting as %s",
+                            symbol, period_end.isoformat(), span,
+                            _ANNUAL_MIN_DAYS, demoted,
+                        )
+                        row["period_type"] = demoted
+                        if isinstance(row.get("raw"), dict):
+                            row["raw"]["period_type"] = demoted
                 all_rows.append(row)
 
             time.sleep(sleep)
