@@ -345,7 +345,29 @@ def _extract_analysis_summary(result) -> dict:
     _mos = resolve_display_mos(
         v.margin_of_safety, bool(getattr(v, "mos_is_extreme", False)),
     )
+    # ── Canonical "YieldIQ Score" headline (2026-06-15 — score SSOT) ──
+    # The composite (= hex.overall × 10, what /prism surfaces) is the
+    # intended canonical headline. Historically this endpoint emitted
+    # `quality.yieldiq_score` (the QUALITY PILLAR) under both `score` and
+    # `score_100`, so the same stock showed two different "YieldIQ Score"
+    # numbers across surfaces (e.g. TCS 40 here vs 78 on /prism).
+    #
+    # Reuse the single source of truth in routers/analysis.py
+    # (`_canonical_yieldiq_score`), which computes the composite via the
+    # IDENTICAL `hex_service.compute_hex_safe` path /prism uses — so the
+    # numbers match by construction — and FALLS BACK to the quality pillar
+    # when hex is unavailable. Lazy import mirrors the existing
+    # TICKER_ALIASES import pattern below (analysis.py does not import this
+    # module, so there is no import cycle). Non-breaking: any failure
+    # leaves `_score` as the pillar value.
     _score = q.yieldiq_score
+    try:
+        from backend.routers.analysis import _canonical_yieldiq_score
+        _canon = _canonical_yieldiq_score(result, result.ticker)
+        if _canon is not None:
+            _score = _canon
+    except Exception:
+        pass
     # ── AUDIT5_P0B_FAIR_VALUE_FLOOR (Day-100, 2026-05-22) ──────────
     # Audit #5 flagged ULTRACEMCO.NS shipping `fair_value: 0.0` while
     # `base_case: 3028.83` and `fair_value_source: "dcf"`. Verdict

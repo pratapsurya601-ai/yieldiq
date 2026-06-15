@@ -152,8 +152,19 @@ class TestSummaryProjectionUsesGuard:
 
     def test_leaked_timestamp_value_becomes_none(self, monkeypatch, caplog):
         from backend.routers import public as pub
+        from backend.services import hex_service as _hex
 
         monkeypatch.setattr(pub, "_safe_compute_cagr_panel", lambda t: None)
+        # score-SSOT (2026-06-15): `score` now reflects the CANONICAL
+        # composite (= hex.overall × 10, what /prism shows) via
+        # _canonical_yieldiq_score → hex_service.compute_hex_safe, which
+        # would otherwise hit the real DB. Pin overall=4.0 so the composite
+        # is a deterministic 40 — same value the fixture's quality pillar
+        # used, keeping this guard test's incidental score assertion stable
+        # while exercising the new headline path.
+        monkeypatch.setattr(
+            _hex, "compute_hex_safe", lambda t: {"overall": 4.0}
+        )
         with caplog.at_level(logging.WARNING):
             out = pub._extract_analysis_summary(
                 self._make_fake_result(1089072600041)

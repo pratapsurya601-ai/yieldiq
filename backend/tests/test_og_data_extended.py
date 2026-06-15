@@ -112,8 +112,24 @@ def _call_og(fake) -> dict:
     )
     fake_bg = SimpleNamespace(add_task=lambda *a, **kw: None)
 
+    # score-SSOT (2026-06-15): og-data now surfaces the CANONICAL
+    # composite "YieldIQ Score" (= hex.overall × 10, what /prism shows)
+    # instead of the quality pillar, falling back to the pillar only when
+    # hex is unavailable. `_canonical_yieldiq_score` calls
+    # hex_service.compute_hex_safe, which would otherwise hit the real DB
+    # and make this unit test non-hermetic. Patch it to a fixed overall so
+    # the composite is deterministic. overall=7.8 → composite score 78,
+    # matching the fake's pillar value so every existing scenario/ratio
+    # assertion in this module is unaffected.
+    def _fake_hex(_ticker):
+        return {"overall": 7.8}
+
     with patch("backend.routers.analysis.cache.get", side_effect=_cache_get), \
          patch("backend.routers.analysis.cache.set", return_value=None), \
+         patch(
+             "backend.services.hex_service.compute_hex_safe",
+             side_effect=_fake_hex,
+         ), \
          patch(
              "backend.services.coverage_tier_service.summary_for_og",
              return_value=None,

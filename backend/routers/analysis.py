@@ -3237,6 +3237,105 @@ def _inject_score_verdict_divergence_model(
     return result
 
 
+# ─────────────────────────────────────────────────────────────────
+# Canonical "YieldIQ Score" headline — single source of truth
+# (2026-06-15 — score SSOT, sibling of the headline_fair_value fix)
+# ─────────────────────────────────────────────────────────────────
+# The same stock used to surface TWO different "YieldIQ Score" values:
+#   * og-data + public stock-summary emitted `quality.yieldiq_score`
+#     (the QUALITY PILLAR, a 0-100 fundamental-quality grade), while
+#   * /prism emitted the COMPOSITE `yieldiq_score_100`
+#     (= hex.overall * 10, the 6-axis weighted headline).
+# Examples: TCS 40 (og-data) vs 78 (prism); HDFCBANK 40 vs 54.
+# The COMPOSITE is the intended canonical headline.
+#
+# Why this is a READ-SIDE compute (not store-at-compute):
+#   prism derives the composite at READ time from
+#   `hex_service.compute_hex_safe(ticker)["overall"]`, which consults
+#   FOUR ticker-keyed sources — analysis_cache.payload (quality/
+#   valuation), market_metrics, financials, hex_pulse_inputs. The
+#   ONLY way to guarantee this surface shows the SAME number prism
+#   shows is to call the IDENTICAL function with the IDENTICAL inputs.
+#   Storing a value at analysis-compute time cannot match prism:
+#     (a) at compute time the analysis_cache row hex reads still holds
+#         the PREVIOUS payload (circular / one-cycle stale), and
+#     (b) AnalysisResponse carries no `hex` block, so the only in-hand
+#         derivation (compute_axes_from_payload's synthetic Case-2
+#         path) is an APPROXIMATION that ignores market_metrics /
+#         financials / hex_pulse_inputs — it would NOT equal prism.
+#   Computing on the read side via compute_hex_safe is therefore both
+#   the simplest and the only correctness-preserving option.
+#
+# Non-breaking by construction:
+#   * If the payload/result already carries a stored `yieldiq_score_100`
+#     (forward-compat — e.g. a future schema change), prefer it.
+#   * Else compute the composite via the prism path.
+#   * Else (hex unavailable / no usable `overall`) FALL BACK to the
+#     current `quality.yieldiq_score` (the pillar) so old cached
+#     payloads and any hex-compute failure keep rendering a number.
+# Pure-additive: never changes FV / verdict / DCF — only WHICH score
+# number is surfaced. Never raises.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _composite_score_from_overall(overall) -> Optional[int]:
+    """``int(clamp(round(overall * 10), 0, 100))`` — prism's exact formula.
+
+    Returns None when ``overall`` is missing / non-finite so the caller
+    can fall back to the quality pillar.
+    """
+    if overall is None:
+        return None
+    try:
+        s = float(overall)
+    except (TypeError, ValueError):
+        return None
+    if s != s or s in (float("inf"), float("-inf")):  # NaN / inf guard
+        return None
+    return int(max(0, min(100, round(s * 10))))
+
+
+def _canonical_yieldiq_score(result, ticker: str) -> Optional[int]:
+    """Return the canonical headline YieldIQ Score for ``ticker``.
+
+    Preference order (see module note above):
+      1. a stored composite ``yieldiq_score_100`` on the result/payload,
+      2. the prism composite (``compute_hex_safe(ticker).overall * 10``),
+      3. the legacy quality pillar ``quality.yieldiq_score``.
+    """
+    # 1. Stored composite, if a future schema ever persists it.
+    try:
+        stored = getattr(result, "yieldiq_score_100", None)
+        if stored is None and isinstance(result, dict):
+            stored = result.get("yieldiq_score_100")
+        if stored is not None:
+            coerced = _composite_score_from_overall(float(stored) / 10.0)
+            if coerced is not None:
+                return coerced
+    except Exception:
+        pass
+    # 2. Prism composite — IDENTICAL path prism uses, so the numbers match.
+    try:
+        from backend.services import hex_service
+        hex_payload = hex_service.compute_hex_safe(ticker)
+        composite = _composite_score_from_overall(
+            (hex_payload or {}).get("overall")
+        )
+        if composite is not None:
+            return composite
+    except Exception:
+        # hex unavailable / DB down — fall through to the pillar.
+        pass
+    # 3. Legacy fallback: the quality pillar (non-breaking).
+    try:
+        if isinstance(result, dict):
+            q = result.get("quality") or {}
+            return q.get("yieldiq_score") if isinstance(q, dict) else None
+        return getattr(getattr(result, "quality", None), "yieldiq_score", None)
+    except Exception:
+        return None
+
+
 def _inject_ma_event_dict(payload: dict, ticker: str) -> dict:
     """Populate ``ma_event`` on a dict payload (warm cache + DB cache paths).
 
@@ -4063,11 +4162,23 @@ async def get_og_data(
                 f"Moat: {result.quality.moat}."
             )
 
+        # Canonical headline score (composite, matches /prism) with a
+        # non-breaking fall back to the quality pillar. See
+        # `_canonical_yieldiq_score` for the rationale. The AI `desc`
+        # string above intentionally keeps `quality.yieldiq_score` so we
+        # don't rewrite already-cached OG descriptions / re-trip the
+        # zero-poison + SEBI guards; the headline `score` number that the
+        # frontend + social cards read is the canonical one below.
+        _canonical_score = _canonical_yieldiq_score(result, ticker)
         og = {
             "title": f"{display_ticker} — {verdict_text} | YieldIQ",
             "description": desc,
             "ticker": ticker,
-            "score": result.quality.yieldiq_score,
+            "score": (
+                _canonical_score
+                if _canonical_score is not None
+                else result.quality.yieldiq_score
+            ),
             "verdict": _verdict,
             "fair_value": _fv,
             "price": _px,
