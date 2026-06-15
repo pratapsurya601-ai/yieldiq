@@ -148,9 +148,14 @@ function scoreTint(score: number): string {
   return "bg-rose-100 text-rose-800"
 }
 
+// The list API returns ret_1y / ter as DECIMAL fractions from
+// fund_returns_cache (e.g. 0.088 = 8.8%, ter 0.0125 = 1.25%), so scale
+// to percent here. Without the ×100 every card showed "+0.1%" for an
+// 8.8% return.
 function fmtPct(v: number, withSign: boolean): string {
-  const sign = withSign && v > 0 ? "+" : ""
-  return `${sign}${v.toFixed(1)}%`
+  const pct = v * 100
+  const sign = withSign && pct > 0 ? "+" : ""
+  return `${sign}${pct.toFixed(1)}%`
 }
 
 export default function FundCard({ fund }: { fund: FundCardItem }) {
