@@ -138,10 +138,20 @@ describe("TodaysMovers", () => {
     // Seed localStorage with a previous successful payload — this is
     // what happens after at least one fresh fetch has completed
     // before the next fetch returns stale.
+    //
+    // `cached_at` is computed relative to NOW (1 hour ago) rather than a
+    // hardcoded date on purpose: readCachedMovers() in the component
+    // rejects any snapshot older than 7 days (a deliberate freshness
+    // ceiling so a week-old gainers list never surfaces as today's). A
+    // literal date would silently age past that ceiling as wall-clock
+    // time advances and fail this test deterministically. A relative
+    // timestamp keeps the snapshot inside the freshness window forever
+    // while still exercising the Tier-1 cached path.
+    const cachedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     window.localStorage.setItem(
       "yieldiq:lastSeenMovers",
       JSON.stringify({
-        cached_at: "2026-06-08T09:15:00+05:30",
+        cached_at: cachedAt,
         payload: POPULATED_RESPONSE,
       }),
     )
