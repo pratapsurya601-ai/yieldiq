@@ -572,7 +572,15 @@ def match_ter_rows(
     """
     idx = _build_funds_index(funds_rows)
     recon = ReconSummary()
-    params: list[dict] = []
+    # Keyed by scheme_code so a scheme_code appears AT MOST ONCE in the
+    # upsert batch. Multiple TER feed rows can normalize to the same base
+    # name (a scheme listed under two NSDLSchemeCodes, ETF/FoF variants,
+    # etc.), each fanning out to the same funds scheme_codes — a batched
+    # INSERT ... ON CONFLICT rejects a duplicate conflict key in one
+    # statement (CardinalityViolation), which the old row-by-row executemany
+    # silently tolerated. Last write wins; the colliding rows carry the same
+    # Direct+Regular pair for the same fund, so the stored value is stable.
+    params_by_sc: dict[str, dict] = {}
     for row in ter_rows:
         recon.ter_rows_total += 1
         base = normalize_base_name(row.get("Scheme_Name") or "")
@@ -588,9 +596,10 @@ def match_ter_rows(
         d_ter = _parse_pct(row.get("D_TER"))
         r_ter = _parse_pct(row.get("R_TER"))
         for sc in codes:
-            params.append(
-                {"scheme_code": sc, "ter_direct": d_ter, "ter_regular": r_ter}
-            )
+            params_by_sc[sc] = {
+                "scheme_code": sc, "ter_direct": d_ter, "ter_regular": r_ter
+            }
+    params = list(params_by_sc.values())
     recon.funds_rows_updated = len(params)
     return params, recon
 

@@ -268,3 +268,26 @@ def test_match_is_independent_of_mf_id_amc_map() -> None:
     by_code = {p["scheme_code"] for p in params}
     assert {"PP01", "PP02", "PP03", "PP04", "MI01", "MI02"} <= by_code
     assert "XX01" not in by_code                # distinct base name, no bleed
+
+
+def test_match_dedups_scheme_codes_across_ter_rows() -> None:
+    # Two TER rows whose Scheme_Name normalizes to the SAME base (the feed
+    # lists a scheme under two NSDLSchemeCodes) must NOT emit the same
+    # scheme_code twice — a batched INSERT ... ON CONFLICT rejects a
+    # duplicate conflict key in one statement (CardinalityViolation, which
+    # crashed the first prod apply run). Last write wins; one row per code.
+    dup_ter = [
+        {"NSDLSchemeCode": "MIRA/A/1", "Scheme_Name": "Mirae Asset Large Cap Fund",
+         "SchemeCat_Desc": "Equity Scheme - Large Cap Fund",
+         "TER_Date": "2026-06-14T00:00:00.000Z",
+         "D_TER": "0.5700", "R_TER": "1.5400", "MF_ID": 45, "Month": "06-2026"},
+        {"NSDLSchemeCode": "MIRA/A/2", "Scheme_Name": "Mirae Asset Large Cap Fund",
+         "SchemeCat_Desc": "Equity Scheme - Large Cap Fund",
+         "TER_Date": "2026-06-14T00:00:00.000Z",
+         "D_TER": "0.5800", "R_TER": "1.5500", "MF_ID": 45, "Month": "06-2026"},
+    ]
+    params, recon = match_ter_rows(dup_ter, FUNDS_FIXTURE, MF_ID_AMC)
+    codes = [p["scheme_code"] for p in params]
+    assert len(codes) == len(set(codes))         # no duplicate scheme_code
+    assert set(codes) == {"MI01", "MI02"}        # the 2 Mirae plan rows, once each
+    assert recon.funds_rows_updated == 2         # deduped, not 4
