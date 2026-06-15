@@ -15,7 +15,8 @@
 
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { getMarketPulse } from "@/lib/api"
+import { getMarketPulse, getPublicIndices } from "@/lib/api"
+import { useAuthStore } from "@/store/authStore"
 import { formatPct } from "@/lib/utils"
 import HoverCard from "@/components/motion/HoverCard"
 import RevealStagger from "@/components/motion/RevealStagger"
@@ -72,6 +73,8 @@ export default function IndexDashboardsRow() {
   // Same queryKey as MarketsStrip — re-uses the in-flight cache.
   // No re-fetch needed on this page; MarketsStrip already manages
   // the 60s polling cadence.
+  const token = useAuthStore((s) => s.token)
+
   const { data: pulse } = useQuery({
     queryKey: ["markets-strip"],
     queryFn: () => getMarketPulse(true),
@@ -80,11 +83,32 @@ export default function IndexDashboardsRow() {
     retry: 1,
   })
 
-  // Build a quick lookup from pulse.indices by upper-cased name. Two
-  // matchers ("contains" / "equals") because the pulse feed isn't 100%
-  // consistent on the "NSE NIFTY 50" vs "NIFTY 50" prefix.
+  // Anon fallback — logged-out users 401 on /market/pulse, so without
+  // this the live LEVEL + change% never populated and the cards showed
+  // only the descriptive blurb. /api/v1/public/indices is 200-anon and
+  // carries the same {name, price, change_pct} the lookup needs. Shares
+  // MarketsStrip's public query key so the page pays for it once.
+  const { data: publicIndices } = useQuery({
+    queryKey: ["markets-strip-public"],
+    queryFn: () => getPublicIndices(),
+    enabled: !token,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+  })
+
+  // Build a quick lookup from the indices feed by upper-cased name. Two
+  // matchers ("contains" / "equals") because the feed isn't 100%
+  // consistent on the "NSE NIFTY 50" vs "NIFTY 50" prefix. Authed pulse
+  // is authoritative when present; otherwise fall back to the public
+  // indices payload (public change_pct is nullable → coerce to 0).
   const indexByName = new Map<string, { price: number; change_pct: number }>()
-  for (const idx of pulse?.indices ?? []) {
+  const indexRows: Array<{ name: string; price: number; change_pct: number }> = []
+  for (const idx of pulse?.indices ?? [])
+    indexRows.push({ name: idx.name, price: idx.price, change_pct: idx.change_pct })
+  for (const idx of publicIndices?.indices ?? [])
+    indexRows.push({ name: idx.name, price: idx.price, change_pct: idx.change_pct ?? 0 })
+  for (const idx of indexRows) {
     indexByName.set(idx.name.toUpperCase(), {
       price: idx.price,
       change_pct: idx.change_pct,

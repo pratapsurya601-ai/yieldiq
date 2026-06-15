@@ -16,6 +16,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { getMarketPulse } from "@/lib/api"
+import { useAuthStore } from "@/store/authStore"
 
 function formatCr(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—"
@@ -68,9 +69,17 @@ function FlowTile({
 }
 
 export default function FlowsPanel() {
+  // FII/DII flow numbers only exist in the authed /market/pulse payload —
+  // the 200-anon /public/indices endpoint carries none. So there is no
+  // anon fallback here by design: logged-out users have no token, the
+  // query stays disabled (no doomed 401), pulse is undefined, and the
+  // hasAnyFlow guard below hides the whole panel. Authed path unchanged.
+  const token = useAuthStore((s) => s.token)
+
   const { data: pulse } = useQuery({
     queryKey: ["markets-strip"],
     queryFn: () => getMarketPulse(true),
+    enabled: !!token,
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 1,
