@@ -7,16 +7,34 @@
  * outsized perf implications. The snapshot diff catches both visual
  * regressions and accidental tile removal.
  */
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import React from "react"
 
 vi.mock("@/lib/api", () => ({
   getMarketPulse: vi.fn(),
+  // Anon fallback source (2026-06-15). The 8 authed-path tests below
+  // never exercise this — but the component now ALWAYS mounts the anon
+  // query (it only disables when a token is present), so the symbol has
+  // to resolve or the import throws. Default-resolving to undefined is
+  // harmless: in the authed tests getMarketPulse drives the DOM and the
+  // public payload is ignored.
+  getPublicIndices: vi.fn(),
 }))
 
-import { getMarketPulse } from "@/lib/api"
+// Auth store is mocked so the token can be toggled per-test. The 8
+// pre-existing tests assume the default logged-out (token=null) state,
+// which is exactly the persisted default in the real store, so leaving
+// the mock at null keeps their authed-path behavior identical (the
+// authed query in MarketsStrip is NOT token-gated — it always fires).
+const mockToken: { value: string | null } = { value: null }
+vi.mock("@/store/authStore", () => ({
+  useAuthStore: (selector: (s: { token: string | null }) => unknown) =>
+    selector({ token: mockToken.value }),
+}))
+
+import { getMarketPulse, getPublicIndices } from "@/lib/api"
 import MarketsStrip from "@/components/home/v2/MarketsStrip"
 
 function renderWithClient(ui: React.ReactElement) {
@@ -25,6 +43,17 @@ function renderWithClient(ui: React.ReactElement) {
   })
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
+
+// Default every test to logged-out (token=null) — the persisted default
+// of the real store. Anon-fallback tests opt into a token explicitly.
+beforeEach(() => {
+  mockToken.value = null
+  // Default the anon fallback to "no public data" (null, the real
+  // endpoint's empty return) so React Query doesn't warn about an
+  // undefined query result in the authed-path tests that don't care
+  // about it. Anon tests override this with a populated payload.
+  vi.mocked(getPublicIndices).mockReset().mockResolvedValue(null)
+})
 
 const FULL_PULSE = {
   indices: [
@@ -227,5 +256,58 @@ describe("MarketsStrip — showHubLink prop (Bug 1, 2026-06-09)", () => {
       (a) => a.getAttribute("href") === "/sensex",
     )
     expect(sensexLink).toBeDefined()
+  })
+})
+
+describe("MarketsStrip — anon public-indices fallback (2026-06-15)", () => {
+  // Logged-out /markets showed no live data: the strip fetched the
+  // 401-gated /market/pulse, the authed query failed, and the component
+  // rendered nothing. The fix adds a token-gated fallback that maps the
+  // 200-anon /api/v1/public/indices payload onto the tiles. Authed users
+  // are unaffected (their query stays the source of truth).
+  const PUBLIC_INDICES = {
+    count: 3,
+    indices: [
+      { name: "NIFTY 50",   symbol: "^NSEI",   price: 25_410, change_pct:  0.51, as_of: "2026-06-13T15:30:00+05:30" },
+      { name: "NIFTY BANK", symbol: "^NSEBANK", price: 53_120, change_pct: -0.12, as_of: "2026-06-13T15:30:00+05:30" },
+      { name: "SENSEX",     symbol: "^BSESN",   price: 83_560, change_pct:  0.33, as_of: "2026-06-13T15:30:00+05:30" },
+    ],
+  }
+
+  it("renders index tiles from getPublicIndices when there is no auth token", async () => {
+    mockToken.value = null
+    // Authed path 401s for logged-out users — model that as a rejection
+    // so `pulse` never resolves and the anon view takes over.
+    vi.mocked(getMarketPulse).mockRejectedValue(new Error("401 Unauthorized"))
+    vi.mocked(getPublicIndices).mockResolvedValue(PUBLIC_INDICES as never)
+
+    renderWithClient(<MarketsStrip />)
+
+    await waitFor(() => {
+      expect(screen.getByText("NIFTY 50")).toBeInTheDocument()
+    })
+    // All three public indices surface as tiles with real levels.
+    expect(screen.getByText("NIFTY BANK")).toBeInTheDocument()
+    expect(screen.getByText("SENSEX")).toBeInTheDocument()
+    expect(screen.getByText(/25,410/)).toBeInTheDocument()
+    // The public payload carries no FX/commodity fields, so those tiles
+    // still render their "—" placeholders rather than crashing.
+    expect(screen.getByText("GOLD")).toBeInTheDocument()
+    expect(getPublicIndices).toHaveBeenCalled()
+  })
+
+  it("does NOT call getPublicIndices when an auth token is present", async () => {
+    mockToken.value = "tok_abc123"
+    vi.mocked(getMarketPulse).mockResolvedValue(FULL_PULSE as never)
+    vi.mocked(getPublicIndices).mockResolvedValue(PUBLIC_INDICES as never)
+
+    renderWithClient(<MarketsStrip />)
+
+    await waitFor(() => {
+      expect(screen.getByText("GOLD")).toBeInTheDocument()
+    })
+    // Authed users are served entirely by the existing /market/pulse
+    // query — the anon fallback never fires.
+    expect(getPublicIndices).not.toHaveBeenCalled()
   })
 })

@@ -5,7 +5,9 @@
 
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { getMarketPulse } from "@/lib/api"
+import { getMarketPulse, getPublicIndices } from "@/lib/api"
+import type { MarketPulseResponse } from "@/types/api"
+import { useAuthStore } from "@/store/authStore"
 import { Sparkline } from "@/components/common/Sparkline"
 import { formatPct } from "@/lib/utils"
 
@@ -167,6 +169,11 @@ export default function MarketsStrip({
   sticky = true,
   showHubLink = true,
 }: MarketsStripProps = {}) {
+  // Logged-out users 401 on /market/pulse, so the authed query below
+  // resolves to nothing and the strip rendered blank (the bug this fix
+  // addresses). The token decides which source is authoritative.
+  const token = useAuthStore((s) => s.token)
+
   const { data: pulse, isLoading } = useQuery({
     queryKey: ["markets-strip"],
     queryFn: () => getMarketPulse(true),
@@ -179,19 +186,60 @@ export default function MarketsStrip({
     retry: 1,
   })
 
-  if (isLoading) return <Skeleton />
-  if (!pulse) return null
+  // Anon fallback — only fires when there's NO auth token. Hits the
+  // 200-anon /api/v1/public/indices endpoint and is mapped onto the
+  // MarketPulseResponse shape the strip already renders. Authed users
+  // never run this query (enabled: false), so their path is byte-for-
+  // byte unchanged. The public payload carries indices only — no FX,
+  // 10Y, commodity, or FII/DII fields — so those tiles fall back to
+  // their existing "—" / hidden behavior with no extra branching here.
+  const { data: publicIndices } = useQuery({
+    queryKey: ["markets-strip-public"],
+    queryFn: () => getPublicIndices(),
+    enabled: !token,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+  })
 
-  const indices = [...(pulse.indices ?? [])].sort((a, b) => {
+  // Authed pulse wins when present. Otherwise (logged-out, or the authed
+  // call 401'd) synthesize a minimal pulse from the public indices so
+  // the strip shows real index levels instead of rendering nothing.
+  const anonPulse: MarketPulseResponse | null =
+    publicIndices && publicIndices.indices.length > 0
+      ? {
+          indices: publicIndices.indices.map((i) => ({
+            name: i.name,
+            price: i.price,
+            change_pct: i.change_pct ?? 0,
+          })),
+          fear_greed_index: null,
+          fear_greed_label: null,
+          timestamp: publicIndices.indices[0]?.as_of ?? "",
+        }
+      : null
+
+  const view = pulse ?? anonPulse
+
+  // Spinner only while the relevant source is still in flight. For anon
+  // users `isLoading` tracks the (disabled-result) authed query, so also
+  // require the public query to have not yet produced rows.
+  if (isLoading && !anonPulse) return <Skeleton />
+  if (!view) return null
+
+  const indices = [...(view.indices ?? [])].sort((a, b) => {
     const ai = PREFERRED_ORDER.findIndex(p => a.name.toUpperCase().includes(p))
     const bi = PREFERRED_ORDER.findIndex(p => b.name.toUpperCase().includes(p))
     return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi)
   })
 
   // Macro tiles (USD/INR, GOLD, SILVER, CRUDE, INDIA10Y) read their
-  // sparkline series out of pulse.macro_sparklines when present.
+  // sparkline series out of view.macro_sparklines when present.
   // Fallback to undefined → tile renders without a sparkline cell.
-  const macro = pulse.macro_sparklines ?? undefined
+  // The anon (public-indices) view never carries macro_sparklines, so
+  // these all resolve to undefined and the macro/commodity tiles render
+  // their existing "—" placeholders for logged-out users.
+  const macro = view.macro_sparklines ?? undefined
   function macroSpark(key: string): number[] | undefined {
     if (!macro) return undefined
     const v = macro[key]
@@ -217,26 +265,26 @@ export default function MarketsStrip({
             sparkline={idx.sparkline_7d}
           />
         ))}
-        {pulse.usd_inr != null && (
+        {view.usd_inr != null && (
           <Cell
             label="USD/INR"
-            value={`₹${pulse.usd_inr.toFixed(2)}`}
+            value={`₹${view.usd_inr.toFixed(2)}`}
             // 2026-06-09 — was hardcoded null pre-fix. Backend now
             // derives the 24h delta from the same cached yfinance
             // series that backs macro_sparklines.USDINR. Null still
             // means "yfinance unavailable" and the tile shows "—".
-            pct={pulse.usd_inr_change_pct ?? null}
+            pct={view.usd_inr_change_pct ?? null}
             sparkline={macroSpark("USDINR")}
           />
         )}
-        {pulse.risk_free_pct != null && (
+        {view.risk_free_pct != null && (
           <Cell
             label="India 10Y"
-            value={`${pulse.risk_free_pct.toFixed(2)}%`}
+            value={`${view.risk_free_pct.toFixed(2)}%`}
             // 2026-06-09 — was hardcoded null pre-fix. Backend now
             // derives the 24h delta from the yfinance ^TNX proxy
             // (cached 24h). Null degrades to "—" on the tile.
-            pct={pulse.risk_free_change_pct ?? null}
+            pct={view.risk_free_change_pct ?? null}
             sparkline={macroSpark("INDIA10Y")}
           />
         )}
@@ -250,31 +298,31 @@ export default function MarketsStrip({
         <Cell
           label="GOLD"
           value={
-            pulse.gold_inr_per_10g != null
-              ? `₹${Math.round(pulse.gold_inr_per_10g).toLocaleString("en-IN")}/10g`
+            view.gold_inr_per_10g != null
+              ? `₹${Math.round(view.gold_inr_per_10g).toLocaleString("en-IN")}/10g`
               : "—"
           }
-          pct={pulse.gold_usd_change_pct ?? null}
+          pct={view.gold_usd_change_pct ?? null}
           sparkline={macroSpark("GOLD")}
         />
         <Cell
           label="SILVER"
           value={
-            pulse.silver_inr_per_10g != null
-              ? `₹${Math.round(pulse.silver_inr_per_10g).toLocaleString("en-IN")}/10g`
+            view.silver_inr_per_10g != null
+              ? `₹${Math.round(view.silver_inr_per_10g).toLocaleString("en-IN")}/10g`
               : "—"
           }
-          pct={pulse.silver_usd_change_pct ?? null}
+          pct={view.silver_usd_change_pct ?? null}
           sparkline={macroSpark("SILVER")}
         />
         <Cell
           label="CRUDE"
           value={
-            pulse.crude_usd != null
-              ? `$${pulse.crude_usd.toFixed(1)}/bbl`
+            view.crude_usd != null
+              ? `$${view.crude_usd.toFixed(1)}/bbl`
               : "—"
           }
-          pct={pulse.crude_usd_change_pct ?? null}
+          pct={view.crude_usd_change_pct ?? null}
           sparkline={macroSpark("CRUDE")}
         />
         {showHubLink && (
