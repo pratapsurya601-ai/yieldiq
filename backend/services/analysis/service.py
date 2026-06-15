@@ -4293,6 +4293,28 @@ class AnalysisService(NarrativeMixin):
             _debt_ebitda_lbl = _debt_ebitda_label(_debt_ebitda_val)
             _interest_cov_val = _compute_int_cov(_ebit_val, _interest_exp)
 
+        # Insurers: ROCE is meaningless. The textbook capital-employed
+        # denominator (Total Assets − Current Liabilities) has no economic
+        # interpretation for a life/general insurer — the balance sheet is
+        # dominated by policyholder reserves and investment float, not
+        # operating capital. The EBIT/TA fallback produces artifact values
+        # (LICI roce≈80, SBILIFE roce≈50) that read as "exceptional return
+        # on capital" when they are accounting noise. Null ROCE so the
+        # frontend renders "—" (mirrors the bank financial-metric
+        # suppression above, scoped to insurers only). Detection reuses the
+        # same insurance signals the rest of this file already keys off:
+        # _INSURANCE_TICKERS membership and _get_financial_sub_type. Wrapped
+        # defensively — a classifier hiccup must never break the response.
+        try:
+            _is_insurer = bool(
+                clean_ticker.upper() in _INSURANCE_TICKERS
+                or _get_financial_sub_type(clean_ticker.upper()) == "Insurance"
+            )
+        except Exception:
+            _is_insurer = False
+        if _is_insurer:
+            _roce_val = None
+
         # ── Bank-native metrics (feat/bank-prism-metrics 2026-04-21) ──
         # For banks we fill a small set of fields that DO apply:
         #   roa, cost_to_income, advances_yoy (proxy), deposits_yoy (proxy),

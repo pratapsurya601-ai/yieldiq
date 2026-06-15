@@ -3892,6 +3892,35 @@ async def get_og_data(
     # 2026-05-03: 13,964 events/24h on LTIM alone). Mirrors the rewrite
     # that GET /analysis/{ticker} and /analysis/preview/{ticker} apply.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
+
+    # ── Corporate-action redirect gate (parity with GET /analysis) ──
+    # The main /analysis endpoint (see ~line 3394) returns a sibling
+    # corporate_action_redirect payload for demerged / demerged_pending /
+    # delisted tickers instead of valuing a defunct ISIN. og-data lacked
+    # this gate: the TICKER_ALIASES rewrite above (e.g. TATAMOTORS.NS →
+    # TMPV.NS) sent it into a compute against stale pre-demerger
+    # financials and served a blanked/zeroed OG card. Apply the IDENTICAL
+    # check here — same helper, same status set, same payload shape — so
+    # TMPV / TMCV / TATAMOTORS resolve to the redirect rather than a wrong
+    # number. Status is read on `original_ticker` (the requested symbol),
+    # matching the main endpoint; `nickname` is intentionally excluded
+    # (routing rewrite, not a corporate action). Best-effort: any import /
+    # parse failure falls through to the normal og-data path below.
+    try:
+        from data_pipeline import ticker_aliases as _aliases
+        _status = _aliases.get_status(original_ticker)
+        if _status in ("demerged", "demerged_pending", "delisted"):
+            _payload = _aliases.get_successors_payload(original_ticker) or {}
+            return {
+                "result_kind": "corporate_action_redirect",
+                "status": _status,
+                "successors": _payload.get("successors", []),
+                "effective_date": _payload.get("effective_date"),
+                "note": _payload.get("note"),
+            }
+    except Exception:
+        pass
+
     # ── Telemetry (additive) ── only fires for signed-in callers.
     # Records the canonical (post-alias) ticker so analytics aggregate
     # LTIM.NS hits under LTIMINDTREE.NS like the cache does.
@@ -3961,9 +3990,21 @@ async def get_og_data(
             resolve_display_mos as _resolve_mos,
             resolve_fair_value as _resolve_fv,
         )
+        # ROOT CAUSE #1 (2026-06-10) parity with /public/stock-summary
+        # (routers/public.py ~line 379): pass `headline_fair_value` (the
+        # composite-IV-preferred canonical number populated by
+        # `_inject_headline_fair_value_*`) so og-data surfaces the SAME
+        # figure every user-visible FV pill agrees on. Without it,
+        # resolve_fair_value fell back to engine_fv (often 0 for the
+        # composite-priced names) and the suspicion gate below zeroed a
+        # perfectly valid headline FV. Falls back to engine fair_value /
+        # base_case inside the helper when the field is absent (legacy
+        # cached payloads or a projection path that skipped the inject
+        # chain).
         _fv_resolved = _resolve_fv(
             result.valuation.fair_value,
             getattr(result.valuation, "base_case", None),
+            headline_fv=getattr(result, "headline_fair_value", None),
         )
         _fv = float(_fv_resolved if _fv_resolved is not None else 0)
         _px = float(result.valuation.current_price or 0)
@@ -4039,6 +4080,38 @@ async def get_og_data(
                 )
                 if _fv > 0 and _bull > 0 and _fv > _bull:
                     _suspicious = True
+            except (TypeError, ValueError):
+                pass
+            # 2026-06-15: data-limited-name display tightening. The
+            # ratio guard above (>= 3.0 / < 0.1) only catches GROSS
+            # outliers. But when the engine has ALREADY conceded it
+            # cannot price the name — verdict in the data_limited /
+            # unavailable / under_review family — even a *moderately*
+            # implausible FV/price ratio is a wrong number we should not
+            # print. Observed on prod: ULTRACEMCO verdict=data_limited
+            # with FV/price == 0.27 leaked a "-73%" headline through the
+            # 0.1 floor. On a name the engine itself flagged as
+            # data_limited, tighten the plausibility band to [0.5, 2.0]
+            # (well inside the canary forbidden_values band of
+            # [0.35, 2.7] referenced above, so this never fights the
+            # canary on a confident verdict) and suppress the displayed
+            # FV via the same `_suspicious` path the gross-outlier guards
+            # use. Display-only — the FV math is untouched; we just emit
+            # the "fair value temporarily unavailable" sentinel the
+            # payload already supports instead of a wrong figure.
+            try:
+                _vstr = str(_verdict or "").strip().lower()
+                _data_limited_family = {
+                    "data_limited", "unavailable", "under_review",
+                }
+                if (
+                    not _suspicious
+                    and _vstr in _data_limited_family
+                    and _px > 0 and _fv > 0
+                ):
+                    _r2 = _fv / _px
+                    if _r2 < 0.5 or _r2 > 2.0:
+                        _suspicious = True
             except (TypeError, ValueError):
                 pass
         except Exception:
