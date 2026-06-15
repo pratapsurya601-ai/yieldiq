@@ -48,7 +48,13 @@ def test_bear_overvalued_bypass_constants_match_frontend() -> None:
     """Constants must match frontend/src/lib/utils.ts exactly. If
     these drift, the API payload and the rendered pill will disagree
     on a subset of bear-side tickers (the exact bug Audit#6 closed)."""
-    assert BEAR_OVERVALUED_BYPASS_MOS == -25.0
+    # Calibration audit (2026-06-14): lowered -25 -> -15 so SBIN (-24%)
+    # and SUNPHARMA (-25%) surface "overvalued" instead of flattening to
+    # "fairly_valued". This narrows the gap with the frontend
+    # verdictFromMos display band (overvalued at mos < -5); full
+    # backend/frontend threshold unification is tracked separately
+    # (single-verdict-source, ROOT CAUSE #6).
+    assert BEAR_OVERVALUED_BYPASS_MOS == -15.0
     assert BEAR_OVERVALUED_BYPASS_CONFIDENCE == 40
     assert BEAR_NOTABLY_OVERVALUED_MOS == -40.0
 
@@ -122,10 +128,12 @@ def test_asianpaint_shape_clamped_to_overvalued() -> None:
 
 
 def test_just_above_threshold_still_caps_to_fairly_valued() -> None:
-    """mos=-23 is ABOVE the -25 threshold so the bypass does not
+    """mos=-12 is ABOVE the new -15 threshold so the bypass does not
     fire; Layer-3 intensity cap applies normally and the verdict
-    collapses to fairly_valued."""
-    verdict, _ = _gate("overvalued", mos_pct=-23.0, model_confidence=55)
+    collapses to fairly_valued (the band's neutral zone). Post the
+    2026-06-14 calibration audit, -23 now CLEARS the bypass and stays
+    'overvalued' — so we test the still-capped case with -12."""
+    verdict, _ = _gate("overvalued", mos_pct=-12.0, model_confidence=55)
     assert verdict == "fairly_valued"
 
 
