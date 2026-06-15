@@ -1809,6 +1809,49 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             pass
 
+        # ── Day-141 (2026-06-15) Telecom Tier-1 TG lift ──
+        # Bug: telecom routes through the generic FCF-DCF and is the
+        # conspicuous gap in the engine's sector remediation —
+        # pharma/hospital/auto/IT/FMCG all received terminal-g lifts
+        # above, but telecom got the bare default terminal_g (0.025).
+        # The depressed terminal value, compounded by the levered
+        # FCF-DCF equity bridge (net-debt subtraction of Airtel's
+        # ~₹140k cr debt), crushes the FV: BHARTIARTL surfaced as
+        # FV ₹801 "Avoid" vs price ₹1,845 while the engine's own bull
+        # leg already returns ₹2,852 — proving the model can value
+        # Airtel sanely. A premium India telecom franchise (post-
+        # consolidation 3-player market, ARPU-repair pricing power,
+        # 5G monetisation + data-volume secular tailwind) warrants a
+        # terminal-g floor comparable to the IT-services Tier-1 cohort.
+        # CURATED set only (blast radius held to named telecom leaders
+        # per the engine-cadence rule) — NOT applied by sector keyword.
+        # Separate try-block so the auto elif-chain above doesn't
+        # preclude telecom tickers. Mirrors the Day-107a IT-services
+        # TG-lift shape exactly. The wacc - 0.02 safety guard is
+        # preserved so terminal_g can never approach WACC.
+        try:
+            # Curated telecom Tier-1 set. Start with BHARTIARTL; add
+            # more telecom leaders here as they are individually
+            # validated (e.g. INDUSTOWER passive-infra). Kept as a
+            # small named constant — NEVER widened to a sector keyword.
+            _TELECOM_TIER1_TICKERS_INLINE = {
+                "BHARTIARTL",
+            }
+            if (
+                _bare_ticker_tg in _TELECOM_TIER1_TICKERS_INLINE
+                and terminal_g < 0.045
+            ):
+                _tg_proposed = 0.045
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[telecom-tier1-tg-lifted] terminal_g raised "
+                        f"to {terminal_g:.3f} (ARPU-repair pricing power "
+                        f"+ 5G/data-volume secular tailwind)"
+                    ]
+        except Exception:
+            pass
+
         # ── Day-107b (2026-05-23) FMCG sector cohort TG lift ──
         # Separate try-block so the auto-cohort elif-chain above
         # doesn't preclude FMCG tickers from being lifted. The
