@@ -149,8 +149,13 @@ def parse_navall(text: str) -> Iterator[dict]:
             # Header row ('Scheme Code;ISIN Div Payout/...') or AMC
             # banner — silently skip.
             continue
-        isin_div    = parts[1].strip() or None
-        isin_growth = parts[2].strip() or None
+        # AMFI column order is:
+        #   parts[1] = "ISIN Div Payout/ ISIN Growth" — the primary ISIN,
+        #              which carries the Growth ISIN for Growth schemes.
+        #   parts[2] = "ISIN Div Reinvestment" — a literal "-" for
+        #              Growth-only schemes.
+        isin_growth = parts[1].strip() or None
+        isin_div    = parts[2].strip() or None
         scheme_name = parts[3].strip()
         nav         = _safe_float(parts[4])
         nav_date    = _parse_amfi_date(parts[5])
