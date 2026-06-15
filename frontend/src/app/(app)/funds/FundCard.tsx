@@ -32,11 +32,13 @@ import { HoverCard } from "@/components/motion"
 // shared type catches up these become redundant (assignable) — no
 // breakage either way.
 export interface FundCardItem extends FundListItem {
-  /** Trailing 1-year return, percent. Null when no returns cache row. */
+  /** Trailing 1-year return as a DECIMAL fraction (0.088 = 8.8%). Null
+   *  when no returns cache row. Scaled ×100 for display (fmtReturnPct). */
   ret_1y?: number | null
   /** YieldIQ Fund Score (0-100). Null when not yet computed. */
   yieldiq_fund_score?: number | null
-  /** Expense ratio, percent — prefers Direct (ter_direct). */
+  /** Expense ratio in PERCENT (1.06 = 1.06%) — prefers Direct
+   *  (COALESCE(ter_direct, ter_regular)). Rendered verbatim, NOT ×100. */
   ter?: number | null
 }
 
@@ -58,20 +60,39 @@ const RISKOMETER_COLORS: Record<
 const SMALL_WORDS = new Set(["of", "and", "the", "for", "to", "in", "a", "an"])
 
 // Common AMC/financial acronyms that must stay upper-cased after the
-// Title-Case pass (which would otherwise yield "Elss", "Psu", "Idcw").
+// Title-Case pass (which would otherwise yield "Elss", "Psu", "Idcw",
+// "Hdfc", "Sbi"). Includes the AMC house acronyms that lead many real
+// scheme names so they don't read as "Hdfc Top 100 Fund".
 const ACRONYMS = new Set([
+  // option / structure tokens
   "elss",
   "psu",
   "idcw",
   "etf",
   "fof",
   "nfo",
-  "us",
-  "uk",
   "esg",
   "reit",
   "amc",
   "sip",
+  "tri",
+  // geographies
+  "us",
+  "uk",
+  // index family
+  "nifty",
+  // AMC house acronyms
+  "hdfc",
+  "sbi",
+  "icici",
+  "hsbc",
+  "uti",
+  "lic",
+  "dsp",
+  "idfc",
+  "ppfas",
+  "iifl",
+  "jm",
 ])
 
 function titleCaseWord(word: string, isFirst: boolean): string {
@@ -84,34 +105,60 @@ function titleCaseWord(word: string, isFirst: boolean): string {
   return lower.charAt(0).toUpperCase() + lower.slice(1)
 }
 
+// One trailing plan/option clause, anchored to end ($). Applied
+// repeatedly (see stripPlanOption) so a stacked tail clears fully. Real
+// AMFI names stack these noisily and inconsistently, e.g.
+//   "… - Direct Plan Growth Plan - Growth Option"
+//   "… - Direct Plan Growth Plan - Bonus Option"
+//   "…-Growth Plan-Growth Option"   (no spaces around the hyphens)
+// so an earlier two-pass regex left "- Direct Plan Growth Plan" stuck to
+// the card. The peel matches, per iteration, ONE of:
+//   • an option payout (growth/bonus/idcw/dividend/payout/reinvest/
+//     income-distribution), optionally followed by "Option"/"Plan";
+//   • a qualified plan word — "(direct|regular|growth) plan"; or
+//   • a bare "direct"/"regular" qualifier (optionally + " plan").
+// The bare word "plan" is NEVER stripped on its own, so a legitimate
+// sub-plan token such as "Nifty 50 Plan" (preceded by an index/number,
+// not a plan qualifier) is preserved.
+const PLAN_OPTION_TAIL =
+  /\s*[-–—]?\s*((growth|bonus|idcw|dividend|payout|reinvest\w*|income\s+distribution(\s+cum\s+capital\s+withdrawal)?)(\s+(option|plan))?|(direct|regular|growth)\s+plan|(direct|regular)(\s+plan)?)\s*$/i
+
+function stripPlanOption(name: string): string {
+  let prev: string | null = null
+  let cur = name.trim()
+  // Repeatedly peel the trailing clause until it stops shrinking. The
+  // explicit "stopped shrinking" guard prevents an infinite loop on a
+  // zero-width match.
+  while (cur !== prev) {
+    prev = cur
+    const next = cur
+      .replace(PLAN_OPTION_TAIL, "")
+      .replace(/[\s\-–—]+$/, "")
+      .trim()
+    if (next === cur) break
+    cur = next
+  }
+  return cur
+}
+
 /**
  * Normalize a raw AMFI scheme name for retail display.
  *
- * AMFI names arrive ALL-CAPS-ish with a trailing plan/option clause,
- * e.g. "AXIS BLUECHIP FUND - DIRECT PLAN - GROWTH". We:
- *   1. strip the plan/option suffix (" - Direct/Regular Plan - Growth/
- *      IDCW", or a bare " - Growth/IDCW"), and
+ * AMFI names arrive ALL-CAPS-ish with a stacked trailing plan/option
+ * clause, e.g. "AXIS BLUECHIP FUND - DIRECT PLAN - GROWTH" or
+ * "NIPPON INDIA LARGE CAP FUND - DIRECT PLAN GROWTH PLAN - GROWTH OPTION".
+ * We:
+ *   1. peel the recognised trailing plan/option clause(s)
+ *      (see stripPlanOption), and
  *   2. Title-Case the remainder (keeping acronyms + connector words).
  *
  * The strip is conservative — it only removes a recognised trailing
- * plan/option clause, never arbitrary trailing words.
+ * plan/option clause, never arbitrary trailing words, and never the bare
+ * word "Plan" on its own (so "… - Nifty 50 Plan" is preserved).
  */
 export function normalizeFundName(raw: string): string {
   if (!raw) return ""
-  let name = raw.trim()
-  // Strip a trailing " - <Direct|Regular> Plan" clause and/or a trailing
-  // " - <Growth|IDCW|Dividend|...>" option clause, in either order /
-  // combination. Run twice so "… - Direct Plan - Growth" fully clears.
-  const PLAN_OPTION =
-    /\s*[-–—]\s*(direct|regular)?\s*plan\s*(?:[-–—]\s*(growth|idcw|dividend|payout|reinvest\w*|income\s+distribution\s+cum\s+capital\s+withdrawal)\b.*)?$/i
-  const OPTION_ONLY =
-    /\s*[-–—]\s*(growth|idcw|dividend|payout|reinvest\w*|income\s+distribution\s+cum\s+capital\s+withdrawal)\b.*$/i
-  for (let i = 0; i < 2; i++) {
-    const before = name
-    name = name.replace(PLAN_OPTION, "").trim()
-    name = name.replace(OPTION_ONLY, "").trim()
-    if (name === before) break
-  }
+  let name = stripPlanOption(raw.trim())
   if (!name) name = raw.trim() // never blank out the whole name
   return name
     .split(/\s+/)
@@ -148,14 +195,40 @@ function scoreTint(score: number): string {
   return "bg-rose-100 text-rose-800"
 }
 
-// The list API returns ret_1y / ter as DECIMAL fractions from
-// fund_returns_cache (e.g. 0.088 = 8.8%, ter 0.0125 = 1.25%), so scale
-// to percent here. Without the ×100 every card showed "+0.1%" for an
-// 8.8% return.
-function fmtPct(v: number, withSign: boolean): string {
-  const pct = v * 100
+// IMPORTANT — ret_1y and ter no longer share units.
+//
+// `ret_1y` is still a DECIMAL FRACTION from fund_returns_cache
+// (e.g. 0.088 = 8.8%, -0.0194 = -1.94%), so it must be ×100 to read as
+// a percent. Without that scale every card showed "+0.1%" for an 8.8%
+// return.
+//
+// `ter` is now stored in PERCENT (e.g. 1.06 = 1.06%) since the AMFI TER
+// ingestion pipeline landed (PR #982/#985 populate ter_direct/ter_regular
+// in whole-percent units). It must NOT be ×100 — doing so renders a
+// 1.06% fund as "106.0%". A single shared ×100 helper used to format
+// both fields, which is exactly how that bug shipped; the two formatters
+// below keep the units explicit and separate.
+
+/** Trailing return (DECIMAL fraction) → signed percent string. */
+export function fmtReturnPct(fraction: number, withSign: boolean): string {
+  const pct = fraction * 100
   const sign = withSign && pct > 0 ? "+" : ""
   return `${sign}${pct.toFixed(1)}%`
+}
+
+/**
+ * Expense ratio (already in PERCENT) → percent string, NO ×100.
+ *
+ * Guards against a unit regression: AMFI TERs live in roughly [0, 3]%.
+ * If a value > 10 slips through (e.g. a future pipeline reverts to a
+ * basis-points or ×100 representation), it is almost certainly a unit
+ * error, so we suppress it (return null) rather than render an absurd
+ * "106.0%". The card then shows nothing for Expense instead of a wrong
+ * number. ≤ 0 is treated as "no data" for the same reason.
+ */
+export function fmtTerPct(ter: number): string | null {
+  if (!Number.isFinite(ter) || ter <= 0 || ter > 10) return null
+  return `${ter.toFixed(2)}%`
 }
 
 export default function FundCard({ fund }: { fund: FundCardItem }) {
@@ -164,7 +237,9 @@ export default function FundCard({ fund }: { fund: FundCardItem }) {
   const category = compactCategory(fund.category)
   const score = typeof fund.yieldiq_fund_score === "number" ? fund.yieldiq_fund_score : null
   const ret1y = typeof fund.ret_1y === "number" ? fund.ret_1y : null
-  const ter = typeof fund.ter === "number" ? fund.ter : null
+  // ter is already a percent; fmtTerPct returns null for missing/out-of-
+  // range values, which also drives whether the Expense cell renders.
+  const terLabel = typeof fund.ter === "number" ? fmtTerPct(fund.ter) : null
 
   return (
     <HoverCard className="h-full rounded-lg">
@@ -219,24 +294,25 @@ export default function FundCard({ fund }: { fund: FundCardItem }) {
                   ret1y >= 0 ? "text-emerald-600" : "text-rose-600"
                 }`}
               >
-                {fmtPct(ret1y, true)}
+                {fmtReturnPct(ret1y, true)}
               </span>
             ) : (
               <span className="text-caption">—</span>
             )}
           </div>
           {/*
-            Expense (TER) is only rendered when present. AMFI publishes no
-            machine-readable expense-ratio feed (NAVAll.txt has none; TER
-            lives only in per-AMC HTML/Excel disclosures), so ter is null
-            for every scheme today — showing "Expense —" on every card read
-            as broken. Hidden until a TER scraper populates ter_direct; the
-            field reappears automatically once data lands.
+            Expense (TER) renders only when present AND in a sane range.
+            AMFI TER ingestion (PR #982/#985) now populates ter_direct/
+            ter_regular in PERCENT, so the value is shown verbatim with a
+            single "%" (see fmtTerPct — no ×100). fmtTerPct returns null
+            for missing or out-of-range values, so a unit regression or a
+            scheme with no TER simply hides the cell rather than printing
+            a wrong "106.0%".
           */}
-          {ter !== null ? (
+          {terLabel !== null ? (
             <div className="flex flex-col items-end">
               <span className="text-[10px] uppercase tracking-wide text-caption">Expense</span>
-              <span className="font-medium tabular-nums text-body">{fmtPct(ter, false)}</span>
+              <span className="font-medium tabular-nums text-body">{terLabel}</span>
             </div>
           ) : null}
         </div>
