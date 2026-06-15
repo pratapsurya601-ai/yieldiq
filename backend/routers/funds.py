@@ -134,43 +134,52 @@ def _fetch_fund(db, scheme_code: str) -> Optional[Fund]:
     return _row_to_fund(row)
 
 
-def _fetch_nav_monthly(db, scheme_code: str, years: int = 5) -> list[FundNavPoint]:
-    """Last `years` of monthly-bucketed NAV.
+def _stride_cap(rows: list, cap: int = 1000) -> list:
+    """Down-sample a chronologically-sorted row list to <= cap points,
+    always keeping the first and last. Returns the list unchanged when
+    it already fits. Portable (plain Python — no SQL window functions),
+    so the same path runs on Postgres + SQLite tests.
 
-    One row per (scheme_code, calendar month) — the closing NAV of the
-    last trading day of the month. Implemented with a DISTINCT ON over
-    descending nav_date inside each month bucket; on Postgres this is
-    significantly cheaper than window functions for a partitioned table.
+    This lets the chart endpoints return DAILY NAV within the window
+    (dense line) while bounding payload for long 5y/10y windows: ~daily
+    up to `cap` trading days, then lightly strided beyond.
+    """
+    n = len(rows)
+    if n <= cap:
+        return rows
+    step = (n + cap - 1) // cap  # ceil
+    sampled = rows[::step]
+    if not sampled or sampled[-1] is not rows[-1]:
+        sampled.append(rows[-1])
+    return sampled
+
+
+def _fetch_nav_monthly(db, scheme_code: str, years: int = 5) -> list[FundNavPoint]:
+    """Last `years` of DAILY NAV (down-sampled to <=1000 points).
+
+    Previously returned one month-end point per calendar month, which
+    made the detail-page chart look sparse/jumpy even when daily data
+    existed. Now a plain daily range scan (cheaper than the old CTE+join
+    on the partitioned table) + `_stride_cap` for payload safety.
     """
     from sqlalchemy import text
 
     cutoff = date.today() - timedelta(days=365 * years + 30)
-    # Portable across Postgres + SQLite (used in tests). We compute the
-    # month bucket via SUBSTR on the ISO date string ("YYYY-MM-DD" →
-    # "YYYY-MM"), pick the maximum nav_date in each bucket, then join
-    # the original rows to grab nav + aum_cr for those month-end dates.
-    # Postgres' DISTINCT ON would be slightly faster but is dialect-
-    # specific; the join approach is identical in plan shape on both.
+    # Plain daily range scan over the (scheme_code, nav_date) PK — dense
+    # line for the chart; _stride_cap bounds the payload for long windows.
     sql = text(
         """
-        WITH month_maxima AS (
-            SELECT SUBSTR(CAST(nav_date AS TEXT), 1, 7) AS ym,
-                   MAX(nav_date) AS nd
-            FROM fund_nav_history
-            WHERE scheme_code = :sc
-              AND nav_date >= :cutoff
-            GROUP BY SUBSTR(CAST(nav_date AS TEXT), 1, 7)
-        )
-        SELECT h.nav_date, h.nav, h.aum_cr
-        FROM fund_nav_history h
-        JOIN month_maxima m
-          ON h.scheme_code = :sc
-         AND h.nav_date = m.nd
-        ORDER BY h.nav_date ASC
+        SELECT nav_date, nav, aum_cr
+        FROM fund_nav_history
+        WHERE scheme_code = :sc
+          AND nav_date >= :cutoff
+        ORDER BY nav_date ASC
         """
     )
     try:
-        rows = db.execute(sql, {"sc": scheme_code, "cutoff": cutoff}).fetchall()
+        rows = _stride_cap(
+            db.execute(sql, {"sc": scheme_code, "cutoff": cutoff}).fetchall()
+        )
     except Exception as exc:
         logger.info("funds: nav history empty/failed for %s: %s", scheme_code, exc)
         return []
@@ -197,28 +206,23 @@ def _fetch_benchmark_monthly(
         return []
     from sqlalchemy import text
 
+    # Daily TRI within the window (matches the now-daily NAV series so the
+    # NAV-vs-benchmark overlay lines up); _stride_cap bounds the payload.
     sql = text(
         """
-        WITH month_maxima AS (
-            SELECT SUBSTR(CAST(nav_date AS TEXT), 1, 7) AS ym,
-                   MAX(nav_date) AS nd
-            FROM fund_benchmark_history
-            WHERE benchmark_index_code = :bc
-              AND nav_date >= :cutoff
-            GROUP BY SUBSTR(CAST(nav_date AS TEXT), 1, 7)
-        )
-        SELECT h.nav_date, h.tri_value
-        FROM fund_benchmark_history h
-        JOIN month_maxima m
-          ON h.benchmark_index_code = :bc
-         AND h.nav_date = m.nd
-        ORDER BY h.nav_date ASC
+        SELECT nav_date, tri_value
+        FROM fund_benchmark_history
+        WHERE benchmark_index_code = :bc
+          AND nav_date >= :cutoff
+        ORDER BY nav_date ASC
         """
     )
     try:
-        rows = db.execute(
-            sql, {"bc": benchmark_index_code, "cutoff": window_start}
-        ).fetchall()
+        rows = _stride_cap(
+            db.execute(
+                sql, {"bc": benchmark_index_code, "cutoff": window_start}
+            ).fetchall()
+        )
     except Exception as exc:
         logger.info(
             "funds: benchmark history empty/failed for %s: %s",
