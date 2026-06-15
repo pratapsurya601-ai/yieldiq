@@ -48,7 +48,7 @@ jobs:
           path: smoke_report.json
           retention-days: 30
 
-      - name: Open GitHub issue on scheduled failure
+      - name: Open / refresh GitHub issue on scheduled failure
         if: failure() && github.event_name == 'schedule'
         uses: actions/github-script@v7
         with:
@@ -57,24 +57,57 @@ jobs:
             let r = { passed: '?', total: 12, results: [] };
             try { r = JSON.parse(fs.readFileSync('smoke_report.json', 'utf8')); } catch(e) {}
             const failed = (r.results || []).filter(x => !x.passed);
-            const title = `Post-deploy smoke FAIL: ${r.passed}/${r.total} anchors`;
-            const existing = await github.rest.issues.listForRepo({
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const lines = failed.map(f => `- **${f.ticker}**: ${(f.issues || []).join('; ')}`).join('\n');
+            // STABLE title so a changing pass-count (10/12 vs 11/12) does NOT
+            // spawn a new issue each run — the live count lives in the body.
+            // The prior count-in-title broke exact-match dedupe and piled up.
+            const TITLE = 'Post-deploy smoke FAIL';
+            const today = new Date().toISOString().slice(0, 10);
+            const body = `Scheduled post-deploy smoke test failing: **${r.passed}/${r.total}** anchors passing (updated ${today}).\n\nRun: ${runUrl}\n\n### Failing anchors\n${lines || '(none)'}\n`;
+            const open = await github.rest.issues.listForRepo({
               owner: context.repo.owner, repo: context.repo.repo,
               state: 'open', per_page: 100,
             });
-            if (existing.data.some(i => i.title === title)) {
-              core.info('dedupe: open issue with same title already exists');
-              return;
+            const existing = open.data.find(i => i.title === TITLE && !i.pull_request);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, body,
+              });
+              core.info(`Refreshed existing smoke issue #${existing.number}`);
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: TITLE, body, labels: ['smoke-test', 'bug'],
+              });
             }
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const lines = failed.map(f => `- **${f.ticker}**: ${(f.issues || []).join('; ')}`).join('\n');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body: `Scheduled post-deploy smoke test failed.\n\nRun: ${runUrl}\n\n### Failing anchors\n${lines || '(none)'}\n`,
-              labels: ['smoke-test', 'bug'],
+
+      - name: Close smoke issue on scheduled recovery
+        if: success() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Dead-man recovery: a clean scheduled smoke run auto-closes any
+            // open smoke-fail issue, so a transient failure never lingers.
+            const TITLE = 'Post-deploy smoke FAIL';
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', per_page: 100,
             });
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            for (const i of open.data.filter(x => x.title === TITLE && !x.pull_request)) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: i.number,
+                body: `Auto-closing: scheduled post-deploy smoke is green again (run ${runUrl}).`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: i.number, state: 'closed',
+              });
+              core.info(`Closed recovered smoke issue #${i.number}`);
+            }
 
       - name: Annotate failure
         if: failure()

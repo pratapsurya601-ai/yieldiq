@@ -66,24 +66,38 @@ jobs:
             docs/ops/backfill_summary_*.md
           retention-days: 30
 
-      - name: Post summary as GitHub issue
+      - name: Post / refresh summary GitHub issue
         if: success()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const path = require('path');
             const today = new Date().toISOString().slice(0, 10);
             const summaryPath = `docs/ops/backfill_summary_${today}.md`;
             if (!fs.existsSync(summaryPath)) {
               core.warning(`No summary at ${summaryPath} — skipping issue.`);
               return;
             }
-            const body = fs.readFileSync(summaryPath, 'utf8');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Data completeness backfill — ${today}`,
-              body,
-              labels: ['data-pipeline', 'automated'],
+            const body = `_Updated ${today} (rolling weekly report)._\n\n` +
+              fs.readFileSync(summaryPath, 'utf8');
+            // Dedupe: keep ONE rolling open issue under a STABLE title and
+            // refresh it in place each week. The prior `... — ${date}` title
+            // made every run a new unique issue, so they piled up forever.
+            const TITLE = 'Data completeness backfill (weekly)';
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', per_page: 100,
             });
+            const existing = open.data.find(i => i.title === TITLE && !i.pull_request);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, body,
+              });
+              core.info(`Refreshed existing data-completeness issue #${existing.number}`);
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: TITLE, body, labels: ['data-pipeline', 'automated'],
+              });
+            }
