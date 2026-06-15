@@ -10,7 +10,7 @@ Surfaces under test:
     2. latest_per_scheme — day-granular rows collapse to max TER_Date / NSDL
     3. normalize_base_name — strips plan/option, "&"/"and", IDCW, hyphens
     4. match_ter_rows    — one TER base row fans out to MANY funds plan rows
-                           and is AMC-scoped to avoid cross-AMC collisions
+                           via base-name join (AMC is encoded in the name)
 """
 from __future__ import annotations
 
@@ -80,9 +80,9 @@ TER_FIXTURE: list[dict] = [
 
 # Minimal funds-table fixture: PPFAS Flexi Cap exists as FOUR per-plan
 # rows (Direct/Regular × Growth/IDCW); Mirae Large Cap as two. A
-# DIFFERENT-AMC "Large Cap Fund" is included to prove AMC-scoping stops a
-# cross-AMC base-name collision. The ETF has no funds rows (it never gets
-# the plan/option fan-out), so it stays unmatched.
+# DIFFERENT-AMC large-cap fund (its OWN house in the name) proves that
+# distinct base names keep AMCs separate without any AMC-scoping. The ETF
+# has no funds rows (no plan/option fan-out), so it stays unmatched.
 FUNDS_FIXTURE: list[dict] = [
     {"scheme_code": "PP01", "amc": "Parag Parikh Mutual Fund",
      "scheme_name": "Parag Parikh Flexi Cap Fund - Direct Plan - Growth"},
@@ -96,9 +96,11 @@ FUNDS_FIXTURE: list[dict] = [
      "scheme_name": "Mirae Asset Large Cap Fund - Direct Plan - Growth"},
     {"scheme_code": "MI02", "amc": "Mirae Asset Mutual Fund",
      "scheme_name": "Mirae Asset Large Cap Fund Regular Growth"},
-    # SAME base name, DIFFERENT AMC — must NOT receive Mirae's TER.
+    # A DIFFERENT AMC's large-cap fund: its real name carries ITS OWN house
+    # prefix, so its base name differs from Mirae's and it naturally never
+    # receives Mirae's TER (the AMC is encoded in the base name).
     {"scheme_code": "XX01", "amc": "Some Other Mutual Fund",
-     "scheme_name": "Mirae Asset Large Cap Fund - Direct Plan - Growth"},
+     "scheme_name": "Some Other Large Cap Fund - Direct Plan - Growth"},
 ]
 
 # MF_ID -> AMC label, as the committed map provides it.
@@ -211,7 +213,7 @@ def test_normalize_amc_strips_house_suffix_and_ampersand() -> None:
     )
 
 
-# ── match_ter_rows one-to-many fan-out + AMC scoping ─────────────────
+# ── match_ter_rows one-to-many fan-out (base-name join) ──────────────
 
 
 def test_match_fans_out_to_all_plans_of_a_scheme() -> None:
@@ -229,12 +231,13 @@ def test_match_fans_out_to_all_plans_of_a_scheme() -> None:
     assert by_code["MI02"]["ter_regular"] == pytest.approx(1.54)
 
 
-def test_match_amc_scoping_blocks_cross_amc_collision() -> None:
+def test_match_distinct_base_names_keep_amcs_separate() -> None:
     collapsed = latest_per_scheme(TER_FIXTURE)
     params, recon = match_ter_rows(collapsed, FUNDS_FIXTURE, MF_ID_AMC)
     by_code = {p["scheme_code"] for p in params}
-    # XX01 has the SAME base name as the Mirae fund but a different AMC,
-    # so Mirae's TER must NOT bleed onto it.
+    # XX01 is a different AMC's fund with its OWN house in the name, so its
+    # base name differs from Mirae's — it never receives Mirae's TER. The
+    # join needs no AMC-scoping because the AMC is encoded in the base name.
     assert "XX01" not in by_code
 
 
@@ -253,10 +256,15 @@ def test_match_etf_is_unmatched_and_reported() -> None:
     assert any("ETF" in s for s in recon.unmatched_samples)
 
 
-def test_match_unmatched_when_mf_id_missing_from_amc_map() -> None:
-    # A TER row whose MF_ID is absent from the AMC map has empty AMC scope
-    # and therefore matches nothing (fails safe, not cross-AMC).
+def test_match_is_independent_of_mf_id_amc_map() -> None:
+    # The join keys on base scheme-name alone, so it no longer depends on
+    # the MF_ID->AMC map. Even with an EMPTY map, base-name matches still
+    # fan out exactly as before — this is the fix for the AMC-label drift
+    # that made the old AMC-scoped join return zero matches in production.
     collapsed = latest_per_scheme(TER_FIXTURE)
     params, recon = match_ter_rows(collapsed, FUNDS_FIXTURE, {})  # empty map
-    assert recon.ter_rows_matched == 0
-    assert recon.funds_rows_updated == 0
+    assert recon.ter_rows_matched == 2          # Flexi Cap + Large Cap
+    assert recon.funds_rows_updated == 6        # 4 PPFAS + 2 Mirae plan rows
+    by_code = {p["scheme_code"] for p in params}
+    assert {"PP01", "PP02", "PP03", "PP04", "MI01", "MI02"} <= by_code
+    assert "XX01" not in by_code                # distinct base name, no bleed

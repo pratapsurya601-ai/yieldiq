@@ -518,20 +518,28 @@ class ReconSummary:
         }
 
 
-def _build_funds_index(funds_rows: Iterable[dict]) -> dict[tuple[str, str], list[str]]:
-    """Index funds rows by (normalized base name, normalized amc) -> [scheme_code].
+def _build_funds_index(funds_rows: Iterable[dict]) -> dict[str, list[str]]:
+    """Index funds rows by normalized base name -> [scheme_code].
 
-    funds_rows are dicts with at least scheme_code, scheme_name, amc.
-    A single base name maps to MANY scheme_codes (one per plan/option),
-    which is exactly the one-to-many fan-out the TER join needs.
+    funds_rows are dicts with at least scheme_code, scheme_name. A single
+    base name maps to MANY scheme_codes (one per plan/option), which is
+    exactly the one-to-many fan-out the TER join needs.
+
+    The key is the base name ALONE (not (base, amc)): normalize_base_name
+    deliberately keeps the AMC prefix (it strips only plan/option/Growth),
+    so the base name already encodes the fund house — "parag parikh flexi
+    cap fund" can only be PPFAS. Keying on AMC too made the join depend on
+    the MF_ID->AMC map label matching funds.amc's wording exactly, which it
+    does NOT (map "Parag Parikh Mutual Fund" vs funds.amc "PPFAS") -> zero
+    matches. Base-name-only is correct (AMC is in the name) AND robust to
+    AMC-label drift.
     """
-    idx: dict[tuple[str, str], list[str]] = defaultdict(list)
+    idx: dict[str, list[str]] = defaultdict(list)
     for f in funds_rows:
         base = normalize_base_name(f.get("scheme_name") or "")
-        amc = normalize_amc(f.get("amc") or "")
         if not base:
             continue
-        idx[(base, amc)].append(str(f.get("scheme_code")))
+        idx[base].append(str(f.get("scheme_code")))
     return idx
 
 
@@ -543,11 +551,14 @@ def match_ter_rows(
     """Match collapsed TER rows to funds scheme_codes; return upsert params.
 
     For each TER row:
-      1. normalize its Scheme_Name -> base, and look up its AMC via
-         mf_id_amc[str(MF_ID)] -> normalized amc.
-      2. find every funds scheme_code with the same (base, amc).
+      1. normalize its Scheme_Name -> base.
+      2. find every funds scheme_code with the same base name (the base
+         already encodes the AMC house; see _build_funds_index).
       3. emit one upsert param dict per matched scheme_code, writing BOTH
          D_TER (ter_direct) and R_TER (ter_regular).
+
+    mf_id_amc is retained for the caller's feed iteration + logging; it is
+    no longer part of the join key (see _build_funds_index for why).
 
     Returns (upsert_params, recon_summary). Pure — no DB, no network —
     so it is unit-testable against fixture lists.
@@ -558,9 +569,7 @@ def match_ter_rows(
     for row in ter_rows:
         recon.ter_rows_total += 1
         base = normalize_base_name(row.get("Scheme_Name") or "")
-        amc_label = mf_id_amc.get(str(row.get("MF_ID")), "")
-        amc = normalize_amc(amc_label)
-        codes = idx.get((base, amc), [])
+        codes = idx.get(base, [])
         if not codes:
             recon.ter_rows_unmatched += 1
             if len(recon.unmatched_samples) < 40:
@@ -579,23 +588,22 @@ def match_ter_rows(
     return params, recon
 
 
-def _fetch_funds_for_amcs(conn, amcs: list[str]) -> list[dict]:
-    """Load (scheme_code, scheme_name, amc) for the given AMC labels.
+def _fetch_all_active_funds(conn) -> list[dict]:
+    """Load (scheme_code, scheme_name, amc) for ALL active funds.
 
-    We pull by normalized-AMC membership rather than the whole 14k table:
-    match each funds.amc whose normalized form is in the normalized set of
-    the AMCs we have TER data for. Normalization happens in Python (the
-    DB has no normalize fn), so we fetch all active funds once and filter.
+    The TER join keys on the base scheme-name alone (which encodes the
+    AMC), so we index the whole active table rather than pre-filtering by
+    AMC label — the previous AMC-label filter dropped every PPFAS-style
+    row whose funds.amc wording differed from the MF_ID->AMC map. ~14k
+    rows, one query, indexed in memory.
     """
-    want = {normalize_amc(a) for a in amcs if a}
     out: list[dict] = []
     with conn.cursor() as cur:
         cur.execute(
             "SELECT scheme_code, scheme_name, amc FROM funds WHERE is_active = TRUE"
         )
         for sc, name, amc in cur.fetchall():
-            if normalize_amc(amc or "") in want:
-                out.append({"scheme_code": sc, "scheme_name": name, "amc": amc})
+            out.append({"scheme_code": sc, "scheme_name": name, "amc": amc})
     return out
 
 
@@ -608,15 +616,12 @@ def match_and_upsert(
 ) -> ReconSummary:
     """Match TER rows against the funds table and (optionally) UPSERT.
 
-    Loads only the funds rows for the AMCs present in ter_rows, runs the
-    pure matcher, then UPSERTs the TER columns when apply=True. When
-    apply=False it computes the recon counts without writing.
+    Loads all active funds, runs the pure (base-name) matcher, then
+    UPSERTs the TER columns when apply=True. When apply=False it computes
+    the recon counts without writing.
     """
-    amcs = sorted({mf_id_amc.get(str(r.get("MF_ID")), "") for r in ter_rows} - {""})
-    funds_rows = _fetch_funds_for_amcs(conn, amcs)
-    logger.info(
-        "loaded %d funds rows across %d AMCs for matching", len(funds_rows), len(amcs)
-    )
+    funds_rows = _fetch_all_active_funds(conn)
+    logger.info("loaded %d active funds rows for matching", len(funds_rows))
     params, recon = match_ter_rows(ter_rows, funds_rows, mf_id_amc)
 
     if apply and params:
