@@ -165,12 +165,14 @@ class TestIntensityCap:
             model_confidence=80,
             valuation_stability=80,
             data_issues=[],
-            fair_value=800.0,
+            fair_value=880.0,
             current_price=1000.0,
             valuation_model="dcf",
         )
-        # MoS = (800-1000)/1000 = -20% (below bear bypass threshold) so
-        # the intensity cap fires.
+        # MoS = (880-1000)/1000 = -12% — inside the neutral band, ABOVE the
+        # -15 bear bypass (lowered from -25 in the 2026-06-14 calibration
+        # audit), so the Layer-3 intensity cap fires. (At -20 the bypass
+        # would now correctly keep "overvalued".)
         assert out_verdict == "fairly_valued"
 
     def test_high_confidence_lets_overvalued_through(self):

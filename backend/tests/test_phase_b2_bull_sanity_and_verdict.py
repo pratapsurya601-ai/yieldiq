@@ -186,9 +186,11 @@ def _gate(
     )
 
 
-def test_bull_threshold_lowered_to_40() -> None:
-    """Phase B.2 pin: BULL_UNDERVALUED_BYPASS_MOS lowered from 50 to 40."""
-    assert BULL_UNDERVALUED_BYPASS_MOS == 40.0
+def test_bull_threshold_lowered_to_15() -> None:
+    """BULL_UNDERVALUED_BYPASS_MOS: 50 (orig) -> 40 (Phase B.2) -> 15
+    (2026-06-14 calibration audit, so KOTAKBANK +35% / POWERGRID +25%
+    survive the Layer-3 cap)."""
+    assert BULL_UNDERVALUED_BYPASS_MOS == 15.0
 
 
 def test_hdfcbank_shape_flips_to_undervalued_post_b2() -> None:
@@ -203,19 +205,23 @@ def test_hdfcbank_shape_flips_to_undervalued_post_b2() -> None:
     assert any("Bull-side bypass" in i for i in issues)
 
 
-def test_just_below_40_still_fairly_valued() -> None:
-    """mos=+39.9% (one tenth below the new boundary) stays at
+def test_just_below_15_still_fairly_valued() -> None:
+    """mos=+14.9% (one tenth below the new boundary) stays at
     'fairly_valued' — the threshold is respected, not eroded."""
     verdict, _ = _gate(
-        "undervalued", mos_pct=39.9, model_confidence=90, data_quality=65,
+        "undervalued", mos_pct=14.9, model_confidence=90, data_quality=65,
     )
     assert verdict == "fairly_valued"
 
 
-def test_exactly_40_fires_bypass() -> None:
-    """mos=+40.0% exactly clears the >= boundary."""
+def test_above_15_fires_bypass() -> None:
+    """mos=+16% clears the new +15 bypass boundary → 'undervalued'.
+    (Uses 16, not exactly 15, because the helper reconstructs
+    fair_value = price*(1+mos/100) and the gate re-derives mos from it,
+    so a 15.0 input drifts to ~14.9999 under float — a test-helper
+    artifact, not engine behavior.)"""
     verdict, _ = _gate(
-        "undervalued", mos_pct=40.0, model_confidence=90, data_quality=65,
+        "undervalued", mos_pct=16.0, model_confidence=90, data_quality=65,
     )
     assert verdict == "undervalued"
 

@@ -723,11 +723,20 @@ _RATIO_OVERRIDE_CONF_FLOOR = 70
 # notifications, email alerts, and any analytics keying off
 # verdict all see the same string.
 #
-# Rule: when mos_pct <= -25 AND model_confidence >= 40, do NOT
-# apply the Layer-3 cap. Pass-through and Layer-1/Layer-2 (extreme
+# Rule: when mos_pct <= the threshold AND model_confidence >= 40, do
+# NOT apply the Layer-3 cap. Pass-through and Layer-1/Layer-2 (extreme
 # ratio override, triple-low under_review) remain unchanged so
 # `data_limited` and genuinely low-confidence reads still gate.
-BEAR_OVERVALUED_BYPASS_MOS: float = -25.0
+# Calibration audit (2026-06-14): lowered -25 -> -15. The Layer-3 cap
+# fires on ANY of the three confidence pillars < 70, which was
+# flattening genuinely-overvalued names with high HEADLINE model
+# confidence into "fairly_valued" — e.g. SBIN -24% and SUNPHARMA -25%
+# (90%-confidence reads) surfaced "fairly_valued" because they sat just
+# inside the old -25 dead zone. -15 aligns the bypass with the base
+# verdict band (overvalued at mos <= -10) so meaningful directional
+# reads survive the cap; the model_confidence >= 40 floor still gates
+# genuinely low-confidence names.
+BEAR_OVERVALUED_BYPASS_MOS: float = -15.0
 BEAR_OVERVALUED_BYPASS_CONFIDENCE: int = 40
 # Threshold below which a bear-side read deepens to
 # `notably_overvalued` instead of plain `overvalued`. Matches the
@@ -766,10 +775,17 @@ BEAR_NOTABLY_OVERVALUED_MOS: float = -40.0
 # kept the Layer-3 cap from clearing — verdict surfaced as
 # `fairly_valued` to the public stock-summary endpoint despite a
 # clear +43% margin of safety and a Wide moat + Piotroski 6 + recent
-# Day-109a banking-cohort re-anchor. 40% MoS at conf>=30 is genuinely
-# undervalued territory (the symmetric bear-side BEAR_OVERVALUED_BYPASS
-# clears at |mos| >= 25%); the original 50% bar was over-cautious.
-BULL_UNDERVALUED_BYPASS_MOS: float = 40.0
+# Day-109a banking-cohort re-anchor.
+# Calibration audit (2026-06-14): lowered 40 → 15. The dead zone
+# between the base band (undervalued at mos >= +10) and the old +40
+# bypass was flattening clearly-undervalued names with high HEADLINE
+# model confidence — e.g. KOTAKBANK +35% at 90% confidence and
+# POWERGRID +25% surfaced "fairly_valued" because a sub-pillar (data
+# quality / valuation stability) sat < 70 and the +40 bypass missed
+# them. +15 aligns the bull bypass with the audited band (undervalued
+# at mos >= +15) so meaningful directional reads survive the Layer-3
+# cap; the model_confidence >= 30 floor still gates low-confidence reads.
+BULL_UNDERVALUED_BYPASS_MOS: float = 15.0
 BULL_UNDERVALUED_BYPASS_CONFIDENCE: int = 30
 # Threshold above which a bull-side read deepens to
 # `notably_undervalued` instead of plain `undervalued`. Higher than

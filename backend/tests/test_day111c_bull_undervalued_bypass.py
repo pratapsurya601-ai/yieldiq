@@ -44,9 +44,11 @@ from backend.services.confidence_service import (
 def test_bull_undervalued_bypass_constants() -> None:
     """Pin the constants — drift here means the API and the
     frontend pill can disagree on a subset of bull-side tickers."""
-    # Phase B.2 (2026-05-24): lowered 50 → 40 to clear HDFCBANK at
-    # +43% MoS (was stranded at "fairly_valued").
-    assert BULL_UNDERVALUED_BYPASS_MOS == 40.0
+    # Phase B.2 (2026-05-24): lowered 50 → 40 to clear HDFCBANK at +43% MoS.
+    # Calibration audit (2026-06-14): lowered 40 → 15 so KOTAKBANK (+35%),
+    # POWERGRID (+25%), RELIANCE (+19%) survive the Layer-3 cap instead of
+    # flattening to "fairly_valued".
+    assert BULL_UNDERVALUED_BYPASS_MOS == 15.0
     assert BULL_UNDERVALUED_BYPASS_CONFIDENCE == 30
     assert BULL_NOTABLY_UNDERVALUED_MOS == 80.0
 
@@ -113,14 +115,30 @@ def test_mos45_conf80_bypass_fires_post_b2() -> None:
     assert any("Bull-side bypass" in i for i in issues)
 
 
-def test_mos39_conf80_below_b2_threshold_still_capped() -> None:
-    """mos=+39% sits BELOW the new BULL_UNDERVALUED_BYPASS_MOS=40
-    boundary, so the bypass does NOT fire and the Layer-3 'any
-    score below 70' cap still holds — keeps fairly_valued as the
-    floor for sub-40% MoS reads."""
+def test_mos35_conf90_clears_post_calibration() -> None:
+    """Calibration audit (2026-06-14): KOTAKBANK shape — mos=+35%,
+    model_confidence=90 but a sub-pillar (dq=65) < 70. Pre-fix the
+    Layer-3 cap flattened this to "fairly_valued" because +35% missed
+    the old +40 bypass. Post-fix (threshold 15) the bypass fires and
+    the directional read survives as "undervalued"."""
     verdict, issues = _gate(
         "undervalued",
-        mos_pct=39.0,
+        mos_pct=35.0,
+        model_confidence=90,
+        data_quality=65,
+    )
+    assert verdict == "undervalued"
+    assert any("Bull-side bypass" in i for i in issues)
+
+
+def test_mos12_below_threshold_still_capped() -> None:
+    """mos=+12% sits BELOW the new BULL_UNDERVALUED_BYPASS_MOS=15
+    boundary, so the bypass does NOT fire and the Layer-3 'any score
+    below 70' cap still holds — keeps fairly_valued as the floor for
+    sub-15% MoS reads (the band's neutral zone)."""
+    verdict, issues = _gate(
+        "undervalued",
+        mos_pct=12.0,
         model_confidence=80,
         data_quality=65,
     )
@@ -209,7 +227,8 @@ def test_bear_asianpaint_unchanged() -> None:
 
 
 def test_bear_bypass_constants_still_pinned() -> None:
-    """Sanity: bear-side constants unchanged by Day-111c."""
-    assert BEAR_OVERVALUED_BYPASS_MOS == -25.0
+    """Bear-side constants (BYPASS_MOS lowered -25 -> -15 in the
+    2026-06-14 calibration audit; floor + notably threshold unchanged)."""
+    assert BEAR_OVERVALUED_BYPASS_MOS == -15.0
     assert BEAR_OVERVALUED_BYPASS_CONFIDENCE == 40
     assert BEAR_NOTABLY_OVERVALUED_MOS == -40.0
