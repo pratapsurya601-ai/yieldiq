@@ -550,6 +550,49 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # TELECOM TERMINAL-G LIFT (2026-06-15) — BHARTIARTL's headline
+        # fair value was a model artifact. Telecom routed through the
+        # generic FCF-DCF with the bare DEFAULT terminal growth (2.5%) and
+        # no sector lift, while every comparable capital-intensive cohort
+        # (IT-services, pharma, hospitals, autos, FMCG) already carries a
+        # curated Tier-1 terminal-growth lift. For a long-duration telecom
+        # the Gordon terminal value dominates enterprise value, so the
+        # missing lift depressed the fair value far below any defensible
+        # range. The engine now applies a curated telecom Tier-1 lift
+        # (0.025 -> 0.045, clamped to the model's 0.040 ceiling) for
+        # BHARTIARTL only, guarded by the standard terminal_g < wacc-0.02
+        # clamp. The cash-flow forecast and the net-debt equity bridge are
+        # unchanged; only the terminal-growth input — and therefore the
+        # fair value + verdict for this single name — move. fields=["*"]
+        # because the fair-value change rewrites the full headline payload.
+        "version_id": "v_telecom_terminal_g_2026_06_15",
+        "title_public": (
+            "Telecom fair value recomputed with a sector-consistent "
+            "terminal-growth assumption"
+        ),
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": ["BHARTIARTL"],
+            "fields": ["*"],
+        },
+        "rationale": (
+            "Telecom Tier-1 terminal-growth lift. The discounted-cash-flow "
+            "path previously valued telecom with the bare default terminal "
+            "growth (2.5%) and no sector adjustment, while every comparable "
+            "capital-intensive cohort (IT services, pharma, hospitals, "
+            "autos, FMCG) already carries a curated terminal-growth lift. "
+            "For a long-duration telecom the Gordon terminal value dominates "
+            "enterprise value, so the missing lift depressed the headline "
+            "fair value well below a defensible range. The engine now "
+            "applies a curated telecom terminal-growth lift (0.025 to 0.045, "
+            "clamped to the model's 0.040 ceiling) for BHARTIARTL, guarded "
+            "by the existing terminal_g < wacc - 0.02 safety clamp. The "
+            "cash-flow forecast and the net-debt equity bridge are "
+            "unchanged; only the terminal-growth input — and therefore the "
+            "fair value and verdict for this single name — change."
+        ),
+    },
+    {
         # NULL-CAGR DATA-LIMITED FIX (2026-06-13) — the single largest
         # non-gap cause of the "limited data" verdict was the null-CAGR
         # gate (analysis/service.py FIX 1): any non-financial,
