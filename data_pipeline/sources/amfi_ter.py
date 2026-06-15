@@ -481,14 +481,21 @@ def discover_live_mf_ids(
 # ── Match + upsert ───────────────────────────────────────────────────
 
 
+# VALUES %s + execute_values batches the whole match into a handful of
+# round-trips. A row-by-row executemany over the remote Neon DB stalled the
+# weekly cron past its 20-min timeout on the ~thousands of matched rows
+# (cancelled mid-write -> the single end-commit never ran, so nothing was
+# written). Same class of fix as #938/#943, which batched the NAV /
+# scheme-master upserts. The template injects now() per row.
 _UPSERT_SQL = """
 INSERT INTO fund_returns_cache (scheme_code, ter_direct, ter_regular, computed_at)
-VALUES (%(scheme_code)s, %(ter_direct)s, %(ter_regular)s, now())
+VALUES %s
 ON CONFLICT (scheme_code) DO UPDATE SET
     ter_direct  = EXCLUDED.ter_direct,
     ter_regular = EXCLUDED.ter_regular,
     computed_at = now()
 """
+_UPSERT_TEMPLATE = "(%s, %s, %s, now())"
 
 # scheme_code is a FK into funds and the PK of fund_returns_cache, so a
 # row may not yet exist for a freshly-discovered fund. The UPSERT inserts
@@ -625,10 +632,17 @@ def match_and_upsert(
     params, recon = match_ter_rows(ter_rows, funds_rows, mf_id_amc)
 
     if apply and params:
+        from psycopg2.extras import execute_values  # local: --help needs no driver
+        rows = [
+            (p["scheme_code"], p["ter_direct"], p["ter_regular"]) for p in params
+        ]
         with conn.cursor() as cur:
-            cur.executemany(_UPSERT_SQL, params)
+            execute_values(
+                cur, _UPSERT_SQL, rows,
+                template=_UPSERT_TEMPLATE, page_size=1000,
+            )
         conn.commit()
-        logger.info("committed %d TER upserts", len(params))
+        logger.info("committed %d TER upserts (batched)", len(params))
     elif not apply:
         logger.info("dry-run: would upsert %d rows (no writes)", len(params))
     return recon

@@ -37,7 +37,10 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30 not 20: the first apply run was cancelled at 20m because the upsert
+    # was row-by-row over remote Neon (now batched via execute_values, so the
+    # write is seconds). 30 is generous headroom over the ~3-4m batched run.
+    timeout-minutes: 30
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PYTHONUNBUFFERED: "1"
