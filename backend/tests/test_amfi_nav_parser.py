@@ -51,6 +51,18 @@ Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net A
 120586;INF109K01YQ7;INF109K01YR5;ICICI Prudential Bluechip Fund - Direct Plan - Growth;;27-May-2026
 """
 
+# A Growth-only scheme as AMFI actually ships it: the "ISIN Div
+# Reinvestment" column (parts[2]) is a literal "-" because there is no
+# dividend-reinvestment ISIN. parts[1] carries the Growth ISIN. This is
+# the case that exposes a Growth/Div column swap — verbatim from the
+# live NAVAll.txt feed (scheme 108273, 12-Jun-2026).
+FIXTURE_GROWTH_ONLY = """
+Aditya Birla Sun Life Mutual Fund
+
+Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date
+108273;INF209K01LV0;-;Aditya Birla Sun Life Banking & PSU Debt Fund - Regular Plan-Growth;383.3394;12-Jun-2026
+"""
+
 # A scheme name with a non-ASCII character that AMFI's cp1252-encoded
 # feed occasionally carries — must round-trip cleanly to a dict.
 FIXTURE_NON_ASCII = (
@@ -64,10 +76,13 @@ def test_parse_typical_rows_yield_expected_dicts() -> None:
     rows = list(parse_navall(FIXTURE_HAPPY))
     assert len(rows) == 2
     aditya, hdfc = rows
+    # Column mapping: parts[1] ("ISIN Div Payout/ ISIN Growth") is the
+    # PRIMARY/Growth ISIN -> isin_growth; parts[2] ("ISIN Div
+    # Reinvestment") -> isin_div.
     assert aditya == {
         "scheme_code": "100033",
-        "isin_div":    "INF209K01157",
-        "isin_growth": "INF209K01165",
+        "isin_growth": "INF209K01157",
+        "isin_div":    "INF209K01165",
         "scheme_name": "Aditya Birla Sun Life Frontline Equity Fund - Direct Plan - Growth",
         "nav":         485.7234,
         "nav_date":    date(2026, 5, 27),
@@ -75,6 +90,21 @@ def test_parse_typical_rows_yield_expected_dicts() -> None:
     assert hdfc["scheme_code"] == "118989"
     assert hdfc["nav"] == pytest.approx(142.5610)
     assert hdfc["nav_date"] == date(2026, 5, 27)
+
+
+def test_growth_only_scheme_maps_isin_columns_correctly() -> None:
+    # Regression guard for the ISIN column swap: AMFI's parts[1]
+    # ("ISIN Div Payout/ ISIN Growth") holds the Growth ISIN, and
+    # parts[2] ("ISIN Div Reinvestment") is "-" for Growth-only schemes.
+    # The swap (isin_div=parts[1], isin_growth=parts[2]) would put the
+    # INF... value on isin_div and "-" on isin_growth — this asserts the
+    # opposite, so it fails loudly if the columns are ever flipped again.
+    rows = list(parse_navall(FIXTURE_GROWTH_ONLY))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["scheme_code"] == "108273"
+    assert row["isin_growth"] == "INF209K01LV0"
+    assert row["isin_div"] == "-"
 
 
 def test_holiday_blank_nav_row_is_skipped() -> None:
