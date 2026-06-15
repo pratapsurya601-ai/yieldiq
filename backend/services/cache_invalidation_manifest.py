@@ -4811,6 +4811,45 @@ MANIFEST: list[dict] = [
             "recompute with the sector-appropriate model."
         ),
     },
+    {
+        # 2026-06-15: verdict band calibration (PR #967, squash 3ffb11c7b).
+        # Lowered the confidence-gate bull/bear bypass thresholds
+        # (bull +40% -> +15%, bear -25% -> -15%) in confidence_service.py
+        # so names the model places clearly above/below fair value with
+        # adequate model confidence no longer get flattened to
+        # "fairly_valued". The verdict is computed at analysis time
+        # (service.py:5715) and cached in analysis_cache, so already-
+        # cached rows keep the OLD label until they recompute. CACHE_VERSION
+        # was deliberately NOT bumped (verdict-label-only change + cost).
+        # This granular entry recomputes only the confirmed dead-zone names
+        # (currently "fairly_valued" with |margin_of_safety| >= 15% in the
+        # canary sample: KOTAKBANK +35, POWERGRID +25, RELIANCE +19,
+        # DABUR +26 on the bull side; SBIN -24, SUNPHARMA -25, KPITTECH -22
+        # on the bear side) so the public verdict matches the frontend pill
+        # and the model's own read. Long-tail dead-zone names across the
+        # universe refresh on their next natural recompute (no universe-wide
+        # Railway spike). See test_day111c / test_audit6 / test_phase_b2 (85
+        # verdict-gate unit tests) for the pinned behavior.
+        "version_id": "v_verdict_band_calibration_2026_06_15",
+        "title_public": "Clearer under- and over-valued labels on affected companies",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "KOTAKBANK", "POWERGRID", "RELIANCE", "DABUR",
+                "SBIN", "SUNPHARMA", "KPITTECH",
+            ],
+            "fields": ["*"],
+        },
+        "rationale": (
+            "Valuation verdict labels were being softened to "
+            "'fairly valued' for some companies the model placed clearly "
+            "above or below its fair value estimate with adequate "
+            "confidence. The label band was recalibrated so those "
+            "companies show the directional read again, matching the "
+            "on-page verdict pill. Cached rows for the affected companies "
+            "are invalidated so they recompute with the corrected label."
+        ),
+    },
 ]
 
 
