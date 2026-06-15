@@ -320,15 +320,21 @@ def _index_where(
     which is Postgres-only). Category is an exact label match. All values
     are parameterised; the dynamic part is only fixed clause text.
 
-    Plan dedupe (default ON): a single fund is sold as up to four
-    plan/option permutations (Direct/Regular × Growth/IDCW). For a retail
-    browse grid that is noise — we collapse to the Direct-Growth variant
-    by keeping only `plan = 'Direct'` rows whose scheme_name is a Growth
-    option (i.e. does NOT mention IDCW or Dividend). This roughly turns
-    one row-per-permutation into one row-per-fund. The match uses the
-    same LOWER(...) LIKE / NOT LIKE idiom as the search filter so it
-    stays portable across Postgres + SQLite. Pass dedupe_plans=False to
-    return every permutation (e.g. an "?all_plans=1" power-user view).
+    Plan dedupe (default ON): a single fund is sold as several
+    plan/option permutations (Direct/Regular × Growth/IDCW/Bonus/…). For
+    a retail browse grid that is noise — we collapse to the Direct-Growth
+    variant by keeping only `plan = 'Direct'` rows whose scheme_name is a
+    plain Growth option, i.e. does NOT mention any income-distribution or
+    alternate-payout token. Empirically (AMFI scheme master) the same
+    fund shows up as both a "Growth Option" AND a "Bonus Option" Direct
+    row, so excluding Growth-vs-IDCW alone still left two rows per fund
+    (e.g. "Nippon India Large Cap Fund … Growth Option" and "… Bonus
+    Option"). We therefore also exclude bonus / reinvest / payout /
+    income-distribution variants. This turns one-row-per-permutation into
+    (close to) one-row-per-fund. The match uses the same LOWER(...) LIKE
+    / NOT LIKE idiom as the search filter so it stays portable across
+    Postgres + SQLite. Pass dedupe_plans=False to return every
+    permutation (e.g. an "?all_plans=1" power-user view).
     """
     clauses = ["COALESCE(is_active, TRUE) = TRUE"]
     params: dict = {}
@@ -342,11 +348,21 @@ def _index_where(
         # Direct plan only…
         clauses.append("LOWER(plan) = :plan_direct")
         params["plan_direct"] = "direct"
-        # …and the Growth option (exclude income-distribution variants).
-        clauses.append("LOWER(scheme_name) NOT LIKE :no_idcw")
-        clauses.append("LOWER(scheme_name) NOT LIKE :no_dividend")
-        params["no_idcw"] = "%idcw%"
-        params["no_dividend"] = "%dividend%"
+        # …and the plain Growth option only — exclude every non-Growth
+        # payout/option token so a fund collapses to a single row. Each
+        # token maps to a NOT LIKE clause with its own bind.
+        _excluded_option_tokens = {
+            "no_idcw": "%idcw%",
+            "no_dividend": "%dividend%",
+            "no_bonus": "%bonus%",
+            "no_payout": "%payout%",
+            "no_reinvest": "%reinvest%",
+            # AMFI sometimes spells the IDCW option out in full.
+            "no_idcw_long": "%income distribution%",
+        }
+        for bind, pattern in _excluded_option_tokens.items():
+            clauses.append(f"LOWER(scheme_name) NOT LIKE :{bind}")
+            params[bind] = pattern
     return " AND ".join(clauses), params
 
 
