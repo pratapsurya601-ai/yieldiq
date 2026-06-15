@@ -225,12 +225,20 @@ export default function FundCard({ fund }: { fund: FundCardItem }) {
               <span className="text-caption">—</span>
             )}
           </div>
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-wide text-caption">Expense</span>
-            <span className="font-medium tabular-nums text-body">
-              {ter !== null ? fmtPct(ter, false) : "—"}
-            </span>
-          </div>
+          {/*
+            Expense (TER) is only rendered when present. AMFI publishes no
+            machine-readable expense-ratio feed (NAVAll.txt has none; TER
+            lives only in per-AMC HTML/Excel disclosures), so ter is null
+            for every scheme today — showing "Expense —" on every card read
+            as broken. Hidden until a TER scraper populates ter_direct; the
+            field reappears automatically once data lands.
+          */}
+          {ter !== null ? (
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] uppercase tracking-wide text-caption">Expense</span>
+              <span className="font-medium tabular-nums text-body">{fmtPct(ter, false)}</span>
+            </div>
+          ) : null}
         </div>
       </Link>
     </HoverCard>

@@ -121,8 +121,16 @@ export default async function FundsLanding({ searchParams }: Props) {
   const q = typeof sp.q === "string" ? sp.q : ""
   const category = typeof sp.category === "string" ? sp.category : ""
 
+  // Search-led suggestions: the bare /funds landing (no q, no category)
+  // shows the search box + category chips but NOT a default card grid —
+  // we don't surface fund "picks" until the user actively searches or
+  // picks a category. This also skips the list fetch on the landing.
+  const filtered = Boolean(q || category)
+
   const [{ funds, total }, { categories }] = await Promise.all([
-    fetchFundListSSR(48, q || undefined, category || undefined),
+    filtered
+      ? fetchFundListSSR(48, q || undefined, category || undefined)
+      : Promise.resolve({ funds: [], total: 0 }),
     fetchFundCategoriesSSR(),
   ])
 
@@ -139,7 +147,9 @@ export default async function FundsLanding({ searchParams }: Props) {
 
   // Raw AMFI chips, biggest buckets first, shown with compact labels.
   const rawChips = categories.slice(0, MAX_CHIPS)
-  const filtered = Boolean(q || category)
+  // Total scheme count for the landing prompt (summed from the category
+  // counts so the landing never has to fetch the full list).
+  const totalSchemes = categories.reduce((sum, c) => sum + (c.count ?? 0), 0)
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -185,17 +195,19 @@ export default async function FundsLanding({ searchParams }: Props) {
         </div>
       ) : null}
 
-      {cards.length === 0 ? (
+      {!filtered ? (
         <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
-          {filtered
-            ? "No schemes match this search. Try a different name, AMC, or category."
-            : "Fund data is being ingested. Check back shortly."}
+          Search by scheme name or AMC, or pick a category above, to browse
+          {totalSchemes > 0 ? ` ${totalSchemes.toLocaleString("en-IN")}` : ""} schemes.
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
+          No schemes match this search. Try a different name, AMC, or category.
         </div>
       ) : (
         <>
           <div className="mb-3 text-xs text-caption">
-            Showing {cards.length} of {total.toLocaleString("en-IN")}
-            {filtered ? " matching" : ""} schemes.
+            Showing {cards.length} of {total.toLocaleString("en-IN")} matching schemes.
           </div>
           {/*
             threshold={0} is load-bearing: this grid is ~16 rows tall, so
