@@ -12,6 +12,9 @@ Examples:
   # Apply for the nifty50 batch:
   python scripts/backfill_nse_quarterly_xbrl.py --batch nifty50 --apply
 
+  # Apply across the whole stocks-table universe, shard 2 of 5 (CI cron):
+  python scripts/backfill_nse_quarterly_xbrl.py --apply --universe --shard 2/5
+
 Manual post-merge steps (user runs after reviewing PR):
   1. psql $DATABASE_URL -f data_pipeline/migrations/031_quarterly_bank_fields.sql
   2. (optional) DELETE buggy rows for affected tickers
@@ -169,6 +172,66 @@ def get_db_connection(max_retries: int = 3):
     raise RuntimeError("get_db_connection: unreachable")
 
 
+def _parse_shard(spec: str) -> tuple[int, int]:
+    """Parse a ``--shard`` spec into ``(shard_index, n_shards)``.
+
+    Accepts either the GH-Actions matrix form ``"i/N"`` (e.g. ``"2/5"``)
+    or a bare integer ``"i"`` (n_shards defaults to 1 → no sharding).
+    Validates ``0 <= i < N`` so a typo can't silently drop the universe.
+    """
+    spec = str(spec).strip()
+    if "/" in spec:
+        i_str, n_str = spec.split("/", 1)
+        shard, shards = int(i_str), int(n_str)
+    else:
+        shard, shards = int(spec), 1
+    if shards < 1:
+        raise ValueError(f"--shard N must be >= 1 (got {shards})")
+    if not (0 <= shard < shards):
+        raise ValueError(
+            f"--shard index {shard} out of range for {shards} shards"
+        )
+    return shard, shards
+
+
+def _load_universe_tickers(top: int | None, shard: int, shards: int) -> list[str]:
+    """Return NSE-listed tickers from the ``stocks`` table, top-N + sharded.
+
+    Mirrors ``scripts/backfill_fundamentals_nse_xbrl.py::_load_tickers``
+    (the stocks-table universe selector used by phase_c_nse_xbrl.yml) —
+    same WHERE/ORDER-BY so this loader covers the identical universe.
+    Implemented with psycopg2 (already this script's DB driver) so no
+    new SQLAlchemy dependency is introduced.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT s.ticker
+                FROM stocks s
+                LEFT JOIN market_metrics m ON m.ticker = s.ticker
+                  AND m.trade_date = (
+                    SELECT MAX(trade_date) FROM market_metrics WHERE ticker = s.ticker
+                  )
+                WHERE s.is_active = TRUE
+                  AND s.ticker NOT LIKE '%.BO'
+                  AND (s.ticker !~ '[^A-Z0-9-]' OR s.ticker ~ '[A-Z]')
+                ORDER BY COALESCE(m.market_cap_cr, 0) DESC, s.ticker
+            """)
+            rows = cur.fetchall()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    tickers = [r[0] for r in rows if r and r[0]]
+    if top is not None:
+        tickers = tickers[:top]
+    if shards > 1:
+        tickers = tickers[shard::shards]
+    return tickers
+
+
 def _strip_internal(row: dict[str, Any]) -> dict[str, Any]:
     """Drop keys not present in the UPSERT SQL (internal markers like _resolved_symbol)."""
     return {k: v for k, v in row.items() if not k.startswith("_")}
@@ -291,6 +354,24 @@ def main() -> int:
              "EMERGE constituent list from data_pipeline/data/nse_sme_tickers.txt.",
     )
     ap.add_argument(
+        "--universe", "--from-stocks", dest="universe", action="store_true",
+        help="Pull the ticker list from the stocks table (NSE-listed, "
+             "active, market-cap DESC) — same universe selector as "
+             "scripts/backfill_fundamentals_nse_xbrl.py (phase_c_nse_xbrl.yml). "
+             "Combine with --top / --shard to run over the whole universe in "
+             "shards. Requires DATABASE_URL.",
+    )
+    ap.add_argument(
+        "--top", type=int, default=None,
+        help="(--universe) Cap to the top-N tickers by market cap (blank = all).",
+    )
+    ap.add_argument(
+        "--shard", type=str, default=None,
+        help="(--universe) Shard selector as 'i/N' (e.g. '2/5') or a bare "
+             "integer (N defaults to 1). Splits the universe via tickers[i::N] "
+             "so parallel CI shards cover disjoint slices.",
+    )
+    ap.add_argument(
         "--segment", choices=["equities", "sme"], default="equities",
         help="Listing channel: 'equities' (main-board, Quarterly only) or "
              "'sme' (NSE EMERGE — Quarterly + Half-Yearly cadence). "
@@ -309,7 +390,27 @@ def main() -> int:
                     help="(dry-run) write all parsed rows to this JSON file")
     args = ap.parse_args()
 
-    if args.tickers:
+    if args.universe:
+        if not get_db_url():
+            log.error("--universe requires DATABASE_URL (reads the stocks table)")
+            return 2
+        try:
+            shard, shards = _parse_shard(args.shard) if args.shard else (0, 1)
+        except ValueError as exc:
+            log.error("bad --shard %r: %s", args.shard, exc)
+            return 2
+        try:
+            tickers = _load_universe_tickers(args.top, shard, shards)
+        except Exception as exc:
+            log.error("--universe ticker load failed: %s", exc)
+            return 2
+        if not tickers:
+            log.error("--universe selected 0 tickers (top=%s shard=%d/%d)",
+                      args.top, shard, shards)
+            return 2
+        log.info("universe: shard=%d/%d top=%s -> %d tickers",
+                 shard, shards, args.top, len(tickers))
+    elif args.tickers:
         tickers = args.tickers
     elif args.tickers_file:
         raw = args.tickers_file.read_text(encoding="utf-8")
@@ -348,7 +449,7 @@ def main() -> int:
     elif args.batch:
         tickers = BATCHES[args.batch]
     else:
-        log.error("must specify --tickers, --tickers-file, or --batch")
+        log.error("must specify --universe, --tickers, --tickers-file, or --batch")
         return 2
 
     log.info("mode=%s  segment=%s  tickers=%d  limit=%d/ticker",
