@@ -3,68 +3,62 @@
  *
  * Server component. Reads `q` (search scheme name / AMC) and `category`
  * from searchParams, fetches the filtered scheme list + the category
- * chips, and renders a card grid linking into the detail page. Search
- * GET-submits back to this route (not the stock search). No advisory
- * copy — only AMC-published category labels and the SEBI Riskometer
- * chip. Past-performance disclaimer at the foot of the page.
+ * chips, and renders a rich card grid linking into the detail page.
+ *
+ * Redesign (2026-06-15): the hub now LEADS with what retail searches —
+ * a curated equity-first chip row (Large Cap, Mid Cap, …, Debt) sits
+ * above the raw AMFI-category chips, so users no longer land on
+ * obscure debt schemes by default. Cards carry real numbers (YieldIQ
+ * Fund Score, 1Y return, expense ratio, Riskometer) instead of being
+ * click-to-learn stubs. Search filters live as you type (see
+ * FundsSearchInput). No advisory copy — only AMC-published category
+ * labels and the SEBI Riskometer chip; past-performance disclaimer at
+ * the foot of the page.
  */
 import type { Metadata } from "next"
 import Link from "next/link"
 
 import { fetchFundCategoriesSSR, fetchFundListSSR } from "@/lib/api"
-import type { FundListItem, FundRiskometerLevel } from "@/types/api"
-import AmcAvatar from "@/components/common/AmcAvatar"
-import { HoverCard, RevealStagger } from "@/components/motion"
+import { RevealStagger } from "@/components/motion"
 import FundsSearchInput from "./FundsSearchInput"
+import FundCard, { type FundCardItem, compactCategory } from "./FundCard"
 
-const RISKOMETER_COLORS: Record<FundRiskometerLevel, { bg: string; text: string; label: string }> = {
-  Low: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Low" },
-  LowToModerate: { bg: "bg-lime-100", text: "text-lime-800", label: "Low to Moderate" },
-  Moderate: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Moderate" },
-  ModeratelyHigh: { bg: "bg-amber-100", text: "text-amber-900", label: "Moderately High" },
-  High: { bg: "bg-orange-100", text: "text-orange-900", label: "High" },
-  VeryHigh: { bg: "bg-red-100", text: "text-red-800", label: "Very High" },
+const MAX_CHIPS = 12
+
+// ── Equity-first curated chips ──────────────────────────────────────
+// Retail searches "large cap"/"index"/"ELSS", not "Equity Scheme -
+// Large Cap Fund". Each friendly chip resolves to the REAL raw AMFI
+// category string the API filters on (exact `category =` match) by
+// keyword-matching the categories endpoint at request time — so we
+// never hard-code a string that might drift from what's in the DB.
+// `match` is tested against the lowercased raw category; the first
+// matching raw category wins, and `exclude` guards against a broader
+// keyword swallowing a narrower bucket (e.g. "cap" matching too much).
+interface FriendlyChip {
+  label: string
+  match: (raw: string) => boolean
 }
 
-const MAX_CHIPS = 14
+const FRIENDLY_CHIPS: FriendlyChip[] = [
+  { label: "Large Cap", match: (r) => r.includes("large cap") && !r.includes("mid") },
+  { label: "Mid Cap", match: (r) => r.includes("mid cap") && !r.includes("large") },
+  { label: "Small Cap", match: (r) => r.includes("small cap") },
+  { label: "Flexi Cap", match: (r) => r.includes("flexi cap") },
+  { label: "ELSS (Tax)", match: (r) => r.includes("elss") },
+  { label: "Index", match: (r) => r.includes("index") },
+  { label: "Hybrid", match: (r) => r.includes("hybrid") },
+  { label: "Debt", match: (r) => r.includes("debt") || r.includes("income") },
+]
 
-function FundCard({ fund }: { fund: FundListItem }) {
-  const risk = fund.riskometer_level ? RISKOMETER_COLORS[fund.riskometer_level] : null
-  return (
-    <HoverCard className="rounded-lg">
-      <Link
-        href={`/funds/${encodeURIComponent(fund.scheme_code)}`}
-        className="block rounded-lg border border-border bg-raised p-4"
-      >
-        <div className="flex items-center gap-2">
-          <AmcAvatar amc={fund.amc} size="sm" />
-          <span className="truncate text-xs text-caption">{fund.amc}</span>
-        </div>
-        <div className="mt-1.5 line-clamp-2 text-sm font-semibold text-ink">
-          {fund.scheme_name}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {fund.category ? (
-            <span className="rounded-full bg-tone-info-bg px-2 py-0.5 text-[11px] font-medium text-tone-info-fg">
-              {fund.category}
-            </span>
-          ) : null}
-          {risk ? (
-            <span
-              className={`rounded-full ${risk.bg} ${risk.text} px-2 py-0.5 text-[11px] font-medium`}
-            >
-              {risk.label}
-            </span>
-          ) : null}
-          {fund.plan ? (
-            <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-body">
-              {fund.plan}
-            </span>
-          ) : null}
-        </div>
-      </Link>
-    </HoverCard>
-  )
+/** Pick the real AMFI category string for a friendly chip, or null. */
+function resolveFriendly(
+  chip: FriendlyChip,
+  rawCategories: string[],
+): string | null {
+  for (const raw of rawCategories) {
+    if (chip.match(raw.toLowerCase())) return raw
+  }
+  return null
 }
 
 function CategoryChip({
@@ -132,7 +126,19 @@ export default async function FundsLanding({ searchParams }: Props) {
     fetchFundCategoriesSSR(),
   ])
 
-  const chips = categories.slice(0, MAX_CHIPS)
+  // The list endpoint already returns the contract metrics per item
+  // (ret_1y / yieldiq_fund_score / ter); widen to the card shape so the
+  // cards can read them (see FundCard.FundCardItem).
+  const cards = funds as FundCardItem[]
+
+  const rawCategories = categories.map((c) => c.category)
+  const friendly = FRIENDLY_CHIPS.map((chip) => ({
+    label: chip.label,
+    value: resolveFriendly(chip, rawCategories),
+  })).filter((c): c is { label: string; value: string } => c.value !== null)
+
+  // Raw AMFI chips, biggest buckets first, shown with compact labels.
+  const rawChips = categories.slice(0, MAX_CHIPS)
   const filtered = Boolean(q || category)
 
   return (
@@ -142,21 +148,36 @@ export default async function FundsLanding({ searchParams }: Props) {
           Mutual Funds
         </h1>
         <p className="mt-1 text-sm text-caption">
-          Read-only NAV history, benchmark-relative returns, and risk metrics for
-          Indian mutual-fund schemes.
+          Browse Indian mutual-fund schemes with YieldIQ Fund Score, 1-year
+          return, expense ratio and the SEBI Riskometer — facts, no fund picks.
         </p>
       </header>
 
-      <FundsSearchInput defaultQuery={q} />
+      <FundsSearchInput defaultQuery={q} category={category} />
 
-      {chips.length > 0 ? (
+      {/* Equity-first curated chips — lead with what retail searches. */}
+      {friendly.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <CategoryChip href="/funds" label="All Funds" active={!category} />
+          {friendly.map((c) => (
+            <CategoryChip
+              key={c.label}
+              href={`/funds?category=${encodeURIComponent(c.value)}`}
+              label={c.label}
+              active={category === c.value}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Raw AMFI categories (compact labels), largest buckets first. */}
+      {rawChips.length > 0 ? (
         <div className="mb-5 flex flex-wrap gap-1.5">
-          <CategoryChip href="/funds" label="All" active={!category} />
-          {chips.map((c) => (
+          {rawChips.map((c) => (
             <CategoryChip
               key={c.category}
               href={`/funds?category=${encodeURIComponent(c.category)}`}
-              label={c.category}
+              label={compactCategory(c.category)}
               count={c.count}
               active={category === c.category}
             />
@@ -164,7 +185,7 @@ export default async function FundsLanding({ searchParams }: Props) {
         </div>
       ) : null}
 
-      {funds.length === 0 ? (
+      {cards.length === 0 ? (
         <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
           {filtered
             ? "No schemes match this search. Try a different name, AMC, or category."
@@ -173,7 +194,7 @@ export default async function FundsLanding({ searchParams }: Props) {
       ) : (
         <>
           <div className="mb-3 text-xs text-caption">
-            Showing {funds.length} of {total.toLocaleString("en-IN")}
+            Showing {cards.length} of {total.toLocaleString("en-IN")}
             {filtered ? " matching" : ""} schemes.
           </div>
           {/*
@@ -186,11 +207,11 @@ export default async function FundsLanding({ searchParams }: Props) {
             they must not depend on a deep scroll to render.
           */}
           <RevealStagger
-            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3"
             staggerMs={15}
             threshold={0}
           >
-            {funds.map((f) => (
+            {cards.map((f) => (
               <FundCard key={f.scheme_code} fund={f} />
             ))}
           </RevealStagger>

@@ -304,13 +304,27 @@ def _fetch_returns_cache(db, scheme_code: str) -> Optional[FundReturnsCache]:
     )
 
 
-def _index_where(q: Optional[str], category: Optional[str]) -> tuple[str, dict]:
+def _index_where(
+    q: Optional[str],
+    category: Optional[str],
+    dedupe_plans: bool = True,
+) -> tuple[str, dict]:
     """Shared WHERE clause + binds for the index list and its count.
 
     Search is a case-insensitive substring on scheme_name OR amc, using
     LOWER(...) LIKE (portable across Postgres + SQLite — we avoid ILIKE,
     which is Postgres-only). Category is an exact label match. All values
     are parameterised; the dynamic part is only fixed clause text.
+
+    Plan dedupe (default ON): a single fund is sold as up to four
+    plan/option permutations (Direct/Regular × Growth/IDCW). For a retail
+    browse grid that is noise — we collapse to the Direct-Growth variant
+    by keeping only `plan = 'Direct'` rows whose scheme_name is a Growth
+    option (i.e. does NOT mention IDCW or Dividend). This roughly turns
+    one row-per-permutation into one row-per-fund. The match uses the
+    same LOWER(...) LIKE / NOT LIKE idiom as the search filter so it
+    stays portable across Postgres + SQLite. Pass dedupe_plans=False to
+    return every permutation (e.g. an "?all_plans=1" power-user view).
     """
     clauses = ["COALESCE(is_active, TRUE) = TRUE"]
     params: dict = {}
@@ -320,23 +334,124 @@ def _index_where(q: Optional[str], category: Optional[str]) -> tuple[str, dict]:
     if category and category.strip():
         clauses.append("category = :category")
         params["category"] = category.strip()
+    if dedupe_plans:
+        # Direct plan only…
+        clauses.append("LOWER(plan) = :plan_direct")
+        params["plan_direct"] = "direct"
+        # …and the Growth option (exclude income-distribution variants).
+        clauses.append("LOWER(scheme_name) NOT LIKE :no_idcw")
+        clauses.append("LOWER(scheme_name) NOT LIKE :no_dividend")
+        params["no_idcw"] = "%idcw%"
+        params["no_dividend"] = "%dividend%"
     return " AND ".join(clauses), params
 
 
+def _row_to_list_item(r, with_metrics: bool) -> FundListItem:
+    """Map a list-query row to FundListItem.
+
+    The first seven columns are always the fund master projection; when
+    `with_metrics` is True the row also carries the three LEFT-JOINed
+    cache columns (ret_1y, yieldiq_fund_score, ter). Coercion is
+    defensive so a stray text/NUMERIC value never 500s the grid.
+    """
+    def _f(idx: int) -> Optional[float]:
+        if idx >= len(r) or r[idx] is None:
+            return None
+        try:
+            return float(r[idx])
+        except Exception:
+            return None
+
+    def _i(idx: int) -> Optional[int]:
+        if idx >= len(r) or r[idx] is None:
+            return None
+        try:
+            return int(r[idx])
+        except Exception:
+            return None
+
+    return FundListItem(
+        scheme_code=r[0],
+        scheme_name=r[1],
+        amc=r[2],
+        category=r[3],
+        sub_category=r[4],
+        riskometer_level=r[5],
+        plan=r[6],
+        ret_1y=_f(7) if with_metrics else None,
+        yieldiq_fund_score=_i(8) if with_metrics else None,
+        ter=_f(9) if with_metrics else None,
+    )
+
+
 def _fetch_index_funds(
-    db, limit: int, q: Optional[str] = None, category: Optional[str] = None
+    db,
+    limit: int,
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    dedupe_plans: bool = True,
 ) -> list[FundListItem]:
     """Filtered card grid for /funds.
 
-    Active funds matching the optional search + category filter, ordered
-    alphabetically by scheme_name (stable; the Phase-7 score is not yet
-    populated, so alphabetical remains the well-defined default).
+    Active funds matching the optional search + category filter. By
+    default the list collapses to one Direct-Growth row per fund (see
+    `_index_where`) and LEFT-JOINs `fund_returns_cache` so each card
+    carries ret_1y / yieldiq_fund_score / ter (COALESCE(ter_direct,
+    ter_regular)). Funds with no cache row keep null metrics rather than
+    being dropped (LEFT JOIN). Ordering leads with the YieldIQ Fund Score
+    (highest first, nulls last) so the hub surfaces quality funds, then
+    falls back to alphabetical by scheme_name for a stable tiebreak.
+
+    If `fund_returns_cache` does not exist yet (Phase 2 not merged in
+    some orderings — the same condition the detail endpoint guards
+    against), the JOIN query raises; we transparently fall back to the
+    plain master query (null metrics, alphabetical order) so the grid
+    never 500s and the Phase-3 contract still holds.
     """
     from sqlalchemy import text
 
-    where, params = _index_where(q, category)
+    where, params = _index_where(q, category, dedupe_plans=dedupe_plans)
     params["lim"] = limit
-    sql = text(
+
+    # Portable NULLS-LAST: "(col IS NULL)" is 0/1 on both Postgres and
+    # SQLite, so ordering by it ascending pushes the nulls to the end
+    # before the DESC score sort. Avoids the Postgres-only "NULLS LAST"
+    # keyword. ret_1y is a secondary market-relevance tiebreak.
+    joined_sql = text(
+        f"""
+        SELECT f.scheme_code, f.scheme_name, f.amc, f.category, f.sub_category,
+               f.riskometer_level, f.plan,
+               c.ret_1y,
+               c.yieldiq_fund_score,
+               COALESCE(c.ter_direct, c.ter_regular) AS ter
+        FROM funds f
+        LEFT JOIN fund_returns_cache c
+          ON c.scheme_code = f.scheme_code
+        WHERE {where}
+        ORDER BY (c.yieldiq_fund_score IS NULL) ASC,
+                 c.yieldiq_fund_score DESC,
+                 (c.ret_1y IS NULL) ASC,
+                 c.ret_1y DESC,
+                 f.scheme_name ASC
+        LIMIT :lim
+        """
+    )
+    try:
+        rows = db.execute(joined_sql, params).fetchall()
+        return [
+            _row_to_list_item(r, with_metrics=True)
+            for r in rows
+        ]
+    except Exception as exc:
+        # Most common cause: fund_returns_cache not created yet. Log at
+        # INFO (expected pre-Phase-2) and fall through to the plain query.
+        logger.info(
+            "funds: index JOIN query soft-failed (returns cache may be "
+            "absent); falling back to master-only list: %s",
+            exc,
+        )
+
+    plain_sql = text(
         f"""
         SELECT scheme_code, scheme_name, amc, category, sub_category,
                riskometer_level, plan
@@ -347,35 +462,28 @@ def _fetch_index_funds(
         """
     )
     try:
-        rows = db.execute(sql, params).fetchall()
+        rows = db.execute(plain_sql, params).fetchall()
     except Exception as exc:
         logger.warning("funds: index landing query failed: %s", exc)
         return []
     out: list[FundListItem] = []
     for r in rows:
         try:
-            out.append(
-                FundListItem(
-                    scheme_code=r[0],
-                    scheme_name=r[1],
-                    amc=r[2],
-                    category=r[3],
-                    sub_category=r[4],
-                    riskometer_level=r[5],
-                    plan=r[6],
-                )
-            )
+            out.append(_row_to_list_item(r, with_metrics=False))
         except Exception:
             continue
     return out
 
 
 def _fetch_index_total(
-    db, q: Optional[str] = None, category: Optional[str] = None
+    db,
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    dedupe_plans: bool = True,
 ) -> int:
     from sqlalchemy import text
 
-    where, params = _index_where(q, category)
+    where, params = _index_where(q, category, dedupe_plans=dedupe_plans)
     try:
         row = db.execute(
             text(f"SELECT COUNT(*) FROM funds WHERE {where}"), params
@@ -424,20 +532,37 @@ def list_funds(
     limit: int = Query(48, ge=1, le=60, description="Max cards to return."),
     q: Optional[str] = Query(None, description="Search scheme name or AMC (substring)."),
     category: Optional[str] = Query(None, description="Exact SEBI category filter."),
+    all_plans: bool = Query(
+        False,
+        description=(
+            "When false (default) the list collapses to one Direct-Growth "
+            "row per fund. Set true to return every plan/option permutation "
+            "(Direct/Regular × Growth/IDCW)."
+        ),
+    ),
 ) -> FundListResponse:
     """Browse grid for /funds.
 
     Returns active funds matching the optional search (`q`, substring on
-    scheme name / AMC) and `category` filter, alphabetical by name.
+    scheme name / AMC) and `category` filter. By default the grid is
+    deduped to the Direct-Growth variant per fund and ordered by the
+    YieldIQ Fund Score (highest first, nulls last) so quality funds lead;
+    each card carries ret_1y / yieldiq_fund_score / ter LEFT-JOINed from
+    the returns cache. Pass `all_plans=true` to see every permutation.
     `total` reflects the same filter so the page can show "N of M
-    matching". Phase 7 will add score-based ordering.
+    matching".
     """
+    dedupe = not all_plans
     db = _open_session()
     if db is None:
         return FundListResponse(funds=[], total=0)
     try:
-        funds = _fetch_index_funds(db, limit, q=q, category=category)
-        total = _fetch_index_total(db, q=q, category=category)
+        funds = _fetch_index_funds(
+            db, limit, q=q, category=category, dedupe_plans=dedupe
+        )
+        total = _fetch_index_total(
+            db, q=q, category=category, dedupe_plans=dedupe
+        )
     finally:
         _safe_close(db)
     return FundListResponse(funds=funds, total=total)

@@ -138,7 +138,17 @@ class FundDetailResponse(BaseModel):
 
 
 class FundListItem(BaseModel):
-    """Compact projection used by the /api/v1/funds index endpoint."""
+    """Compact projection used by the /api/v1/funds index endpoint.
+
+    The trailing three metric fields (`ret_1y`, `yieldiq_fund_score`,
+    `ter`) are LEFT-JOINed in from `fund_returns_cache` so the hub cards
+    can lead with real numbers instead of em-dashes. They are nullable:
+    a fund with no cache row (Phase 2 not yet computed for it, or the
+    cache table absent entirely) returns nulls here rather than being
+    dropped from the grid. `ter` prefers the Direct-plan TER
+    (COALESCE(ter_direct, ter_regular)) since the list defaults to the
+    Direct-Growth variant.
+    """
 
     scheme_code: str
     scheme_name: str
@@ -147,6 +157,14 @@ class FundListItem(BaseModel):
     sub_category: Optional[str] = None
     riskometer_level: Optional[str] = None
     plan: Optional[str] = None
+    # ── LEFT-JOINed metrics (nullable; see class docstring) ──────────
+    ret_1y: Optional[float] = Field(None, description="Trailing 1-year return, percent.")
+    yieldiq_fund_score: Optional[int] = Field(
+        None, ge=0, le=100, description="YieldIQ Fund Score (rule-based composite)."
+    )
+    ter: Optional[float] = Field(
+        None, description="Expense ratio, percent — prefers Direct (ter_direct)."
+    )
 
 
 class FundListResponse(BaseModel):
