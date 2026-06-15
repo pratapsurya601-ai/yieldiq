@@ -204,6 +204,103 @@ def test_normalize_base_name_and_vs_ampersand_equal() -> None:
     )
 
 
+# ── Plan-coverage uplift: ALL option variants collapse to ONE base ───
+
+# Every plan/option variant of a SINGLE scheme — across both plans
+# (Direct/Regular) and every option (Growth, IDCW, IDCW-Reinvest,
+# IDCW-Payout, Dividend, Dividend-Reinvest, Dividend-Payout, Bonus, and
+# frequency-qualified IDCW/Dividend) and every connector/separator style —
+# must reduce to the SAME base as the Growth plan. Otherwise a TER row
+# matched on its base name writes only the variants that happen to
+# normalize identically, leaving the rest (~the low plan-coverage this
+# change fixes) without a TER value.
+HDFC_TOP100_VARIANTS = [
+    "HDFC Top 100 Fund - Direct Plan - Growth",
+    "HDFC Top 100 Fund - Regular Plan - Growth",
+    "HDFC Top 100 Fund Direct Growth",
+    "HDFC Top 100 Fund - Direct - Growth Option",
+    "HDFC Top 100 Fund - Direct Plan - IDCW",
+    "HDFC Top 100 Fund - Regular Plan (IDCW)",
+    "HDFC Top 100 Fund (IDCW)",
+    "HDFC Top 100 Fund - Direct Plan - IDCW Reinvestment",
+    "HDFC Top 100 Fund - Direct Plan - IDCW Payout",
+    "HDFC Top 100 Fund - Regular Plan - IDCW Reinvestment Option",
+    "HDFC Top 100 Fund - Direct Plan - Dividend",
+    "HDFC Top 100 Fund - Direct Plan - Dividend Reinvestment",
+    "HDFC Top 100 Fund - Direct Plan - Dividend Payout",
+    "HDFC Top 100 Fund - Direct Plan - Bonus",
+    "HDFC Top 100 Fund - Direct Plan - Monthly IDCW",
+    "HDFC Top 100 Fund - Direct Plan - Quarterly IDCW Payout",
+    "HDFC Top 100 Fund - Direct Plan - Half-Yearly IDCW Reinvestment",
+    "HDFC Top 100 Fund - Regular Plan - Annual Dividend Payout",
+]
+
+
+def test_all_plan_variants_collapse_to_one_base() -> None:
+    bases = {normalize_base_name(v) for v in HDFC_TOP100_VARIANTS}
+    # Every Direct/Regular × Growth/IDCW/IDCW-Reinvest/IDCW-Payout/
+    # Dividend/Dividend-Reinvest/Dividend-Payout/Bonus/freq-IDCW variant
+    # must reduce to exactly ONE base key.
+    assert bases == {"hdfc top 100 fund"}, bases
+
+
+@pytest.mark.parametrize(
+    "variant",
+    HDFC_TOP100_VARIANTS,
+    ids=lambda v: v.split(" - ", 1)[-1] if " - " in v else v,
+)
+def test_each_plan_variant_equals_growth_base(variant) -> None:
+    # Pin each variant individually so a regression names the offender.
+    assert normalize_base_name(variant) == "hdfc top 100 fund"
+
+
+def test_genuinely_different_schemes_stay_distinct() -> None:
+    # CRITICAL over-strip guard. The base must still separate genuinely
+    # different schemes, otherwise one scheme's TER would bleed onto
+    # another. "Top 100" vs "Top 200" differ only in a fund-identity
+    # number; they must NOT collapse together.
+    top100 = normalize_base_name("HDFC Top 100 Fund - Direct Plan - Growth")
+    top200 = normalize_base_name("HDFC Top 200 Fund - Direct Plan - Growth")
+    assert top100 != top200
+    assert top100 == "hdfc top 100 fund"
+    assert top200 == "hdfc top 200 fund"
+
+
+def test_monthly_income_is_fund_type_not_dividend_frequency() -> None:
+    # The frequency-strip is the riskiest part of this change: it must fire
+    # ONLY when the frequency word qualifies a DIVIDEND/IDCW option, never
+    # when it is part of the fund's identity. "Monthly Income Plan" is a
+    # FUND TYPE (an MIP) — "Income" is not a dividend token — so "monthly
+    # income" must survive into the base.
+    mip_growth = normalize_base_name(
+        "SBI Magnum Monthly Income Plan - Direct - Growth"
+    )
+    assert "monthly income" in mip_growth
+    # And the Monthly-IDCW variant of the SAME MIP fund (here the frequency
+    # DOES qualify IDCW) collapses onto that same base — the strip removes
+    # the *dividend-frequency* "Monthly" before "IDCW" but keeps the
+    # fund-identity "Monthly Income".
+    mip_idcw = normalize_base_name(
+        "SBI Magnum Monthly Income Plan - Direct - Monthly IDCW"
+    )
+    assert mip_idcw == mip_growth
+    # The MIP fund must stay distinct from a DIFFERENT (non-MIP) fund of the
+    # same house — proves "Monthly Income" was preserved as identity, not
+    # silently eaten.
+    plain = normalize_base_name("SBI Magnum Equity Fund - Direct - Growth")
+    assert mip_growth != plain
+
+
+def test_frequency_word_not_adjacent_to_dividend_is_kept() -> None:
+    # An "Annual"/"Quarterly" frequency word that is part of the scheme
+    # identity (an interval/FMP-style fund) and NOT immediately followed by
+    # a dividend token must NOT be stripped.
+    interval = normalize_base_name(
+        "ICICI Prudential Annual Interval Fund - Direct Plan - Growth"
+    )
+    assert "annual interval" in interval
+
+
 def test_normalize_amc_strips_house_suffix_and_ampersand() -> None:
     assert normalize_amc("Mirae Asset Mutual Fund") == "mirae asset"
     assert normalize_amc("Mirae Asset Mutual Fund Ltd") == "mirae asset"
