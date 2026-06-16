@@ -38,14 +38,21 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.models.fund import (
     Fund,
+    FundAllocationSlice,
     FundBenchmarkPoint,
     FundCategoriesResponse,
     FundCategoryCount,
+    FundCategoryStats,
     FundDetailResponse,
     FundListItem,
     FundListResponse,
     FundNavPoint,
+    FundPeer,
+    FundPeersResponse,
+    FundPortfolio,
+    FundPortfolioHolding,
     FundReturnsCache,
+    FundRiskBlock,
 )
 
 logger = logging.getLogger("yieldiq.funds.router")
@@ -245,9 +252,28 @@ def _fetch_benchmark_monthly(
     return out
 
 
-def _fetch_returns_cache(db, scheme_code: str) -> Optional[FundReturnsCache]:
-    """Phase 2 cache lookup. Returns None when the table doesn't exist
-    yet (Phase 2 not landed) or when there is no row for this scheme."""
+def _fetch_returns_cache(
+    db, scheme_code: str
+) -> tuple[Optional[FundReturnsCache], Optional[FundRiskBlock]]:
+    """Phase 2 cache lookup → (flat metrics block, risk block).
+
+    Returns ``(None, None)`` when the table doesn't exist yet (Phase 2 not
+    landed) or there is no row for this scheme. The flat ``metrics`` block
+    is UNCHANGED from the original Phase-3 contract (backwards compat); the
+    additional ``risk`` block re-keys the 075 risk columns to the frontend
+    contract names.
+
+    Column-name reality (075 migration), since the contract uses slightly
+    different names:
+      * 075 has ``max_dd_3y`` / ``max_dd_5y`` → contract ``max_drawdown_3y``
+        / ``max_drawdown_5y``.
+      * 075 has ``upside_capture_3y`` / ``downside_capture_3y`` → contract
+        ``up_capture_3y`` / ``down_capture_3y``.
+      * 075 has NO ``stdev_5y`` / ``sharpe_5y`` / ``sortino_5y`` column, so
+        those contract fields are always null.
+      * 075 ``category_percentile_3y`` is 0..1; the contract wants 0..100,
+        so we multiply by 100 on the way out.
+    """
     from sqlalchemy import text
 
     sql = text(
@@ -255,7 +281,12 @@ def _fetch_returns_cache(db, scheme_code: str) -> Optional[FundReturnsCache]:
         SELECT ret_1y, ret_3y, ret_5y, ret_10y, ret_si,
                cagr_3y, cagr_5y,
                ter_direct, ter_regular,
-               yieldiq_fund_score
+               yieldiq_fund_score,
+               stdev_3y, sharpe_3y, sortino_3y,
+               max_dd_3y, max_dd_5y,
+               beta_3y, alpha_3y, info_ratio_3y, tracking_error_3y,
+               upside_capture_3y, downside_capture_3y, benchmark_excess_3y,
+               category_percentile_3y, nav_as_of
         FROM fund_returns_cache
         WHERE scheme_code = :sc
         LIMIT 1
@@ -270,6 +301,101 @@ def _fetch_returns_cache(db, scheme_code: str) -> Optional[FundReturnsCache]:
             "funds: returns cache lookup soft-failed for %s "
             "(Phase 2 may not be live yet): %s",
             scheme_code,
+            exc,
+        )
+        return None, None
+    if row is None:
+        return None, None
+
+    def _f(idx: int) -> Optional[float]:
+        v = row[idx]
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    def _i(idx: int) -> Optional[int]:
+        v = row[idx]
+        if v is None:
+            return None
+        try:
+            return int(v)
+        except Exception:
+            return None
+
+    metrics = FundReturnsCache(
+        ret_1y=_f(0),
+        ret_3y=_f(1),
+        ret_5y=_f(2),
+        ret_10y=_f(3),
+        ret_si=_f(4),
+        cagr_3y=_f(5),
+        cagr_5y=_f(6),
+        ter_direct=_f(7),
+        ter_regular=_f(8),
+        yieldiq_fund_score=_i(9),
+    )
+
+    cat_pct_frac = _f(22)  # 075 stores 0..1; contract wants 0..100
+    risk = FundRiskBlock(
+        lookback="3y",
+        as_of=row[23],  # nav_as_of (date) — passed through, not coerced
+        stdev_3y=_f(10),
+        stdev_5y=None,
+        sharpe_3y=_f(11),
+        sharpe_5y=None,
+        sortino_3y=_f(12),
+        sortino_5y=None,
+        max_drawdown_3y=_f(13),
+        max_drawdown_5y=_f(14),
+        beta_3y=_f(15),
+        alpha_3y=_f(16),
+        info_ratio_3y=_f(17),
+        tracking_error_3y=_f(18),
+        up_capture_3y=_f(19),
+        down_capture_3y=_f(20),
+        benchmark_excess_3y=_f(21),
+        category_percentile_3y=(cat_pct_frac * 100.0)
+        if cat_pct_frac is not None
+        else None,
+    )
+    return metrics, risk
+
+
+def _fetch_category_stats(
+    db, sub_category: Optional[str]
+) -> Optional[FundCategoryStats]:
+    """Per-sub_category aggregate stats from fund_category_stats.
+
+    Returns None when the table doesn't exist yet (migration not applied),
+    when the fund has no sub_category, or when there's no row for it. CAGR
+    columns are decimal fractions; category_percentile is not part of this
+    block (it lives on the risk block per-scheme).
+    """
+    if not sub_category:
+        return None
+    from sqlalchemy import text
+
+    sql = text(
+        """
+        SELECT sub_category, n_funds,
+               median_cagr_1y, median_cagr_3y, median_cagr_5y,
+               avg_cagr_1y, avg_cagr_3y, avg_cagr_5y,
+               avg_ter, avg_sharpe_3y, avg_stdev_3y, avg_max_drawdown_3y
+        FROM fund_category_stats
+        WHERE sub_category = :sub
+        LIMIT 1
+        """
+    )
+    try:
+        row = db.execute(sql, {"sub": sub_category}).fetchone()
+    except Exception as exc:
+        logger.info(
+            "funds: category_stats lookup soft-failed for %r "
+            "(table may not be migrated yet): %s",
+            sub_category,
             exc,
         )
         return None
@@ -294,17 +420,227 @@ def _fetch_returns_cache(db, scheme_code: str) -> Optional[FundReturnsCache]:
         except Exception:
             return None
 
-    return FundReturnsCache(
-        ret_1y=_f(0),
-        ret_3y=_f(1),
-        ret_5y=_f(2),
-        ret_10y=_f(3),
-        ret_si=_f(4),
-        cagr_3y=_f(5),
-        cagr_5y=_f(6),
-        ter_direct=_f(7),
-        ter_regular=_f(8),
-        yieldiq_fund_score=_i(9),
+    return FundCategoryStats(
+        sub_category=row[0],
+        n_funds=_i(1),
+        median_cagr_1y=_f(2),
+        median_cagr_3y=_f(3),
+        median_cagr_5y=_f(4),
+        avg_cagr_1y=_f(5),
+        avg_cagr_3y=_f(6),
+        avg_cagr_5y=_f(7),
+        avg_ter=_f(8),
+        avg_sharpe_3y=_f(9),
+        avg_stdev_3y=_f(10),
+        avg_max_drawdown_3y=_f(11),
+    )
+
+
+def _fetch_peers(
+    db, scheme_code: str, sub_category: Optional[str], limit: int = 3
+) -> list[FundPeer]:
+    """Up to `limit` same-sub_category peer rows (excluding self) plus a
+    trailing category-average pseudo-row.
+
+    Peers are ordered by fund_score DESC (nulls last) purely as a STABLE,
+    deterministic display ordering — NOT a ranking verdict. The query
+    LEFT-JOINs fund_returns_cache for ret_1y / ret_3y / fund_score /
+    ter_direct; a fund with no cache row still appears (with null metrics).
+    Returns an empty list when sub_category is missing. Soft-fails to the
+    peers it can build (and still appends the category-average row when
+    fund_category_stats is available).
+    """
+    if not sub_category:
+        return []
+    from sqlalchemy import text
+
+    # Portable NULLS-LAST (see _fetch_index_funds): "(col IS NULL) ASC"
+    # pushes nulls to the end before the DESC sort. Self is excluded.
+    peers_sql = text(
+        """
+        SELECT f.scheme_code, f.scheme_name, f.amc, f.riskometer_level,
+               c.yieldiq_fund_score, c.ret_1y, c.ret_3y, c.ter_direct
+        FROM funds f
+        LEFT JOIN fund_returns_cache c
+          ON c.scheme_code = f.scheme_code
+        WHERE f.sub_category = :sub
+          AND f.scheme_code <> :sc
+          AND COALESCE(f.is_active, TRUE) = TRUE
+        ORDER BY (c.yieldiq_fund_score IS NULL) ASC,
+                 c.yieldiq_fund_score DESC,
+                 f.scheme_name ASC
+        LIMIT :lim
+        """
+    )
+
+    def _f(v) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    def _i(v) -> Optional[int]:
+        if v is None:
+            return None
+        try:
+            return int(v)
+        except Exception:
+            return None
+
+    out: list[FundPeer] = []
+    try:
+        rows = db.execute(
+            peers_sql, {"sub": sub_category, "sc": scheme_code, "lim": limit}
+        ).fetchall()
+        for r in rows:
+            out.append(
+                FundPeer(
+                    scheme_code=r[0],
+                    scheme_name=r[1],
+                    amc=r[2],
+                    riskometer_level=r[3],
+                    fund_score=_i(r[4]),
+                    ret_1y=_f(r[5]),
+                    ret_3y=_f(r[6]),
+                    ter_direct=_f(r[7]),
+                    is_category_average=False,
+                )
+            )
+    except Exception as exc:
+        logger.info(
+            "funds: peers query soft-failed for %s (returns cache may be "
+            "absent); returning what we have: %s",
+            scheme_code,
+            exc,
+        )
+
+    # Append the category-average pseudo-row when the stats table is live.
+    stats = _fetch_category_stats(db, sub_category)
+    if stats is not None:
+        out.append(
+            FundPeer(
+                scheme_code=None,
+                scheme_name=f"{sub_category} category average",
+                amc=None,
+                fund_score=None,
+                # category stats hold CAGR (decimal fractions); the peer
+                # contract surfaces ret_1y / ret_3y. avg_cagr_1y is the
+                # 1y CAGR (== trailing 1y return) so it maps cleanly.
+                ret_1y=stats.avg_cagr_1y,
+                ret_3y=stats.avg_cagr_3y,
+                ter_direct=stats.avg_ter,
+                riskometer_level=None,
+                is_category_average=True,
+            )
+        )
+    return out
+
+
+def _fetch_portfolio(db, scheme_code: str) -> FundPortfolio:
+    """Holdings block. Forward-compatible: returns the explicit empty
+    "updating" state when fund_holdings has no rows (or isn't migrated
+    yet), and surfaces top holdings + asset / sector / mcap roll-ups once
+    rows exist.
+
+    Uses the latest as_of_month present for the scheme. weight_pct /
+    change_3m_pct are PERCENTS (stored verbatim from the disclosure).
+    """
+    empty = FundPortfolio(
+        updating=True,
+        as_of_month=None,
+        holdings_count=0,
+        holdings=[],
+        asset_allocation=[],
+        sector_allocation=[],
+        mcap_allocation=[],
+    )
+    from sqlalchemy import text
+
+    # Latest as_of_month for this scheme (None when table empty/absent).
+    try:
+        mrow = db.execute(
+            text(
+                "SELECT MAX(as_of_month) FROM fund_holdings "
+                "WHERE scheme_code = :sc"
+            ),
+            {"sc": scheme_code},
+        ).fetchone()
+    except Exception as exc:
+        logger.info(
+            "funds: holdings lookup soft-failed for %s (table may not be "
+            "migrated yet): %s",
+            scheme_code,
+            exc,
+        )
+        return empty
+    as_of = mrow[0] if mrow else None
+    if as_of is None:
+        return empty
+
+    def _f(v) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    # Top holdings for the latest month, heaviest weight first.
+    holdings: list[FundPortfolioHolding] = []
+    try:
+        hrows = db.execute(
+            text(
+                """
+                SELECT isin, instrument, weight_pct, asset_class, sector,
+                       mcap_bucket, change_3m_pct
+                FROM fund_holdings
+                WHERE scheme_code = :sc AND as_of_month = :m
+                ORDER BY (weight_pct IS NULL) ASC, weight_pct DESC
+                """
+            ),
+            {"sc": scheme_code, "m": as_of},
+        ).fetchall()
+    except Exception as exc:
+        logger.info("funds: holdings rows fetch failed for %s: %s", scheme_code, exc)
+        return empty
+    if not hrows:
+        return empty
+    for r in hrows:
+        holdings.append(
+            FundPortfolioHolding(
+                isin=r[0],
+                instrument=r[1],
+                weight_pct=_f(r[2]),
+                asset_class=r[3],
+                sector=r[4],
+                mcap_bucket=r[5],
+                change_3m_pct=_f(r[6]),
+            )
+        )
+
+    # Roll up allocations by asset_class / sector / mcap_bucket.
+    def _rollup(key_attr: str) -> list[FundAllocationSlice]:
+        agg: dict[str, float] = {}
+        for h in holdings:
+            label = getattr(h, key_attr)
+            if not label:
+                continue
+            agg[label] = agg.get(label, 0.0) + (h.weight_pct or 0.0)
+        return [
+            FundAllocationSlice(label=k, weight_pct=round(v, 4))
+            for k, v in sorted(agg.items(), key=lambda kv: kv[1], reverse=True)
+        ]
+
+    return FundPortfolio(
+        updating=False,
+        as_of_month=as_of,
+        holdings_count=len(holdings),
+        holdings=holdings[:25],  # surface the top 25; full set behind ingester
+        asset_allocation=_rollup("asset_class"),
+        sector_allocation=_rollup("sector"),
+        mcap_allocation=_rollup("mcap_bucket"),
     )
 
 
@@ -636,7 +972,9 @@ def get_fund(scheme_code: str) -> FundDetailResponse:
         benchmark_history = _fetch_benchmark_monthly(
             db, fund.benchmark_index_code, window_start
         )
-        metrics = _fetch_returns_cache(db, scheme_code)
+        metrics, risk = _fetch_returns_cache(db, scheme_code)
+        category_stats = _fetch_category_stats(db, fund.sub_category)
+        portfolio = _fetch_portfolio(db, scheme_code)
     finally:
         _safe_close(db)
 
@@ -645,4 +983,38 @@ def get_fund(scheme_code: str) -> FundDetailResponse:
         nav_history=nav_history,
         benchmark_history=benchmark_history,
         metrics=metrics,
+        risk=risk,
+        category_stats=category_stats,
+        portfolio=portfolio,
     )
+
+
+@router.get("/{scheme_code}/peers", response_model=FundPeersResponse)
+def get_fund_peers(scheme_code: str) -> FundPeersResponse:
+    """Same-sub_category peers + a category-average row for /funds/[code].
+
+    Returns up to 3 peer funds in the same sub_category (self excluded),
+    ordered by fund_score DESC as a STABLE display ordering only (NOT a
+    ranking verdict), followed by a category-average pseudo-row. Strictly
+    comparative context — no recommendation language. 404 only when the
+    scheme_code is unknown; an empty peer list (no sub_category, or no
+    peers) returns 200 with peers=[].
+    """
+    if not scheme_code or not scheme_code.isalnum() or len(scheme_code) > 16:
+        raise HTTPException(status_code=400, detail="Invalid scheme_code.")
+
+    db = _open_session()
+    if db is None:
+        raise HTTPException(status_code=503, detail="Data layer unavailable.")
+    try:
+        fund = _fetch_fund(db, scheme_code)
+        if fund is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No fund with scheme_code '{scheme_code}'.",
+            )
+        peers = _fetch_peers(db, scheme_code, fund.sub_category, limit=3)
+    finally:
+        _safe_close(db)
+
+    return FundPeersResponse(sub_category=fund.sub_category, peers=peers)
