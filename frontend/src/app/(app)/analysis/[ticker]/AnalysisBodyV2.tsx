@@ -41,6 +41,9 @@ import ChromeHeaderV2 from "./v2/ChromeHeaderV2"
 import DecisionBoxV2 from "./v2/DecisionBoxV2"
 import JumpNavV2, { type JumpNavItem } from "./v2/JumpNavV2"
 import type { SpectrumAxisReal } from "./v2/SpectrumV2"
+import SectionPeersV2 from "./v2/SectionPeersV2"
+import SectionReturnsV2 from "./v2/SectionReturnsV2"
+import SectionRiskV2 from "./v2/SectionRiskV2"
 
 /* ------------------------------------------------------------------ */
 /*  Axis derivation — mirrors backend/services/analysis/hex_axes.py    */
@@ -154,15 +157,17 @@ function StubSection({ id, num, title }: { id: string; num: string; title: strin
   )
 }
 
-/** The not-yet-built sections, in scroll order. Each is a JumpNav anchor. */
+/**
+ * The not-yet-built sections, in scroll order. Each is a JumpNav anchor.
+ * Risk (06), Returns, and Peers (08) are NO LONGER stubs — they render
+ * as the real SectionRiskV2 / SectionReturnsV2 / SectionPeersV2 below.
+ */
 const STUB_SECTIONS: { id: string; num: string; title: string }[] = [
   { id: "sec-thesis", num: "02", title: "Thesis" },
   { id: "sec-business", num: "03", title: "Business" },
   { id: "sec-financials", num: "04", title: "Financials" },
   { id: "sec-valuation", num: "05", title: "Valuation" },
-  { id: "sec-risk", num: "06", title: "Risk" },
   { id: "sec-ownership", num: "07", title: "Ownership" },
-  { id: "sec-peers", num: "08", title: "Peers" },
   { id: "sec-news", num: "09", title: "News" },
 ]
 
@@ -220,12 +225,27 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
     signals.redFlags,
   )
 
-  // JumpNav anchors — only sections that actually exist in v2 so far:
-  // the spine "Answer" (the Decision Box) + the titled stubs below.
+  // JumpNav anchors in scroll order — the spine "Answer" (Decision Box),
+  // the titled stubs, and the three REAL sections built in this PR
+  // (Risk, Returns, Peers) interleaved at their scroll positions.
   const jumpItems: JumpNavItem[] = [
     { id: "sec-answer", label: "Answer" },
-    ...STUB_SECTIONS.map((s) => ({ id: s.id, label: s.title })),
+    { id: "sec-thesis", label: "Thesis" },
+    { id: "sec-business", label: "Business" },
+    { id: "sec-financials", label: "Financials" },
+    { id: "sec-valuation", label: "Valuation" },
+    { id: "sec-returns", label: "Returns" },
+    { id: "sec-risk", label: "Risk" },
+    { id: "sec-ownership", label: "Ownership" },
+    { id: "sec-peers", label: "Peers" },
+    { id: "sec-news", label: "News" },
   ]
+
+  /** Render one stub by id (skips any whose real section replaced it). */
+  const stub = (id: string) => {
+    const s = STUB_SECTIONS.find((x) => x.id === id)
+    return s ? <StubSection key={s.id} id={s.id} num={s.num} title={s.title} /> : null
+  }
 
   return (
     <div className="mx-auto max-w-[1060px] px-3 pb-16 pt-3 md:px-5">
@@ -247,9 +267,18 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
         verdictLayerOn={verdictLayerOn}
       />
 
-      {STUB_SECTIONS.map((s) => (
-        <StubSection key={s.id} id={s.id} num={s.num} title={s.title} />
-      ))}
+      {/* Scroll order: stubs interleaved with the three REAL sections
+          built in this PR. Returns → Risk → (Ownership) → Peers mirror
+          the locked demo's ordering. */}
+      {stub("sec-thesis")}
+      {stub("sec-business")}
+      {stub("sec-financials")}
+      {stub("sec-valuation")}
+      <SectionReturnsV2 ticker={ticker} />
+      <SectionRiskV2 data={data} />
+      {stub("sec-ownership")}
+      <SectionPeersV2 ticker={ticker} />
+      {stub("sec-news")}
     </div>
   )
 }
