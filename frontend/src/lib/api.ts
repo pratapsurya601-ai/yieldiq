@@ -1782,6 +1782,7 @@ import type {
   FundCategoriesResponse,
   FundDetailResponse,
   FundListResponse,
+  FundPeersResponse,
 } from "@/types/api"
 
 export const getFund = (scheme_code: string): Promise<FundDetailResponse> =>
@@ -1840,6 +1841,25 @@ export async function fetchFundCategoriesSSR(): Promise<FundCategoriesResponse> 
     return (await res.json()) as FundCategoriesResponse
   } catch {
     return { categories: [] }
+  }
+}
+
+// Peers + category-average block for the fund detail page's Peers tab.
+// Lives behind its own endpoint (parallel backend PR). Returns an empty
+// shape on 404 / network failure so the Peers tab renders a clean empty
+// state instead of throwing — the page must ship before this lights up.
+export async function fetchFundPeersSSR(
+  scheme_code: string,
+): Promise<FundPeersResponse> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/v1/funds/${encodeURIComponent(scheme_code)}/peers`,
+      { next: { revalidate: 300 } },
+    )
+    if (!res.ok) return { peers: [], category_stats: null }
+    return (await res.json()) as FundPeersResponse
+  } catch {
+    return { peers: [], category_stats: null }
   }
 }
 
