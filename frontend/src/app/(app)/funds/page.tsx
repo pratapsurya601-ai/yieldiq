@@ -1,19 +1,25 @@
 /**
- * /funds — mutual-fund browse hub.
+ * /funds — mutual-fund browse HUB.
  *
  * Server component. Reads `q` (search scheme name / AMC) and `category`
- * from searchParams, fetches the filtered scheme list + the category
- * chips, and renders a rich card grid linking into the detail page.
+ * from searchParams. Two states:
  *
- * Redesign (2026-06-15): the hub now LEADS with what retail searches —
- * a curated equity-first chip row (Large Cap, Mid Cap, …, Debt) sits
- * above the raw AMFI-category chips, so users no longer land on
- * obscure debt schemes by default. Cards carry real numbers (YieldIQ
- * Fund Score, 1Y return, expense ratio, Riskometer) instead of being
- * click-to-learn stubs. Search filters live as you type (see
- * FundsSearchInput). No advisory copy — only AMC-published category
- * labels and the SEBI Riskometer chip; past-performance disclaimer at
- * the foot of the page.
+ *   • BARE (no q, no category) — the redesigned hub: an editorial hero
+ *     with animated identity counters, the funds-scoped search, a
+ *     curated equity-first chip row, the animated category mosaic
+ *     (true census), a fund-house rail, a self-hiding riskometer
+ *     spectrum, and a sample "Schemes A–Z" card grid. Rich on first
+ *     paint — never an empty "search to browse" prompt.
+ *
+ *   • FILTERED (q and/or category) — the results view: the matched
+ *     schemes as rich FundCards (YieldIQ Fund Score, 1Y return, expense
+ *     ratio, Riskometer), with the active chips highlighted.
+ *
+ * Redesign (2026-06-16): the hub LEADS with real content built only
+ * from identity fields that fill at scale (name / AMC / category /
+ * riskometer / total), so the default landing is full of browsable
+ * facts. No advisory copy — only AMC-published category labels and the
+ * SEBI Riskometer chip; past-performance disclaimer at the foot.
  */
 import type { Metadata } from "next"
 import Link from "next/link"
@@ -21,7 +27,11 @@ import Link from "next/link"
 import { fetchFundCategoriesSSR, fetchFundListSSR } from "@/lib/api"
 import { RevealStagger } from "@/components/motion"
 import FundsSearchInput from "./FundsSearchInput"
+import FundsHero from "./FundsHero"
+import FundsHubBrowse from "./FundsHubBrowse"
 import FundCard, { type FundCardItem, compactCategory } from "./FundCard"
+
+export const revalidate = 300
 
 const MAX_CHIPS = 12
 
@@ -31,9 +41,6 @@ const MAX_CHIPS = 12
 // category string the API filters on (exact `category =` match) by
 // keyword-matching the categories endpoint at request time — so we
 // never hard-code a string that might drift from what's in the DB.
-// `match` is tested against the lowercased raw category; the first
-// matching raw category wins, and `exclude` guards against a broader
-// keyword swallowing a narrower bucket (e.g. "cap" matching too much).
 interface FriendlyChip {
   label: string
   match: (raw: string) => boolean
@@ -120,13 +127,11 @@ export default async function FundsLanding({ searchParams }: Props) {
   const sp = await searchParams
   const q = typeof sp.q === "string" ? sp.q : ""
   const category = typeof sp.category === "string" ? sp.category : ""
-
-  // Search-led suggestions: the bare /funds landing (no q, no category)
-  // shows the search box + category chips but NOT a default card grid —
-  // we don't surface fund "picks" until the user actively searches or
-  // picks a category. This also skips the list fetch on the landing.
   const filtered = Boolean(q || category)
 
+  // The categories census powers the hero counters, the curated chips,
+  // the raw-category chip row, and the mosaic — one cached call. The
+  // filtered list is fetched only when a search/category is active.
   const [{ funds, total }, { categories }] = await Promise.all([
     filtered
       ? fetchFundListSSR(48, q || undefined, category || undefined)
@@ -134,9 +139,6 @@ export default async function FundsLanding({ searchParams }: Props) {
     fetchFundCategoriesSSR(),
   ])
 
-  // The list endpoint already returns the contract metrics per item
-  // (ret_1y / yieldiq_fund_score / ter); widen to the card shape so the
-  // cards can read them (see FundCard.FundCardItem).
   const cards = funds as FundCardItem[]
 
   const rawCategories = categories.map((c) => c.category)
@@ -145,94 +147,131 @@ export default async function FundsLanding({ searchParams }: Props) {
     value: resolveFriendly(chip, rawCategories),
   })).filter((c): c is { label: string; value: string } => c.value !== null)
 
-  // Raw AMFI chips, biggest buckets first, shown with compact labels.
   const rawChips = categories.slice(0, MAX_CHIPS)
-  // Total scheme count for the landing prompt (summed from the category
-  // counts so the landing never has to fetch the full list).
+
+  // Identity aggregates for the hero — all from the census, never null.
   const totalSchemes = categories.reduce((sum, c) => sum + (c.count ?? 0), 0)
+  const categoryCount = categories.length
+  // Census is ordered biggest-bucket-first, so [0] is the largest.
+  const largestCategory = categories[0] ?? null
+  const largestCategoryCount = largestCategory?.count ?? 0
+  const largestCategoryLabel = largestCategory
+    ? compactCategory(largestCategory.category)
+    : ""
+
+  // The curated + raw chip rows, reused in both states (above the search
+  // in filtered state, below the hero in the hub state).
+  const chipRows =
+    friendly.length > 0 || rawChips.length > 0 ? (
+      <div className="space-y-1.5">
+        {friendly.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            <CategoryChip href="/funds" label="All Funds" active={!category} />
+            {friendly.map((c) => (
+              <CategoryChip
+                key={c.label}
+                href={`/funds?category=${encodeURIComponent(c.value)}`}
+                label={c.label}
+                active={category === c.value}
+              />
+            ))}
+          </div>
+        ) : null}
+        {rawChips.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {rawChips.map((c) => (
+              <CategoryChip
+                key={c.category}
+                href={`/funds?category=${encodeURIComponent(c.category)}`}
+                label={compactCategory(c.category)}
+                count={c.count}
+                active={category === c.category}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    ) : null
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-          Mutual Funds
-        </h1>
-        <p className="mt-1 text-sm text-caption">
-          Browse Indian mutual-fund schemes with YieldIQ Fund Score, 1-year
-          return, expense ratio and the SEBI Riskometer — facts, no fund picks.
-        </p>
-      </header>
-
-      <FundsSearchInput defaultQuery={q} category={category} />
-
-      {/* Equity-first curated chips — lead with what retail searches. */}
-      {friendly.length > 0 ? (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          <CategoryChip href="/funds" label="All Funds" active={!category} />
-          {friendly.map((c) => (
-            <CategoryChip
-              key={c.label}
-              href={`/funds?category=${encodeURIComponent(c.value)}`}
-              label={c.label}
-              active={category === c.value}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {/* Raw AMFI categories (compact labels), largest buckets first. */}
-      {rawChips.length > 0 ? (
-        <div className="mb-5 flex flex-wrap gap-1.5">
-          {rawChips.map((c) => (
-            <CategoryChip
-              key={c.category}
-              href={`/funds?category=${encodeURIComponent(c.category)}`}
-              label={compactCategory(c.category)}
-              count={c.count}
-              active={category === c.category}
-            />
-          ))}
-        </div>
-      ) : null}
-
+    <main className="mx-auto max-w-6xl space-y-12 px-4 py-8 sm:px-6 md:space-y-16 lg:px-8">
       {!filtered ? (
-        <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
-          Search by scheme name or AMC, or pick a category above, to browse
-          {totalSchemes > 0 ? ` ${totalSchemes.toLocaleString("en-IN")}` : ""} schemes.
-        </div>
-      ) : cards.length === 0 ? (
-        <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
-          No schemes match this search. Try a different name, AMC, or category.
-        </div>
-      ) : (
+        // ── HUB (bare landing) ──────────────────────────────────────
         <>
-          <div className="mb-3 text-xs text-caption">
-            Showing {cards.length} of {total.toLocaleString("en-IN")} matching schemes.
-          </div>
-          {/*
-            threshold={0} is load-bearing: this grid is ~16 rows tall, so
-            RevealStagger's default 0.15 in-view threshold (15% of the
-            wrapper) never fits in the viewport at the top — inView would
-            never fire and every card would stay opacity-0 on load. With 0
-            the stagger reveals as soon as the grid's top edge enters view
-            (i.e. immediately). The cards are the page's primary content;
-            they must not depend on a deep scroll to render.
-          */}
-          <RevealStagger
-            className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3"
-            staggerMs={15}
-            threshold={0}
+          <FundsHero
+            total={totalSchemes}
+            categoryCount={categoryCount}
+            largestCategoryCount={largestCategoryCount}
+            largestCategoryLabel={largestCategoryLabel}
           >
-            {cards.map((f) => (
-              <FundCard key={f.scheme_code} fund={f} />
-            ))}
-          </RevealStagger>
+            <div className="space-y-3">
+              <FundsSearchInput defaultQuery={q} category={category} />
+              {chipRows}
+            </div>
+          </FundsHero>
+
+          <FundsHubBrowse
+            categories={categories.map((c) => ({
+              category: c.category,
+              count: c.count,
+            }))}
+          />
         </>
+      ) : (
+        // ── FILTERED (results view) ─────────────────────────────────
+        <div className="space-y-6">
+          <header className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+              Mutual Funds
+            </h1>
+            <p className="text-sm text-caption">
+              Browse Indian mutual-fund schemes with YieldIQ Fund Score, 1-year
+              return, expense ratio and the SEBI Riskometer — facts, no fund
+              picks.
+            </p>
+          </header>
+
+          <div className="space-y-3">
+            <FundsSearchInput defaultQuery={q} category={category} />
+            {chipRows}
+          </div>
+
+          {cards.length === 0 ? (
+            <div className="rounded-lg border border-border bg-raised p-6 text-sm text-caption">
+              No schemes match this search. Try a different name, AMC, or
+              category.
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-caption">
+                Showing {cards.length} of {total.toLocaleString("en-IN")} matching
+                schemes.
+              </div>
+              {/*
+                threshold={0} is load-bearing: this grid is tall, so
+                RevealStagger's default 0.15 in-view threshold never fits
+                in the viewport at the top and every card would stay
+                opacity-0 on load (memory #939). With 0 the stagger
+                reveals as soon as the grid's top edge enters view.
+              */}
+              <RevealStagger
+                className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                staggerMs={15}
+                threshold={0}
+              >
+                {cards.map((f) => (
+                  <FundCard key={f.scheme_code} fund={f} />
+                ))}
+              </RevealStagger>
+            </>
+          )}
+        </div>
       )}
 
-      <footer className="mt-8 rounded-lg border border-tone-warn-bd bg-tone-warn-bg p-4 text-xs leading-relaxed text-tone-warn-fg">
-        Past performance is not indicative of future returns. Mutual fund investments
-        are subject to market risks; read all scheme-related documents carefully.
+      <footer className="rounded-lg border border-tone-warn-bd bg-tone-warn-bg p-4 text-xs leading-relaxed text-tone-warn-fg">
+        Past performance is not indicative of future returns. Mutual fund
+        investments are subject to market risks; read all scheme-related
+        documents carefully.
       </footer>
     </main>
   )

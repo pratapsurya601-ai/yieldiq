@@ -20,9 +20,10 @@
  */
 import Link from "next/link"
 
-import type { FundListItem, FundRiskometerLevel } from "@/types/api"
+import type { FundListItem } from "@/types/api"
 import AmcAvatar from "@/components/common/AmcAvatar"
 import { HoverCard } from "@/components/motion"
+import { RISKOMETER_TONE } from "@/lib/fund-riskometer"
 
 // ── Contract shape ──────────────────────────────────────────────────
 // The base `FundListItem` type in types/api.ts has not yet grown the
@@ -40,18 +41,6 @@ export interface FundCardItem extends FundListItem {
   /** Expense ratio in PERCENT (1.06 = 1.06%) — prefers Direct
    *  (COALESCE(ter_direct, ter_regular)). Rendered verbatim, NOT ×100. */
   ter?: number | null
-}
-
-const RISKOMETER_COLORS: Record<
-  FundRiskometerLevel,
-  { bg: string; text: string; label: string }
-> = {
-  Low: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Low" },
-  LowToModerate: { bg: "bg-lime-100", text: "text-lime-800", label: "Low to Moderate" },
-  Moderate: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Moderate" },
-  ModeratelyHigh: { bg: "bg-amber-100", text: "text-amber-900", label: "Moderately High" },
-  High: { bg: "bg-orange-100", text: "text-orange-900", label: "High" },
-  VeryHigh: { bg: "bg-red-100", text: "text-red-800", label: "Very High" },
 }
 
 // Lowercase connector words kept lowercase when Title-Casing a name
@@ -186,13 +175,14 @@ export function compactCategory(raw: string | null | undefined): string {
     .join(" ")
 }
 
-// YieldIQ Fund Score chip tint — a coarse emerald→amber→rose ramp so a
-// strong score reads at a glance without implying a recommendation.
-function scoreTint(score: number): string {
-  if (score >= 75) return "bg-emerald-100 text-emerald-800"
-  if (score >= 60) return "bg-lime-100 text-lime-800"
-  if (score >= 45) return "bg-amber-100 text-amber-900"
-  return "bg-rose-100 text-rose-800"
+// YieldIQ Fund Score chip tint — a coarse good→warn→bad token ramp so a
+// high score reads at a glance as a neutral, descriptive marker. Tokens
+// (not raw palette) so the chip follows dark mode + the design system.
+export function scoreTint(score: number): string {
+  if (score >= 75) return "bg-tone-good-bg text-tone-good-fg"
+  if (score >= 60) return "bg-tone-good-bg text-tone-good-fg"
+  if (score >= 45) return "bg-tone-warn-bg text-tone-warn-fg"
+  return "bg-tone-bad-bg text-tone-bad-fg"
 }
 
 // IMPORTANT — ret_1y and ter no longer share units.
@@ -232,7 +222,7 @@ export function fmtTerPct(ter: number): string | null {
 }
 
 export default function FundCard({ fund }: { fund: FundCardItem }) {
-  const risk = fund.riskometer_level ? RISKOMETER_COLORS[fund.riskometer_level] : null
+  const risk = fund.riskometer_level ? RISKOMETER_TONE[fund.riskometer_level] : null
   const name = normalizeFundName(fund.scheme_name)
   const category = compactCategory(fund.category)
   const score = typeof fund.yieldiq_fund_score === "number" ? fund.yieldiq_fund_score : null
@@ -277,7 +267,7 @@ export default function FundCard({ fund }: { fund: FundCardItem }) {
           ) : null}
           {risk ? (
             <span
-              className={`rounded-full ${risk.bg} ${risk.text} px-2 py-0.5 text-[11px] font-medium`}
+              className={`rounded-full ${risk.cls} px-2 py-0.5 text-[11px] font-medium`}
             >
               {risk.label}
             </span>
