@@ -23,7 +23,7 @@ import os
 import sys
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlalchemy import text
@@ -69,7 +69,7 @@ def _load_risk_free(session) -> float:
 def _fetch_scheme_list(session, limit: Optional[int], scheme: Optional[str]) -> list[dict]:
     if scheme:
         q = text(
-            "SELECT scheme_code, category, benchmark_index_code, inception_date "
+            "SELECT scheme_code, category, sub_category, benchmark_index_code, inception_date "
             "FROM funds WHERE scheme_code = :sc"
         )
         rows = session.execute(q, {"sc": scheme}).mappings().fetchall()
@@ -79,7 +79,7 @@ def _fetch_scheme_list(session, limit: Optional[int], scheme: Optional[str]) -> 
         # (the funds table has ~14k rows; only a small subset has been
         # ingested into fund_nav_history so far).
         q = text(
-            "SELECT f.scheme_code, f.category, f.benchmark_index_code, f.inception_date "
+            "SELECT f.scheme_code, f.category, f.sub_category, f.benchmark_index_code, f.inception_date "
             "FROM funds f "
             "WHERE f.is_active = TRUE "
             "  AND EXISTS (SELECT 1 FROM fund_nav_history n "
@@ -179,6 +179,167 @@ _UPSERT_SQL = text(
 )
 
 
+_CATEGORY_STATS_UPSERT_SQL = text(
+    """
+    INSERT INTO fund_category_stats (
+        sub_category, updated_at, cache_version,
+        median_cagr_1y, median_cagr_3y, median_cagr_5y,
+        avg_cagr_1y, avg_cagr_3y, avg_cagr_5y,
+        avg_ter, avg_sharpe_3y, avg_stdev_3y, avg_max_drawdown_3y,
+        n_funds
+    ) VALUES (
+        :sub_category, :updated_at, :cache_version,
+        :median_cagr_1y, :median_cagr_3y, :median_cagr_5y,
+        :avg_cagr_1y, :avg_cagr_3y, :avg_cagr_5y,
+        :avg_ter, :avg_sharpe_3y, :avg_stdev_3y, :avg_max_drawdown_3y,
+        :n_funds
+    )
+    ON CONFLICT (sub_category) DO UPDATE SET
+        updated_at = EXCLUDED.updated_at,
+        cache_version = EXCLUDED.cache_version,
+        median_cagr_1y = EXCLUDED.median_cagr_1y,
+        median_cagr_3y = EXCLUDED.median_cagr_3y,
+        median_cagr_5y = EXCLUDED.median_cagr_5y,
+        avg_cagr_1y = EXCLUDED.avg_cagr_1y,
+        avg_cagr_3y = EXCLUDED.avg_cagr_3y,
+        avg_cagr_5y = EXCLUDED.avg_cagr_5y,
+        avg_ter = EXCLUDED.avg_ter,
+        avg_sharpe_3y = EXCLUDED.avg_sharpe_3y,
+        avg_stdev_3y = EXCLUDED.avg_stdev_3y,
+        avg_max_drawdown_3y = EXCLUDED.avg_max_drawdown_3y,
+        n_funds = EXCLUDED.n_funds
+    """
+)
+
+
+def _nanaware(values: list) -> "Optional[list]":
+    """Filter a metric list down to finite floats; return None if empty."""
+    import math
+
+    out = []
+    for v in values:
+        if v is None:
+            continue
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(fv) or math.isinf(fv):
+            continue
+        out.append(fv)
+    return out or None
+
+
+def recompute_category_stats(
+    session,
+    per_scheme: dict[str, dict],
+    *,
+    cache_version: str = ACTIVE_CACHE_VERSION,
+) -> dict:
+    """Pass-3: aggregate the already-computed per-scheme metrics by
+    funds.sub_category and UPSERT one row per sub_category into
+    fund_category_stats.
+
+    Groups the in-memory pass-1/2 results (no extra NAV reads), computes
+    median/avg via numpy for cagr_1y (== ret_1y) / cagr_3y / cagr_5y and
+    avg sharpe_3y / stdev_3y / max_dd_3y. ``avg_ter`` is left NULL (TER is
+    not in the compute objects — never fabricated). n_funds counts schemes
+    contributing at least one non-null metric.
+
+    SOFT-FAILS: if fund_category_stats isn't migrated yet (or any UPSERT
+    raises), the exception is logged and swallowed so the daily cron's
+    primary fund_returns_cache write is never jeopardised.
+    """
+    import numpy as np
+
+    # Bucket per-scheme metric lists by sub_category.
+    buckets: dict[str, dict[str, list]] = defaultdict(
+        lambda: {
+            "cagr_1y": [], "cagr_3y": [], "cagr_5y": [],
+            "sharpe_3y": [], "stdev_3y": [], "max_dd_3y": [],
+            "schemes": set(),
+        }
+    )
+    for sc, rec in per_scheme.items():
+        if rec.get("skip"):
+            continue
+        sub = rec.get("sub_category")
+        if not sub:
+            continue
+        ret = rec["returns"]
+        risk = rec["risk"]
+        b = buckets[sub]
+        # cagr_1y == trailing 1y return by definition (compute objects have
+        # ret_1y but no separate cagr_1y).
+        for key, val in (
+            ("cagr_1y", ret.ret_1y),
+            ("cagr_3y", ret.cagr_3y),
+            ("cagr_5y", ret.cagr_5y),
+            ("sharpe_3y", risk.sharpe_3y),
+            ("stdev_3y", risk.stdev_3y),
+            ("max_dd_3y", risk.max_dd_3y),
+        ):
+            if val is not None:
+                b[key].append(val)
+                b["schemes"].add(sc)
+
+    written = skipped = 0
+    for sub, b in buckets.items():
+        try:
+            def _median(key: str):
+                vals = _nanaware(b[key])
+                return float(np.median(np.asarray(vals))) if vals else None
+
+            def _avg(key: str):
+                vals = _nanaware(b[key])
+                return float(np.mean(np.asarray(vals))) if vals else None
+
+            n_funds = len(b["schemes"])
+            if n_funds == 0:
+                continue
+            params = {
+                "sub_category": sub,
+                # Bound (not SQL now()) so the same statement runs on
+                # Postgres (prod) and SQLite (tests). UTC, tz-aware.
+                "updated_at": datetime.now(timezone.utc),
+                "cache_version": cache_version,
+                "median_cagr_1y": _median("cagr_1y"),
+                "median_cagr_3y": _median("cagr_3y"),
+                "median_cagr_5y": _median("cagr_5y"),
+                "avg_cagr_1y": _avg("cagr_1y"),
+                "avg_cagr_3y": _avg("cagr_3y"),
+                "avg_cagr_5y": _avg("cagr_5y"),
+                # TER not in compute objects — NEVER fabricated. Leave NULL.
+                "avg_ter": None,
+                "avg_sharpe_3y": _avg("sharpe_3y"),
+                "avg_stdev_3y": _avg("stdev_3y"),
+                "avg_max_drawdown_3y": _avg("max_dd_3y"),
+                "n_funds": n_funds,
+            }
+            session.execute(_CATEGORY_STATS_UPSERT_SQL, params)
+            session.commit()
+            written += 1
+        except Exception as exc:
+            # Most common cause: fund_category_stats not migrated yet. Log
+            # and carry on — pass-3 must never poison the primary cache write.
+            logger.warning(
+                "category_stats_upsert_failed",
+                extra={
+                    "sub_category": sub,
+                    "exception_type": type(exc).__name__,
+                },
+            )
+            try:
+                session.rollback()
+            except Exception:
+                pass
+            skipped += 1
+    logger.info(
+        "recompute_category_stats done: written=%d skipped=%d", written, skipped
+    )
+    return {"written": written, "skipped": skipped}
+
+
 def recompute_all(
     session,
     *,
@@ -228,6 +389,7 @@ def recompute_all(
             per_scheme[sc] = {
                 "skip": False,
                 "category": s.get("category"),
+                "sub_category": s.get("sub_category"),
                 "returns": ret,
                 "risk": risk,
             }
@@ -357,7 +519,36 @@ def recompute_all(
             skipped += 1
     logger.info("recompute_all done: written=%d skipped=%d (%.1fs)",
                 written, skipped, time.time() - t0)
-    return {"processed": len(schemes), "written": written, "skipped": skipped}
+
+    # Pass 3 — per-sub_category category stats. Rides the existing cron.
+    # Skipped in --scheme mode (a single scheme can't form a meaningful
+    # category aggregate, and we must not overwrite a full-cohort row with
+    # a one-scheme one). Soft-fails so a missing fund_category_stats table
+    # (migration not yet applied) never breaks the primary cache write.
+    cat_stats = {"written": 0, "skipped": 0}
+    if scheme is None:
+        try:
+            cat_stats = recompute_category_stats(
+                session, per_scheme, cache_version=cache_version
+            )
+        except Exception as exc:
+            logger.warning(
+                "recompute_category_stats pass soft-failed: %s "
+                "(table may not be migrated yet)",
+                exc,
+            )
+            try:
+                session.rollback()
+            except Exception:
+                pass
+
+    return {
+        "processed": len(schemes),
+        "written": written,
+        "skipped": skipped,
+        "category_stats_written": cat_stats.get("written", 0),
+        "category_stats_skipped": cat_stats.get("skipped", 0),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
