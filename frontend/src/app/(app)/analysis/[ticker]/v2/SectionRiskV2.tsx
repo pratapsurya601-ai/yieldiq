@@ -13,10 +13,11 @@
  *
  * Data — both fields ship on the base `getAnalysis` payload already
  * loaded by AnalysisBodyV2 (there is no separate risk endpoint), so this
- * section consumes `data` directly rather than firing its own query. The
- * IntersectionObserver (useInViewOnce) is used only to defer the dot
- * pop-in animation until the section is scrolled into view — no network
- * fan-out happens here.
+ * section consumes `data` directly rather than firing its own query.
+ * IntersectionObserver gating is still present, but only to defer the
+ * reveal animations until scrolled into view — the dot pop-in via
+ * `useStageClock` and the worry-score `CountUp` both fire on first view,
+ * never on mount. No network fan-out happens here.
  *   - worry index ← data.worry_index { score, tier, headline,
  *                                      contributors[]{label, score, detail} }
  *   - risk dots   ← data.insights.red_flags_structured[]
