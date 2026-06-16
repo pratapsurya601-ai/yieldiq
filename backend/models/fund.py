@@ -279,16 +279,25 @@ class FundDetailResponse(BaseModel):
 
 
 class FundListItem(BaseModel):
-    """Compact projection used by the /api/v1/funds index endpoint.
+    """Metrics-in-row projection used by the /api/v1/funds screener.
 
-    The trailing three metric fields (`ret_1y`, `yieldiq_fund_score`,
-    `ter`) are LEFT-JOINed in from `fund_returns_cache` so the hub cards
-    can lead with real numbers instead of em-dashes. They are nullable:
-    a fund with no cache row (Phase 2 not yet computed for it, or the
-    cache table absent entirely) returns nulls here rather than being
-    dropped from the grid. `ter` prefers the Direct-plan TER
-    (COALESCE(ter_direct, ter_regular)) since the list defaults to the
-    Direct-Growth variant.
+    The metric fields are LEFT-JOINed in from `fund_returns_cache` so the
+    sortable screener table can lead with real numbers instead of
+    em-dashes. They are nullable: a fund with no cache row (Phase 2 not
+    yet computed for it, or the cache table absent entirely) returns
+    nulls here rather than being dropped from the grid.
+
+    Returns (`ret_1y` / `ret_3y` / `ret_5y` / `ret_10y`) carry the RAW
+    STORED values from `fund_returns_cache` — cumulative trailing returns
+    as decimal fractions. The server does NOT annualize them: the
+    frontend annualizes for display, and sorting by the cumulative value
+    yields the identical ordering to sorting by the annualized value, so
+    the `sort=ret_*` columns are correct on the raw stored numbers.
+
+    `ter_direct` is the Direct-plan expense ratio (PERCENT, raw column);
+    `ter` is the legacy COALESCE(ter_direct, ter_regular) field retained
+    for the existing hub cards. `yieldiq_fund_score` is the rule-based
+    composite (int 0..100).
     """
 
     scheme_code: str
@@ -298,13 +307,31 @@ class FundListItem(BaseModel):
     sub_category: Optional[str] = None
     riskometer_level: Optional[str] = None
     plan: Optional[str] = None
-    # ── LEFT-JOINed metrics (nullable; see class docstring) ──────────
-    ret_1y: Optional[float] = Field(None, description="Trailing 1-year return, percent.")
+    # ── LEFT-JOINed metrics-in-row (nullable; see class docstring) ───
     yieldiq_fund_score: Optional[int] = Field(
         None, ge=0, le=100, description="YieldIQ Fund Score (rule-based composite)."
     )
+    ret_1y: Optional[float] = Field(
+        None, description="Trailing 1-year return — raw stored cumulative fraction."
+    )
+    ret_3y: Optional[float] = Field(
+        None, description="Trailing 3-year return — raw stored cumulative fraction."
+    )
+    ret_5y: Optional[float] = Field(
+        None, description="Trailing 5-year return — raw stored cumulative fraction."
+    )
+    ret_10y: Optional[float] = Field(
+        None, description="Trailing 10-year return — raw stored cumulative fraction."
+    )
+    ter_direct: Optional[float] = Field(
+        None, description="Direct-plan expense ratio, percent."
+    )
     ter: Optional[float] = Field(
-        None, description="Expense ratio, percent — prefers Direct (ter_direct)."
+        None,
+        description=(
+            "Legacy expense-ratio field — COALESCE(ter_direct, ter_regular), "
+            "percent. Retained for the existing hub cards."
+        ),
     )
 
 
@@ -328,3 +355,18 @@ class FundCategoryCount(BaseModel):
 
 class FundCategoriesResponse(BaseModel):
     categories: list[FundCategoryCount] = Field(default_factory=list)
+
+
+class FundAmcCount(BaseModel):
+    """An AMC name + how many active (plan-deduped) schemes it runs.
+
+    Powers the screener's AMC filter dropdown so users can narrow the
+    sortable table to a single fund house.
+    """
+
+    amc: str
+    count: int
+
+
+class FundAmcsResponse(BaseModel):
+    amcs: list[FundAmcCount] = Field(default_factory=list)

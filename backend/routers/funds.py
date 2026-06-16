@@ -39,6 +39,8 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.models.fund import (
     Fund,
     FundAllocationSlice,
+    FundAmcCount,
+    FundAmcsResponse,
     FundBenchmarkPoint,
     FundCategoriesResponse,
     FundCategoryCount,
@@ -666,14 +668,19 @@ def _fetch_portfolio(db, scheme_code: str) -> FundPortfolio:
 def _index_where(
     q: Optional[str],
     category: Optional[str],
+    risk: Optional[str] = None,
+    amc: Optional[str] = None,
     dedupe_plans: bool = True,
 ) -> tuple[str, dict]:
     """Shared WHERE clause + binds for the index list and its count.
 
     Search is a case-insensitive substring on scheme_name OR amc, using
     LOWER(...) LIKE (portable across Postgres + SQLite — we avoid ILIKE,
-    which is Postgres-only). Category is an exact label match. All values
-    are parameterised; the dynamic part is only fixed clause text.
+    which is Postgres-only). Category is an exact label match. `risk` is
+    an exact riskometer_level match; `amc` is a case-insensitive
+    substring match on the AMC name (so "HDFC" matches "HDFC Mutual
+    Fund"). All four filters AND-combine. All values are parameterised;
+    the dynamic part is only fixed clause text.
 
     Plan dedupe (default ON): a single fund is sold as several
     plan/option permutations (Direct/Regular × Growth/IDCW/Bonus/…). For
@@ -699,6 +706,17 @@ def _index_where(
     if category and category.strip():
         clauses.append("category = :category")
         params["category"] = category.strip()
+    if risk and risk.strip():
+        # Exact match on the official Riskometer level (read verbatim from
+        # funds.riskometer_level — never recomputed). Case-sensitive on
+        # the stored canonical casing (e.g. "VeryHigh").
+        clauses.append("riskometer_level = :risk")
+        params["risk"] = risk.strip()
+    if amc and amc.strip():
+        # Case-insensitive substring on the AMC name so "HDFC" matches
+        # "HDFC Mutual Fund". Same portable LOWER(...) LIKE idiom as q.
+        clauses.append("LOWER(amc) LIKE :amc")
+        params["amc"] = f"%{amc.strip().lower()}%"
     if dedupe_plans:
         # Direct plan only…
         clauses.append("LOWER(plan) = :plan_direct")
@@ -725,9 +743,16 @@ def _row_to_list_item(r, with_metrics: bool) -> FundListItem:
     """Map a list-query row to FundListItem.
 
     The first seven columns are always the fund master projection; when
-    `with_metrics` is True the row also carries the three LEFT-JOINed
-    cache columns (ret_1y, yieldiq_fund_score, ter). Coercion is
-    defensive so a stray text/NUMERIC value never 500s the grid.
+    `with_metrics` is True the row also carries the LEFT-JOINed cache
+    columns in this fixed order:
+
+        7: ret_1y   8: ret_3y   9: ret_5y   10: ret_10y
+        11: yieldiq_fund_score   12: ter_direct
+        13: ter  (COALESCE(ter_direct, ter_regular))
+
+    Returns are surfaced RAW (cumulative decimal fractions) — no
+    server-side annualization. Coercion is defensive so a stray
+    text/NUMERIC value never 500s the grid.
     """
     def _f(idx: int) -> Optional[float]:
         if idx >= len(r) or r[idx] is None:
@@ -754,61 +779,122 @@ def _row_to_list_item(r, with_metrics: bool) -> FundListItem:
         riskometer_level=r[5],
         plan=r[6],
         ret_1y=_f(7) if with_metrics else None,
-        yieldiq_fund_score=_i(8) if with_metrics else None,
-        ter=_f(9) if with_metrics else None,
+        ret_3y=_f(8) if with_metrics else None,
+        ret_5y=_f(9) if with_metrics else None,
+        ret_10y=_f(10) if with_metrics else None,
+        yieldiq_fund_score=_i(11) if with_metrics else None,
+        ter_direct=_f(12) if with_metrics else None,
+        ter=_f(13) if with_metrics else None,
     )
+
+
+# ── Screener sort handling ─────────────────────────────────────────────
+#
+# `sort` selects the ORDER BY column; `order` is asc/desc. Every sort is
+# rendered NULLS LAST via the portable "(col IS NULL) ASC" idiom (0/1 on
+# both Postgres + SQLite — avoids the Postgres-only "NULLS LAST" keyword)
+# and always tie-breaks on scheme_name ASC for a stable, deterministic
+# page boundary under offset pagination.
+#
+# Each sort key maps to its qualified column. `name` sorts on the fund
+# master column; the rest sort on the LEFT-JOINed cache columns, so a
+# fund with no cache row sorts to the end regardless of `order`. `ter`
+# sorts on the raw ter_direct column (the screener's TER column).
+
+SORT_KEYS = ("name", "score", "ret_1y", "ret_3y", "ret_5y", "ret_10y", "ter")
+DEFAULT_SORT = "score"
+
+_SORT_COLUMN = {
+    "name": "f.scheme_name",
+    "score": "c.yieldiq_fund_score",
+    "ret_1y": "c.ret_1y",
+    "ret_3y": "c.ret_3y",
+    "ret_5y": "c.ret_5y",
+    "ret_10y": "c.ret_10y",
+    "ter": "c.ter_direct",
+}
+
+
+def _order_by_clause(sort: str, order: Optional[str]) -> str:
+    """Build the ORDER BY body for the screener.
+
+    Always NULLS LAST, always tie-broken on scheme_name ASC. `name`
+    defaults to ascending; every numeric column defaults to descending
+    (highest score / return first, cheapest TER... — note TER default is
+    still desc per the contract's uniform desc default, the frontend can
+    request asc). Returns the clause WITHOUT the leading "ORDER BY".
+    """
+    sort = sort if sort in _SORT_COLUMN else DEFAULT_SORT
+    col = _SORT_COLUMN[sort]
+    if order in ("asc", "desc"):
+        direction = order.upper()
+    else:
+        # Per-column default: name ascending, everything else descending.
+        direction = "ASC" if sort == "name" else "DESC"
+
+    if sort == "name":
+        # scheme_name is NOT NULL; no null-guard needed, no extra tiebreak.
+        return f"{col} {direction}"
+    # NULLS LAST via "(col IS NULL) ASC", then the chosen direction, then
+    # the stable scheme_name ASC tiebreak so pagination boundaries are
+    # deterministic across pages.
+    return f"({col} IS NULL) ASC, {col} {direction}, f.scheme_name ASC"
 
 
 def _fetch_index_funds(
     db,
     limit: int,
+    offset: int = 0,
     q: Optional[str] = None,
     category: Optional[str] = None,
+    risk: Optional[str] = None,
+    amc: Optional[str] = None,
+    sort: str = DEFAULT_SORT,
+    order: Optional[str] = None,
     dedupe_plans: bool = True,
 ) -> list[FundListItem]:
-    """Filtered card grid for /funds.
+    """Sortable, paginated, filtered screener rows for /funds.
 
-    Active funds matching the optional search + category filter. By
-    default the list collapses to one Direct-Growth row per fund (see
-    `_index_where`) and LEFT-JOINs `fund_returns_cache` so each card
-    carries ret_1y / yieldiq_fund_score / ter (COALESCE(ter_direct,
-    ter_regular)). Funds with no cache row keep null metrics rather than
-    being dropped (LEFT JOIN). Ordering leads with the YieldIQ Fund Score
-    (highest first, nulls last) so the hub surfaces quality funds, then
-    falls back to alphabetical by scheme_name for a stable tiebreak.
+    Active funds matching the optional q / category / risk / amc filters
+    (AND-combined). By default the list collapses to one Direct-Growth
+    row per fund (see `_index_where`) and LEFT-JOINs `fund_returns_cache`
+    so each row carries the metrics-in-row payload (score + ret_1y /
+    ret_3y / ret_5y / ret_10y + ter_direct). Funds with no cache row keep
+    null metrics rather than being dropped (LEFT JOIN).
+
+    Ordering is driven by `sort` + `order` (see `_order_by_clause`):
+    always NULLS LAST, always tie-broken on scheme_name ASC for a
+    deterministic page boundary under `offset` pagination.
 
     If `fund_returns_cache` does not exist yet (Phase 2 not merged in
     some orderings — the same condition the detail endpoint guards
     against), the JOIN query raises; we transparently fall back to the
-    plain master query (null metrics, alphabetical order) so the grid
-    never 500s and the Phase-3 contract still holds.
+    plain master query (null metrics, alphabetical order, still
+    offset-paginated) so the grid never 500s.
     """
     from sqlalchemy import text
 
-    where, params = _index_where(q, category, dedupe_plans=dedupe_plans)
+    where, params = _index_where(
+        q, category, risk=risk, amc=amc, dedupe_plans=dedupe_plans
+    )
     params["lim"] = limit
+    params["off"] = offset
+    order_by = _order_by_clause(sort, order)
 
-    # Portable NULLS-LAST: "(col IS NULL)" is 0/1 on both Postgres and
-    # SQLite, so ordering by it ascending pushes the nulls to the end
-    # before the DESC score sort. Avoids the Postgres-only "NULLS LAST"
-    # keyword. ret_1y is a secondary market-relevance tiebreak.
     joined_sql = text(
         f"""
         SELECT f.scheme_code, f.scheme_name, f.amc, f.category, f.sub_category,
                f.riskometer_level, f.plan,
-               c.ret_1y,
+               c.ret_1y, c.ret_3y, c.ret_5y, c.ret_10y,
                c.yieldiq_fund_score,
+               c.ter_direct,
                COALESCE(c.ter_direct, c.ter_regular) AS ter
         FROM funds f
         LEFT JOIN fund_returns_cache c
           ON c.scheme_code = f.scheme_code
         WHERE {where}
-        ORDER BY (c.yieldiq_fund_score IS NULL) ASC,
-                 c.yieldiq_fund_score DESC,
-                 (c.ret_1y IS NULL) ASC,
-                 c.ret_1y DESC,
-                 f.scheme_name ASC
-        LIMIT :lim
+        ORDER BY {order_by}
+        LIMIT :lim OFFSET :off
         """
     )
     try:
@@ -826,14 +912,18 @@ def _fetch_index_funds(
             exc,
         )
 
+    # Fallback path: no cache table. Only `name` ordering is meaningful
+    # (all metric columns are absent), so order on scheme_name regardless
+    # of the requested metric sort, honoring asc/desc when `name` was asked.
+    plain_dir = "DESC" if (sort == "name" and order == "desc") else "ASC"
     plain_sql = text(
         f"""
         SELECT scheme_code, scheme_name, amc, category, sub_category,
                riskometer_level, plan
         FROM funds
         WHERE {where}
-        ORDER BY scheme_name ASC
-        LIMIT :lim
+        ORDER BY scheme_name {plain_dir}
+        LIMIT :lim OFFSET :off
         """
     )
     try:
@@ -854,11 +944,17 @@ def _fetch_index_total(
     db,
     q: Optional[str] = None,
     category: Optional[str] = None,
+    risk: Optional[str] = None,
+    amc: Optional[str] = None,
     dedupe_plans: bool = True,
 ) -> int:
+    """FILTERED total (matches the same q/category/risk/amc + dedupe as
+    the list query) so the screener can show "N of M matching"."""
     from sqlalchemy import text
 
-    where, params = _index_where(q, category, dedupe_plans=dedupe_plans)
+    where, params = _index_where(
+        q, category, risk=risk, amc=amc, dedupe_plans=dedupe_plans
+    )
     try:
         row = db.execute(
             text(f"SELECT COUNT(*) FROM funds WHERE {where}"), params
@@ -867,6 +963,43 @@ def _fetch_index_total(
     except Exception as exc:
         logger.warning("funds: index count failed: %s", exc)
         return 0
+
+
+def _fetch_amcs(db) -> list[FundAmcCount]:
+    """Distinct AMC names + active, plan-deduped scheme counts, ordered by
+    count desc (then amc asc for a stable tiebreak).
+
+    Plan-deduped via the same `_index_where(dedupe_plans=True)` predicate
+    the list endpoint uses, so the counts line up with what the screener
+    shows when an AMC filter is applied. Empty list on any failure — the
+    surface degrades gracefully (the dropdown just shows no facets).
+    """
+    from sqlalchemy import text
+
+    where, params = _index_where(None, None, dedupe_plans=True)
+    sql = text(
+        f"""
+        SELECT amc, COUNT(*) AS n
+        FROM funds
+        WHERE {where}
+          AND amc IS NOT NULL
+          AND amc <> ''
+        GROUP BY amc
+        ORDER BY n DESC, amc ASC
+        """
+    )
+    try:
+        rows = db.execute(sql, params).fetchall()
+    except Exception as exc:
+        logger.warning("funds: amcs query failed: %s", exc)
+        return []
+    out: list[FundAmcCount] = []
+    for r in rows:
+        try:
+            out.append(FundAmcCount(amc=r[0], count=int(r[1])))
+        except Exception:
+            continue
+    return out
 
 
 def _fetch_categories(db) -> list[FundCategoryCount]:
@@ -904,9 +1037,32 @@ def _fetch_categories(db) -> list[FundCategoryCount]:
 
 @router.get("", response_model=FundListResponse)
 def list_funds(
-    limit: int = Query(48, ge=1, le=60, description="Max cards to return."),
+    limit: int = Query(
+        25, ge=1, le=50, description="Page size (max 50)."
+    ),
+    offset: int = Query(0, ge=0, description="Pagination offset."),
     q: Optional[str] = Query(None, description="Search scheme name or AMC (substring)."),
     category: Optional[str] = Query(None, description="Exact SEBI category filter."),
+    risk: Optional[str] = Query(
+        None, description="Exact riskometer_level filter (e.g. VeryHigh)."
+    ),
+    amc: Optional[str] = Query(
+        None, description="AMC-name substring filter (e.g. HDFC)."
+    ),
+    sort: str = Query(
+        DEFAULT_SORT,
+        description=(
+            "Sort column: name | score | ret_1y | ret_3y | ret_5y | "
+            "ret_10y | ter. Defaults to score."
+        ),
+    ),
+    order: Optional[str] = Query(
+        None,
+        description=(
+            "Sort direction: asc | desc. Default desc (name defaults asc). "
+            "Always NULLS LAST."
+        ),
+    ),
     all_plans: bool = Query(
         False,
         description=(
@@ -916,27 +1072,43 @@ def list_funds(
         ),
     ),
 ) -> FundListResponse:
-    """Browse grid for /funds.
+    """Sortable, paginated, filtered screener for /funds.
 
-    Returns active funds matching the optional search (`q`, substring on
-    scheme name / AMC) and `category` filter. By default the grid is
-    deduped to the Direct-Growth variant per fund and ordered by the
-    YieldIQ Fund Score (highest first, nulls last) so quality funds lead;
-    each card carries ret_1y / yieldiq_fund_score / ter LEFT-JOINed from
-    the returns cache. Pass `all_plans=true` to see every permutation.
-    `total` reflects the same filter so the page can show "N of M
-    matching".
+    Returns active funds matching the optional q / category / risk / amc
+    filters (AND-combined). By default the grid is deduped to the
+    Direct-Growth variant per fund and ordered by the YieldIQ Fund Score
+    (highest first, NULLS LAST). `sort` + `order` drive the ORDER BY —
+    every sort is NULLS LAST and tie-broken on scheme_name ASC so
+    `offset` pagination has deterministic page boundaries. Each row
+    carries the metrics-in-row payload (score + ret_1y/3y/5y/10y +
+    ter_direct) LEFT-JOINed from the returns cache; returns are RAW
+    stored cumulative fractions (no server-side annualization). `total`
+    is the FILTERED count so the page can show "N of M matching". Pass
+    `all_plans=true` to see every plan/option permutation.
     """
     dedupe = not all_plans
+    # Defensive enum guards — out-of-range values fall back to defaults
+    # rather than 422, so a frontend bug never blanks the screener.
+    sort_key = sort if sort in SORT_KEYS else DEFAULT_SORT
+    order_key = order if order in ("asc", "desc") else None
     db = _open_session()
     if db is None:
         return FundListResponse(funds=[], total=0)
     try:
         funds = _fetch_index_funds(
-            db, limit, q=q, category=category, dedupe_plans=dedupe
+            db,
+            limit,
+            offset=offset,
+            q=q,
+            category=category,
+            risk=risk,
+            amc=amc,
+            sort=sort_key,
+            order=order_key,
+            dedupe_plans=dedupe,
         )
         total = _fetch_index_total(
-            db, q=q, category=category, dedupe_plans=dedupe
+            db, q=q, category=category, risk=risk, amc=amc, dedupe_plans=dedupe
         )
     finally:
         _safe_close(db)
@@ -957,6 +1129,22 @@ def list_fund_categories() -> FundCategoriesResponse:
     finally:
         _safe_close(db)
     return FundCategoriesResponse(categories=cats)
+
+
+# NOTE: registered BEFORE the /{scheme_code} route below so "amcs" is not
+# captured as a scheme_code path param.
+@router.get("/amcs", response_model=FundAmcsResponse)
+def list_fund_amcs() -> FundAmcsResponse:
+    """Distinct AMC names + active, plan-deduped scheme counts (count
+    desc), for the screener's AMC filter dropdown."""
+    db = _open_session()
+    if db is None:
+        return FundAmcsResponse(amcs=[])
+    try:
+        amcs = _fetch_amcs(db)
+    finally:
+        _safe_close(db)
+    return FundAmcsResponse(amcs=amcs)
 
 
 @router.get("/{scheme_code}", response_model=FundDetailResponse)

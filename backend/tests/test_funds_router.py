@@ -549,3 +549,315 @@ def test_category_stats_block_in_detail_coalesces_to_category(
     assert cs["sub_category"] == "Equity Scheme - Large Cap Fund"
     assert cs["n_funds"] == 9
     assert cs["median_cagr_3y"] == pytest.approx(0.14)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Screener contract — sort / paginate / filter / metrics-in-row + /amcs
+#
+# A dedicated fixture with several Direct-Growth funds across multiple
+# AMCs / risk levels / categories, and a populated fund_returns_cache
+# carrying DELIBERATE NULLs (one fund with no cache row at all + one cache
+# row with a NULL ret_10y) so the NULLS-LAST ordering is actually
+# exercised. Returns are raw stored cumulative fractions per the contract.
+# ══════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture()
+def screener_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    with engine.begin() as conn:
+        conn.execute(text(
+            """
+            CREATE TABLE funds (
+                scheme_code TEXT PRIMARY KEY,
+                isin_growth TEXT,
+                isin_div TEXT,
+                scheme_name TEXT NOT NULL,
+                amc TEXT NOT NULL,
+                plan TEXT,
+                option TEXT,
+                category TEXT,
+                sub_category TEXT,
+                benchmark_index_code TEXT,
+                inception_date DATE,
+                riskometer_level TEXT,
+                is_active INTEGER DEFAULT 1
+            )
+            """
+        ))
+        conn.execute(text(
+            """
+            CREATE TABLE fund_returns_cache (
+                scheme_code TEXT PRIMARY KEY,
+                nav_as_of DATE,
+                ret_1y REAL, ret_3y REAL, ret_5y REAL, ret_10y REAL, ret_si REAL,
+                cagr_3y REAL, cagr_5y REAL,
+                ter_direct REAL, ter_regular REAL,
+                yieldiq_fund_score INTEGER,
+                stdev_3y REAL, sharpe_3y REAL, sortino_3y REAL,
+                max_dd_3y REAL, max_dd_5y REAL,
+                beta_3y REAL, alpha_3y REAL, info_ratio_3y REAL,
+                tracking_error_3y REAL,
+                upside_capture_3y REAL, downside_capture_3y REAL,
+                benchmark_excess_3y REAL,
+                category_percentile_3y REAL
+            )
+            """
+        ))
+        # 5 Direct-Growth funds. AMC mix: HDFC x2, ICICI x2, SBI x1.
+        # Risk mix: VeryHigh x3, ModeratelyHigh x1, Low x1.
+        conn.execute(text(
+            """
+            INSERT INTO funds (scheme_code, scheme_name, amc, plan, option,
+                               category, sub_category, riskometer_level, is_active)
+            VALUES
+              ('100001', 'HDFC Top 100 Fund - Direct - Growth', 'HDFC Mutual Fund',
+               'Direct', 'Growth', 'Equity', NULL, 'VeryHigh', 1),
+              ('100002', 'HDFC Flexi Cap Fund - Direct - Growth', 'HDFC Mutual Fund',
+               'Direct', 'Growth', 'Equity', NULL, 'VeryHigh', 1),
+              ('100003', 'ICICI Pru Bluechip - Direct - Growth', 'ICICI Mutual Fund',
+               'Direct', 'Growth', 'Equity', NULL, 'VeryHigh', 1),
+              ('100004', 'ICICI Pru Liquid - Direct - Growth', 'ICICI Mutual Fund',
+               'Direct', 'Growth', 'Debt', NULL, 'Low', 1),
+              ('100005', 'SBI Balanced Advantage - Direct - Growth', 'SBI Mutual Fund',
+               'Direct', 'Growth', 'Hybrid', NULL, 'ModeratelyHigh', 1)
+            """
+        ))
+        # Cache rows. Fund 100005 deliberately has NO cache row (NULL
+        # metrics → must sort LAST on every metric sort). Fund 100002 has a
+        # NULL ret_10y (must sort last on ret_10y, but not on others).
+        conn.execute(text(
+            """
+            INSERT INTO fund_returns_cache
+                (scheme_code, ret_1y, ret_3y, ret_5y, ret_10y,
+                 ter_direct, ter_regular, yieldiq_fund_score)
+            VALUES
+              ('100001', 0.152, 0.61, 1.40, 3.10, 1.05, 1.85, 88),
+              ('100002', 0.121, 0.55, 1.20, NULL, 0.95, 1.70, 72),
+              ('100003', 0.180, 0.70, 1.55, 2.90, 0.80, 1.60, 80),
+              ('100004', 0.071, 0.23, 0.40, 0.85, 0.25, 0.45, 55)
+            """
+        ))
+
+    SessionLocal = sessionmaker(bind=engine, future=True)
+    monkeypatch.setattr(funds_router, "_open_session", lambda: SessionLocal())
+
+    app = FastAPI()
+    app.include_router(funds_router.router)
+    return TestClient(app)
+
+
+def _codes(body) -> list[str]:
+    return [f["scheme_code"] for f in body["funds"]]
+
+
+def test_screener_default_sort_is_score_desc_nulls_last(
+    screener_client: TestClient,
+) -> None:
+    """Default sort=score, order=desc; the no-cache fund (NULL score)
+    sorts LAST despite the descending order (NULLS LAST)."""
+    res = screener_client.get("/api/v1/funds")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 5
+    # 88, 80, 72, 55, then NULL (100005) last.
+    assert _codes(body) == ["100001", "100003", "100002", "100004", "100005"]
+
+
+def test_screener_metrics_in_each_row(screener_client: TestClient) -> None:
+    """Every row carries the metrics-in-row payload; returns are the RAW
+    stored cumulative fractions (not annualized server-side)."""
+    res = screener_client.get("/api/v1/funds?sort=score&order=desc")
+    top = res.json()["funds"][0]
+    assert top["scheme_code"] == "100001"
+    assert top["yieldiq_fund_score"] == 88
+    assert top["ret_1y"] == pytest.approx(0.152)
+    assert top["ret_3y"] == pytest.approx(0.61)
+    assert top["ret_5y"] == pytest.approx(1.40)
+    assert top["ret_10y"] == pytest.approx(3.10)  # 10y column exists + surfaced
+    assert top["ter_direct"] == pytest.approx(1.05)
+    # The no-cache fund still appears with null metrics (LEFT JOIN).
+    nocache = next(f for f in res.json()["funds"] if f["scheme_code"] == "100005")
+    assert nocache["yieldiq_fund_score"] is None
+    assert nocache["ret_10y"] is None
+    assert nocache["ter_direct"] is None
+
+
+def test_screener_sort_ret_10y_nulls_last(screener_client: TestClient) -> None:
+    """sort=ret_10y desc: 100001 (3.10) > 100003 (2.90) > 100004 (0.85),
+    then the NULL-ret_10y rows (100002, 100005) LAST, tie-broken by
+    scheme_name ASC."""
+    res = screener_client.get("/api/v1/funds?sort=ret_10y&order=desc")
+    codes = _codes(res.json())
+    assert codes[:3] == ["100001", "100003", "100004"]
+    # Both NULL-ret_10y funds trail; deterministic scheme_name tiebreak:
+    # "HDFC Flexi Cap..." (100002) before "SBI Balanced..." (100005).
+    assert codes[3:] == ["100002", "100005"]
+
+
+def test_screener_sort_ret_10y_asc_still_nulls_last(
+    screener_client: TestClient,
+) -> None:
+    """Ascending order must STILL put NULLs last (not first)."""
+    res = screener_client.get("/api/v1/funds?sort=ret_10y&order=asc")
+    codes = _codes(res.json())
+    # 0.85 < 2.90 < 3.10, then NULLs.
+    assert codes[:3] == ["100004", "100003", "100001"]
+    assert set(codes[3:]) == {"100002", "100005"}
+
+
+def test_screener_sort_name_default_asc(screener_client: TestClient) -> None:
+    res = screener_client.get("/api/v1/funds?sort=name")
+    codes = _codes(res.json())
+    # Alphabetical by scheme_name: HDFC Flexi, HDFC Top, ICICI Bluechip,
+    # ICICI Liquid, SBI Balanced.
+    assert codes == ["100002", "100001", "100003", "100004", "100005"]
+
+
+def test_screener_sort_ter_asc(screener_client: TestClient) -> None:
+    """sort=ter asc orders by ter_direct ascending, NULL ter last."""
+    res = screener_client.get("/api/v1/funds?sort=ter&order=asc")
+    codes = _codes(res.json())
+    # 0.25, 0.80, 0.95, 1.05, then NULL (100005).
+    assert codes == ["100004", "100003", "100002", "100001", "100005"]
+
+
+def test_screener_offset_pagination(screener_client: TestClient) -> None:
+    """offset + limit page through the SAME deterministic ordering; total
+    is the full filtered count, not the page size."""
+    page1 = screener_client.get(
+        "/api/v1/funds?sort=score&order=desc&limit=2&offset=0"
+    ).json()
+    page2 = screener_client.get(
+        "/api/v1/funds?sort=score&order=desc&limit=2&offset=2"
+    ).json()
+    page3 = screener_client.get(
+        "/api/v1/funds?sort=score&order=desc&limit=2&offset=4"
+    ).json()
+    assert page1["total"] == 5 and page2["total"] == 5 and page3["total"] == 5
+    assert _codes(page1) == ["100001", "100003"]
+    assert _codes(page2) == ["100002", "100004"]
+    assert _codes(page3) == ["100005"]
+    # No overlap, full coverage.
+    seen = _codes(page1) + _codes(page2) + _codes(page3)
+    assert sorted(seen) == ["100001", "100002", "100003", "100004", "100005"]
+
+
+def test_screener_limit_capped_at_50(screener_client: TestClient) -> None:
+    """limit > 50 is rejected by the Query(le=50) bound (422)."""
+    res = screener_client.get("/api/v1/funds?limit=999")
+    assert res.status_code == 422
+
+
+def test_screener_filter_risk_exact(screener_client: TestClient) -> None:
+    res = screener_client.get("/api/v1/funds?risk=Low")
+    body = res.json()
+    assert body["total"] == 1
+    assert _codes(body) == ["100004"]
+    # A different exact level selects the three VeryHigh funds.
+    vh = screener_client.get("/api/v1/funds?risk=VeryHigh").json()
+    assert vh["total"] == 3
+    assert set(_codes(vh)) == {"100001", "100002", "100003"}
+
+
+def test_screener_filter_amc_substring(screener_client: TestClient) -> None:
+    res = screener_client.get("/api/v1/funds?amc=HDFC")
+    body = res.json()
+    assert body["total"] == 2
+    assert set(_codes(body)) == {"100001", "100002"}
+    # Case-insensitive substring.
+    icici = screener_client.get("/api/v1/funds?amc=icici").json()
+    assert icici["total"] == 2
+    assert set(_codes(icici)) == {"100003", "100004"}
+
+
+def test_screener_filters_and_combined(screener_client: TestClient) -> None:
+    """risk + amc AND-combine (and total reflects the combined filter)."""
+    res = screener_client.get("/api/v1/funds?amc=ICICI&risk=VeryHigh")
+    body = res.json()
+    assert body["total"] == 1
+    assert _codes(body) == ["100003"]
+
+
+def test_screener_category_filter_still_works(
+    screener_client: TestClient,
+) -> None:
+    res = screener_client.get("/api/v1/funds?category=Debt")
+    body = res.json()
+    assert body["total"] == 1
+    assert _codes(body) == ["100004"]
+
+
+def test_amcs_endpoint_shape_and_counts(screener_client: TestClient) -> None:
+    """/amcs returns {amcs:[{amc,count}]}, plan-deduped, count desc."""
+    res = screener_client.get("/api/v1/funds/amcs")
+    assert res.status_code == 200
+    body = res.json()
+    assert "amcs" in body
+    amcs = body["amcs"]
+    # HDFC (2) and ICICI (2) before SBI (1); count desc, amc asc tiebreak.
+    assert amcs[0]["count"] == 2 and amcs[1]["count"] == 2
+    assert amcs[-1] == {"amc": "SBI Mutual Fund", "count": 1}
+    by_name = {a["amc"]: a["count"] for a in amcs}
+    assert by_name == {
+        "HDFC Mutual Fund": 2,
+        "ICICI Mutual Fund": 2,
+        "SBI Mutual Fund": 1,
+    }
+
+
+def test_screener_metrics_null_when_cache_table_absent() -> None:
+    """When fund_returns_cache doesn't exist at all, the screener falls
+    back to the master-only query: rows still return (null metrics) and
+    the endpoint never 500s."""
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    with engine.begin() as conn:
+        conn.execute(text(
+            """
+            CREATE TABLE funds (
+                scheme_code TEXT PRIMARY KEY, isin_growth TEXT, isin_div TEXT,
+                scheme_name TEXT NOT NULL, amc TEXT NOT NULL, plan TEXT,
+                option TEXT, category TEXT, sub_category TEXT,
+                benchmark_index_code TEXT, inception_date DATE,
+                riskometer_level TEXT, is_active INTEGER DEFAULT 1
+            )
+            """
+        ))
+        conn.execute(text(
+            "INSERT INTO funds (scheme_code, scheme_name, amc, plan, option, "
+            "category, riskometer_level, is_active) VALUES "
+            "('100001', 'HDFC Top 100 - Direct - Growth', 'HDFC Mutual Fund', "
+            "'Direct', 'Growth', 'Equity', 'VeryHigh', 1)"
+        ))
+    SessionLocal = sessionmaker(bind=engine, future=True)
+    funds_router._open_session  # noqa: B018  (reference kept for clarity)
+    import backend.routers.funds as fr
+    orig = fr._open_session
+    fr._open_session = lambda: SessionLocal()
+    try:
+        app = FastAPI()
+        app.include_router(fr.router)
+        c = TestClient(app)
+        res = c.get("/api/v1/funds?sort=score&order=desc")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["total"] == 1
+        row = body["funds"][0]
+        assert row["scheme_code"] == "100001"
+        assert row["yieldiq_fund_score"] is None
+        assert row["ret_1y"] is None
+        # /amcs also degrades fine (no cache dependency).
+        amcs = c.get("/api/v1/funds/amcs").json()["amcs"]
+        assert amcs == [{"amc": "HDFC Mutual Fund", "count": 1}]
+    finally:
+        fr._open_session = orig
