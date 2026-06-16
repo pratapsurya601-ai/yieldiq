@@ -152,12 +152,15 @@ export default async function FundsLanding({ searchParams }: Props) {
 
   // Identity aggregates for the hero.
   //
-  // `totalSchemes` is the TRUE universe size — the deduped COUNT(*) the
-  // list endpoint returns (`total`), the same number the live site
-  // advertises ("browse ~14,000 schemes") and the meta promises. It is NOT
-  // the category-census sum (that counts only category-tagged rows, one per
-  // plan/option permutation — both partial and inflated).
-  const totalSchemes = total
+  // `totalSchemes` is the SCHEME universe — the sum of the category census
+  // (`_fetch_categories`), which counts every active AMFI scheme code (one
+  // per plan/option). Since ~100% of schemes carry a category (GAP-1 fix),
+  // this equals the ~13,969 the meta advertises ("14,000+ schemes") and is
+  // what the "Schemes tracked" label means. It is NOT the list endpoint's
+  // `total`, which is the plan-DEDUPED distinct-fund count (~3,002): correct
+  // for the filtered "Showing N of M matching schemes" line below, but far
+  // below the scheme universe and wrong for the headline counter.
+  const totalSchemes = categories.reduce((sum, c) => sum + c.count, 0)
   const categoryCount = categories.length
   // Census is ordered biggest-bucket-first, so [0] names the largest
   // category. We surface its LABEL only — never a per-category scheme
