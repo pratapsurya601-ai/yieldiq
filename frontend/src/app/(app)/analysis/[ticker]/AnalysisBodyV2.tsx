@@ -40,6 +40,8 @@ import { Muted } from "@/app/demo/analysis-redesign/ui"
 import ChromeHeaderV2 from "./v2/ChromeHeaderV2"
 import DecisionBoxV2 from "./v2/DecisionBoxV2"
 import JumpNavV2, { type JumpNavItem } from "./v2/JumpNavV2"
+import SectionAnswerV2 from "./v2/SectionAnswerV2"
+import SectionThesisV2 from "./v2/SectionThesisV2"
 import type { SpectrumAxisReal } from "./v2/SpectrumV2"
 
 /* ------------------------------------------------------------------ */
@@ -154,9 +156,10 @@ function StubSection({ id, num, title }: { id: string; num: string; title: strin
   )
 }
 
-/** The not-yet-built sections, in scroll order. Each is a JumpNav anchor. */
+/** The not-yet-built sections, in scroll order. Each is a JumpNav anchor.
+ *  §01 Answer (DecisionBoxV2 spine + SectionAnswerV2 detail) and §02
+ *  Thesis (SectionThesisV2) are now REAL sections — removed from here. */
 const STUB_SECTIONS: { id: string; num: string; title: string }[] = [
-  { id: "sec-thesis", num: "02", title: "Thesis" },
   { id: "sec-business", num: "03", title: "Business" },
   { id: "sec-financials", num: "04", title: "Financials" },
   { id: "sec-valuation", num: "05", title: "Valuation" },
@@ -221,9 +224,12 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
   )
 
   // JumpNav anchors — only sections that actually exist in v2 so far:
-  // the spine "Answer" (the Decision Box) + the titled stubs below.
+  // the spine "Answer" (the Decision Box), the deeper "Where price sits"
+  // (SectionAnswerV2), the "Thesis" (SectionThesisV2), then the stubs.
   const jumpItems: JumpNavItem[] = [
     { id: "sec-answer", label: "Answer" },
+    { id: "sec-answer-detail", label: "Where price sits" },
+    { id: "sec-thesis", label: "Thesis" },
     ...STUB_SECTIONS.map((s) => ({ id: s.id, label: s.title })),
   ]
 
@@ -246,6 +252,9 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
         overall={overall}
         verdictLayerOn={verdictLayerOn}
       />
+
+      <SectionAnswerV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+      <SectionThesisV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
 
       {STUB_SECTIONS.map((s) => (
         <StubSection key={s.id} id={s.id} num={s.num} title={s.title} />
