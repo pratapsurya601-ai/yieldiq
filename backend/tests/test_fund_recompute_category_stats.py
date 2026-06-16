@@ -41,12 +41,13 @@ def _risk(sharpe_3y=None, stdev_3y=None, max_dd_3y=None):
     return SimpleNamespace(sharpe_3y=sharpe_3y, stdev_3y=stdev_3y, max_dd_3y=max_dd_3y)
 
 
-def _scheme(sub_category, *, skip=False, **kw):
+def _scheme(sub_category, *, category=None, skip=False, **kw):
     if skip:
         return {"skip": True, "reason": "stub"}
     return {
         "skip": False,
         "sub_category": sub_category,
+        "category": category,
         "returns": _returns(**{k: v for k, v in kw.items() if k.startswith(("ret", "cagr"))}),
         "risk": _risk(**{k: v for k, v in kw.items() if k.startswith(("sharpe", "stdev", "max"))}),
     }
@@ -117,6 +118,42 @@ def test_aggregates_median_and_avg_by_sub_category(session) -> None:
     sc = rows["Small Cap"]
     assert sc[7] == 1                     # n_funds
     assert sc[1] == pytest.approx(0.40)   # single-fund median == its value
+
+
+def test_groups_by_category_when_sub_category_null(session) -> None:
+    """Prod reality: funds.sub_category is NULL universe-wide while category
+    is populated. Pass-3 must group on COALESCE(sub_category, category), so a
+    cohort of NULL-sub_category schemes still produces one stats row keyed by
+    category (the table's sub_category PK column stores that COALESCE key)."""
+    per_scheme = {
+        # NULL sub_category, category set → grouped under the category key.
+        "A": _scheme(None, category="Equity Scheme - Flexi Cap Fund",
+                     ret_1y=0.05, cagr_3y=0.10),
+        "B": _scheme(None, category="Equity Scheme - Flexi Cap Fund",
+                     ret_1y=0.07, cagr_3y=0.20),
+        # Different category → its own bucket.
+        "C": _scheme(None, category="Equity Scheme - Small Cap Fund",
+                     ret_1y=0.12, cagr_3y=0.40),
+        # No sub_category AND no category → cannot be grouped, dropped.
+        "D": _scheme(None, category=None, ret_1y=0.99, cagr_3y=0.99),
+    }
+    result = recompute_category_stats_helper(session, per_scheme)
+    assert result["written"] == 2
+
+    rows = {
+        r[0]: r
+        for r in session.execute(text(
+            "SELECT sub_category, avg_cagr_3y, n_funds FROM fund_category_stats"
+        )).fetchall()
+    }
+    # The PK column carries the COALESCE key (== category).
+    assert set(rows) == {
+        "Equity Scheme - Flexi Cap Fund",
+        "Equity Scheme - Small Cap Fund",
+    }
+    flexi = rows["Equity Scheme - Flexi Cap Fund"]
+    assert flexi[1] == pytest.approx(0.15)  # avg of 0.10, 0.20
+    assert flexi[2] == 2                     # both NULL-sub_category schemes
 
 
 def test_nulls_excluded_from_aggregates(session) -> None:
