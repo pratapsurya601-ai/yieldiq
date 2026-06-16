@@ -71,12 +71,10 @@ function resolveFriendly(
 function CategoryChip({
   href,
   label,
-  count,
   active,
 }: {
   href: string
   label: string
-  count?: number
   active: boolean
 }) {
   return (
@@ -89,9 +87,6 @@ function CategoryChip({
       }`}
     >
       {label}
-      {typeof count === "number" ? (
-        <span className="ml-1 text-[11px] font-normal opacity-70">{count}</span>
-      ) : null}
     </Link>
   )
 }
@@ -129,13 +124,19 @@ export default async function FundsLanding({ searchParams }: Props) {
   const category = typeof sp.category === "string" ? sp.category : ""
   const filtered = Boolean(q || category)
 
-  // The categories census powers the hero counters, the curated chips,
-  // the raw-category chip row, and the mosaic — one cached call. The
-  // filtered list is fetched only when a search/category is active.
+  // The categories census powers the curated chips, the raw-category chip
+  // row, and the mosaic. The fund list is fetched in BOTH states: in the
+  // filtered state it returns the matched cards; in the bare/hub state it
+  // returns a sample (for the "A–Z" grid + AMC/risk facets) AND — the
+  // reason it now runs in the bare state too — the true `total`, the
+  // deduped COUNT(*) of the active universe (`_fetch_index_total`,
+  // dedupe_plans=True). That is the honest "Schemes tracked" headline; the
+  // old hero summed the category census (category-tagged subset, one row
+  // per plan/option permutation), which was both partial AND inflated and
+  // contradicted the "14,000+" meta. One list call now serves both the
+  // hero number and the hub sample, so the bare state does not double-fetch.
   const [{ funds, total }, { categories }] = await Promise.all([
-    filtered
-      ? fetchFundListSSR(48, q || undefined, category || undefined)
-      : Promise.resolve({ funds: [], total: 0 }),
+    fetchFundListSSR(48, q || undefined, category || undefined),
     fetchFundCategoriesSSR(),
   ])
 
@@ -149,12 +150,22 @@ export default async function FundsLanding({ searchParams }: Props) {
 
   const rawChips = categories.slice(0, MAX_CHIPS)
 
-  // Identity aggregates for the hero — all from the census, never null.
-  const totalSchemes = categories.reduce((sum, c) => sum + (c.count ?? 0), 0)
+  // Identity aggregates for the hero.
+  //
+  // `totalSchemes` is the TRUE universe size — the deduped COUNT(*) the
+  // list endpoint returns (`total`), the same number the live site
+  // advertises ("browse ~14,000 schemes") and the meta promises. It is NOT
+  // the category-census sum (that counts only category-tagged rows, one per
+  // plan/option permutation — both partial and inflated).
+  const totalSchemes = total
   const categoryCount = categories.length
-  // Census is ordered biggest-bucket-first, so [0] is the largest.
+  // Census is ordered biggest-bucket-first, so [0] names the largest
+  // category. We surface its LABEL only — never a per-category scheme
+  // count: the census count is non-deduped/partial and would contradict
+  // the deduped "Showing N of M" the user lands on after clicking through
+  // (honesty invariant — see CategoryMosaic). The relative ordering is
+  // still a fair basis for "which category is largest".
   const largestCategory = categories[0] ?? null
-  const largestCategoryCount = largestCategory?.count ?? 0
   const largestCategoryLabel = largestCategory
     ? compactCategory(largestCategory.category)
     : ""
@@ -180,11 +191,13 @@ export default async function FundsLanding({ searchParams }: Props) {
         {rawChips.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {rawChips.map((c) => (
+              // No per-chip count: the census count is non-deduped/partial
+              // and would contradict the deduped "Showing N of M" the chip
+              // navigates to (honesty invariant — see CategoryMosaic).
               <CategoryChip
                 key={c.category}
                 href={`/funds?category=${encodeURIComponent(c.category)}`}
                 label={compactCategory(c.category)}
-                count={c.count}
                 active={category === c.category}
               />
             ))}
@@ -201,7 +214,6 @@ export default async function FundsLanding({ searchParams }: Props) {
           <FundsHero
             total={totalSchemes}
             categoryCount={categoryCount}
-            largestCategoryCount={largestCategoryCount}
             largestCategoryLabel={largestCategoryLabel}
           >
             <div className="space-y-3">
@@ -215,6 +227,7 @@ export default async function FundsLanding({ searchParams }: Props) {
               category: c.category,
               count: c.count,
             }))}
+            sample={cards}
           />
         </>
       ) : (
@@ -243,7 +256,7 @@ export default async function FundsLanding({ searchParams }: Props) {
             </div>
           ) : (
             <>
-              <div className="text-xs text-caption">
+              <div className="text-xs text-caption" aria-live="polite">
                 Showing {cards.length} of {total.toLocaleString("en-IN")} matching
                 schemes.
               </div>

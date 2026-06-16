@@ -5,8 +5,10 @@
  * renders with real content on first paint, so the bare /funds landing
  * is never an empty "search to browse" prompt:
  *
- *   1. CategoryMosaic     — the true category census as an animated tile
- *                           grid (centerpiece), linking to ?category=.
+ *   1. CategoryMosaic     — the category census as an animated tile grid
+ *                           (centerpiece), linking to ?category=. Tiles
+ *                           carry no scheme count (count honesty — see
+ *                           CategoryMosaic).
  *   2. AmcRail            — fund houses ordered by sample count, linking
  *                           to ?q=<amc>.
  *   3. RiskometerSpectrum — descriptive six-band risk strip (self-hides
@@ -14,14 +16,15 @@
  *   4. A first look       — a sample card grid (FundCard) so the user
  *                           sees real schemes immediately.
  *
- * All facets are derived here (pure, synchronous) from one sample list
- * call + the categories census already fetched by the page; nothing
+ * All facets are derived here (pure, synchronous) from the universe
+ * `sample` and `categories` census the page already fetched and passes in
+ * as props — so the hub fires no list call of its own (the page's single
+ * list call serves both the hero's true total and this sample). Nothing
  * here mutates searchParams, so the page stays static-ISR.
  *
  * SEBI: descriptive only. Sample order is the endpoint's alphabetical
  * order — not a ranked "pick". No advisory vocab.
  */
-import { fetchFundListSSR } from "@/lib/api"
 import { RevealStagger } from "@/components/motion"
 import type { FundRiskometerLevel } from "@/types/api"
 
@@ -31,20 +34,18 @@ import AmcRail, { type AmcFacet } from "./AmcRail"
 import RiskometerSpectrum, { type RiskBucket } from "./RiskometerSpectrum"
 import { RISKOMETER_ORDER } from "@/lib/fund-riskometer"
 
-const SAMPLE_SIZE = 48
 const MAX_AMCS = 14
 
-export default async function FundsHubBrowse({
+export default function FundsHubBrowse({
   categories,
+  sample,
 }: {
   categories: MosaicCategory[]
+  /** Universe sample (alphabetical) already fetched by the page — reused
+   *  here for the "A–Z" grid + the AMC / riskometer facets, so the bare
+   *  hub does not fire a second identical list call. */
+  sample: FundCardItem[]
 }) {
-  // One additional call: a sample of the universe (alphabetical) so the
-  // hub shows real cards + can derive AMC / riskometer facets. Errors
-  // degrade to an empty sample (handled by the no-empty fallbacks).
-  const { funds } = await fetchFundListSSR(SAMPLE_SIZE)
-  const sample = funds as FundCardItem[]
-
   // AMC facet — count-based factual sort, top houses first.
   const amcMap = new Map<string, number>()
   for (const f of sample) amcMap.set(f.amc, (amcMap.get(f.amc) ?? 0) + 1)

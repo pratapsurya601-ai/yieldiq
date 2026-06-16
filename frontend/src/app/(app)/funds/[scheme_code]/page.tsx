@@ -31,10 +31,10 @@ import type {
   FundBenchmarkPoint,
   FundDetailResponse,
   FundNavPoint,
-  FundRiskometerLevel,
 } from "@/types/api"
 
 import AmcAvatar from "@/components/common/AmcAvatar"
+import { RISKOMETER_TONE } from "@/lib/fund-riskometer"
 
 import FeeImpactCalculator from "./FeeImpactCalculator"
 import FundJsonLd from "./JsonLd"
@@ -46,18 +46,12 @@ interface Props {
   params: Promise<{ scheme_code: string }>
 }
 
-// ── Riskometer palette ────────────────────────────────────────────────
-// SEBI publishes six levels. Colour scale: green (low) → red (very
-// high). Mirrors the same colour grammar used by the rest of the app
-// (Tailwind's emerald/lime/amber/orange/red ramp).
-const RISKOMETER_COLORS: Record<FundRiskometerLevel, { bg: string; text: string; label: string }> = {
-  Low: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Low" },
-  LowToModerate: { bg: "bg-lime-100", text: "text-lime-800", label: "Low to Moderate" },
-  Moderate: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Moderate" },
-  ModeratelyHigh: { bg: "bg-amber-100", text: "text-amber-900", label: "Moderately High" },
-  High: { bg: "bg-orange-100", text: "text-orange-900", label: "High" },
-  VeryHigh: { bg: "bg-red-100", text: "text-red-800", label: "Very High" },
-}
+// ── Riskometer tone ───────────────────────────────────────────────────
+// SEBI publishes six levels. The Riskometer chip's bg+fg classes come
+// from the shared, token-backed `RISKOMETER_TONE` map (good → warn → bad)
+// so they follow dark mode and the design system — the same source the
+// FundCard chip consumes. (The page no longer carries its own raw-palette
+// copy; see lib/fund-riskometer.ts.)
 
 const DASH = "—"
 
@@ -158,7 +152,7 @@ function scoreGrade(score: number | null | undefined): { letter: string; band: s
 
 function Hero({ fund }: { fund: FundDetailResponse["fund"] }) {
   const risk = fund.riskometer_level
-    ? RISKOMETER_COLORS[fund.riskometer_level]
+    ? RISKOMETER_TONE[fund.riskometer_level]
     : null
   return (
     <header className="mb-6">
@@ -178,7 +172,7 @@ function Hero({ fund }: { fund: FundDetailResponse["fund"] }) {
         ) : null}
         {risk ? (
           <span
-            className={`rounded-full ${risk.bg} ${risk.text} px-2.5 py-0.5 text-xs font-medium`}
+            className={`rounded-full ${risk.cls} px-2.5 py-0.5 text-xs font-medium`}
             title="SEBI Riskometer"
           >
             Riskometer: {risk.label}

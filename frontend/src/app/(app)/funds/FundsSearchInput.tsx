@@ -102,7 +102,13 @@ export default function FundsSearchInput({
       }
 
   return (
-    <form action="/funds" method="GET" onSubmit={onSubmit} className="mb-4">
+    <form
+      role="search"
+      action="/funds"
+      method="GET"
+      onSubmit={onSubmit}
+      className="mb-4"
+    >
       <label htmlFor="fund-search" className="sr-only">
         Search funds
       </label>

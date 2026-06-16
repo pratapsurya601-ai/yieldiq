@@ -1,19 +1,18 @@
 /**
  * fund-riskometer — token-based Riskometer tone map for the /funds hub.
  *
- * Replaces the duplicated raw-Tailwind-palette `RISKOMETER_COLORS`
- * (emerald-100 / red-800 / …) that the FundCard and detail page each
- * carry. The six SEBI Riskometer bands map onto the app's semantic tone
- * families (good → warn → bad), so the chips automatically follow dark
- * mode and the rest of the design system instead of hard-coding light-
- * only palette classes.
+ * Single source of truth for the Riskometer chip tone, consumed by both
+ * the hub's `FundCard` and the `/funds/[scheme_code]` detail-page Hero.
+ * It replaces the raw-Tailwind-palette `RISKOMETER_COLORS`
+ * (emerald-100 / red-800 / …) those two surfaces each used to carry. The
+ * six SEBI Riskometer bands map onto the app's semantic tone families
+ * (good → warn → bad), so the chips automatically follow dark mode and
+ * the rest of the design system instead of hard-coding light-only
+ * palette classes.
  *
  * Tone colours here are DECORATIVE — the band is a factual,
  * AMC-published label. Every consumer renders the `label` text too, so
  * colour is never the sole signal (a11y: §7).
- *
- * The detail page keeps its own copy for now (out of scope for the
- * funds-landing redesign); flag for a later dedupe pass.
  */
 import type { FundRiskometerLevel } from "@/types/api"
 

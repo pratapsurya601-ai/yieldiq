@@ -4,15 +4,20 @@
  *
  * An editorial display headline (font-editorial + one gradient-accent
  * span) over a short descriptive subhead, followed by a 3-tile stat
- * strip with animated counters (NumberFlip) for the three identity
- * aggregates that fill at scale: total schemes tracked, distinct
- * categories, and fund houses (AMCs).
+ * strip: two animated numeric counters (NumberFlip) — total schemes
+ * tracked and distinct categories — plus a label tile naming the largest
+ * category.
  *
- * Every number is backed by the categories census (true COUNT(*) per
- * category from /api/v1/funds/categories) — never a per-page sample —
- * so the figures are honest and never null. NumberFlip renders the
- * final value on the server (SSR) so there is no count-from-zero flash
- * and zero CLS; reduced-motion users see the plain value.
+ * `total` is the TRUE universe size (the deduped COUNT(*) the list
+ * endpoint returns), NOT a per-page sample and NOT the category-census
+ * sum, so the headline is honest and matches the "14,000+" meta.
+ * `categoryCount` is the number of distinct census categories. The
+ * largest-category tile shows only the category LABEL — never a
+ * per-category scheme count, which (census-derived) would contradict the
+ * deduped "Showing N of M" the user lands on after clicking through.
+ * NumberFlip renders the final value on the server (SSR) so there is no
+ * count-from-zero flash and zero CLS; reduced-motion users see the plain
+ * value.
  *
  * SEBI: descriptive only. No advisory vocab; figures are facts.
  */
@@ -44,18 +49,38 @@ function HeroTile({
   )
 }
 
+/** A tile whose headline is a text label (e.g. the largest category's
+ *  name) rather than an animated count — used where surfacing a number
+ *  would assert a count that contradicts the deduped grid the tile links
+ *  to. Visually balanced with the numeric HeroTiles. */
+function HeroLabelTile({
+  value,
+  label,
+}: {
+  value: string
+  label: string
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="truncate text-2xl font-semibold leading-tight text-ink sm:text-3xl">
+        {value}
+      </div>
+      <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-caption">
+        {label}
+      </div>
+    </div>
+  )
+}
+
 export default function FundsHero({
   total,
   categoryCount,
-  largestCategoryCount,
   largestCategoryLabel,
   children,
 }: {
   total: number
   categoryCount: number
-  /** Scheme count in the single largest category (census-backed). */
-  largestCategoryCount: number
-  /** Compact label of that largest category, e.g. "Index Funds". */
+  /** Compact label of the largest category, e.g. "Index Funds". */
   largestCategoryLabel: string
   /** Search box is composed in by the server page so this stays a
    *  pure presentational hero (the input is its own client island). */
@@ -83,15 +108,10 @@ export default function FundsHero({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <HeroTile value={total} label="Schemes tracked" duration={1.4} />
         <HeroTile value={categoryCount} label="Categories" duration={1.0} />
-        {largestCategoryCount > 0 ? (
-          <HeroTile
-            value={largestCategoryCount}
-            label="Largest category"
-            sublabel={largestCategoryLabel}
-            duration={1.0}
-          />
+        {largestCategoryLabel ? (
+          <HeroLabelTile value={largestCategoryLabel} label="Largest category" />
         ) : (
-          <HeroTile value={total} label="Schemes tracked" duration={1.0} />
+          <HeroTile value={categoryCount} label="Categories" duration={1.0} />
         )}
       </div>
     </Reveal>

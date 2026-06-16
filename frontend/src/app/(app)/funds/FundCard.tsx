@@ -281,7 +281,7 @@ export default function FundCard({ fund }: { fund: FundCardItem }) {
             {ret1y !== null ? (
               <span
                 className={`font-semibold tabular-nums ${
-                  ret1y >= 0 ? "text-emerald-600" : "text-rose-600"
+                  ret1y >= 0 ? "text-success" : "text-danger"
                 }`}
               >
                 {fmtReturnPct(ret1y, true)}
