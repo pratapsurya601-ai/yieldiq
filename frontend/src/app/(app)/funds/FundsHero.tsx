@@ -8,9 +8,10 @@
  * tracked and distinct categories — plus a label tile naming the largest
  * category.
  *
- * `total` is the TRUE universe size (the deduped COUNT(*) the list
- * endpoint returns), NOT a per-page sample and NOT the category-census
- * sum, so the headline is honest and matches the "14,000+" meta.
+ * `total` is the SCHEME universe — the category-census sum (every active
+ * AMFI scheme code, ~13,969), NOT a per-page sample and NOT the plan-deduped
+ * distinct-fund count, so the headline is honest and matches the "14,000+"
+ * meta and the "Schemes tracked" label.
  * `categoryCount` is the number of distinct census categories. The
  * largest-category tile shows only the category LABEL — never a
  * per-category scheme count, which (census-derived) would contradict the
