@@ -1104,11 +1104,112 @@ export interface FundReturnsCache {
   yieldiq_fund_score: number | null
 }
 
+// ── Phase 4/5 detail blocks (parallel backend PR) ────────────────────
+// These four optional blocks are added by a concurrent backend PR to the
+// /api/v1/funds/{code} composite payload. Until that ships they are
+// `undefined` and every consuming tab graceful-empties. Treat every
+// field as defensively optional: the detail page never crashes if a
+// block is absent or a field is renamed.
+
+/** Risk-and-statistics block. Lookback windows are 3y / 5y.
+ *  UNIT NOTE: stdev/maxdd/alpha/excess are DECIMAL FRACTIONS (×100 → %);
+ *  sharpe/sortino/beta/info_ratio/capture are dimensionless;
+ *  category_percentile_3y is on a 0-100 scale. Any field may be null. */
+export interface FundRiskBlock {
+  lookback?: string | null
+  as_of?: string | null
+  stdev_3y?: number | null
+  stdev_5y?: number | null
+  sharpe_3y?: number | null
+  sharpe_5y?: number | null
+  sortino_3y?: number | null
+  sortino_5y?: number | null
+  max_drawdown_3y?: number | null
+  max_drawdown_5y?: number | null
+  beta_3y?: number | null
+  alpha_3y?: number | null
+  info_ratio_3y?: number | null
+  tracking_error_3y?: number | null
+  up_capture_3y?: number | null
+  down_capture_3y?: number | null
+  benchmark_excess_3y?: number | null
+  category_percentile_3y?: number | null
+}
+
+/** Same-sub-category aggregate stats. cagr_* are DECIMAL FRACTIONS. */
+export interface FundCategoryStats {
+  sub_category?: string | null
+  n_funds?: number | null
+  median_cagr_1y?: number | null
+  median_cagr_3y?: number | null
+  median_cagr_5y?: number | null
+  avg_cagr_1y?: number | null
+  avg_cagr_3y?: number | null
+  avg_cagr_5y?: number | null
+  avg_ter?: number | null
+  avg_sharpe_3y?: number | null
+  avg_stdev_3y?: number | null
+  avg_max_drawdown_3y?: number | null
+}
+
+/** One peer row in the same SEBI sub-category. ret_* are DECIMAL
+ *  FRACTIONS; ter_direct is in PERCENT; fund_score is 0-100. */
+export interface FundPeer {
+  scheme_code: string
+  scheme_name: string
+  amc?: string | null
+  fund_score?: number | null
+  ret_1y?: number | null
+  ret_3y?: number | null
+  ter_direct?: number | null
+  riskometer_level?: FundRiskometerLevel | null
+}
+
+/** A single portfolio holding row. weight_pct / change_3m_pct in PERCENT. */
+export interface FundHolding {
+  instrument?: string | null
+  isin?: string | null
+  weight_pct?: number | null
+  asset_class?: string | null
+  sector?: string | null
+  mcap_bucket?: string | null
+  change_3m_pct?: number | null
+}
+
+/** A generic allocation slice (asset class / sector / market-cap bucket). */
+export interface FundAllocationSlice {
+  label?: string | null
+  weight_pct?: number | null
+}
+
+/** Portfolio block. While holdings are not yet ingested the backend
+ *  ships `{ updating: true, holdings_count: 0, holdings: [] }`. */
+export interface FundPortfolioBlock {
+  updating?: boolean | null
+  as_of_month?: string | null
+  holdings_count?: number | null
+  holdings?: FundHolding[] | null
+  asset_allocation?: FundAllocationSlice[] | null
+  sector_allocation?: FundAllocationSlice[] | null
+  mcap_allocation?: FundAllocationSlice[] | null
+}
+
 export interface FundDetailResponse {
   fund: Fund
   nav_history: FundNavPoint[]
   benchmark_history: FundBenchmarkPoint[]
   metrics: FundReturnsCache | null
+  // Optional Phase-4/5 blocks — present only once the backend PR ships.
+  risk?: FundRiskBlock | null
+  category_stats?: FundCategoryStats | null
+  peers?: FundPeer[] | null
+  portfolio?: FundPortfolioBlock | null
+}
+
+/** Response of GET /api/v1/funds/{code}/peers (optional endpoint). */
+export interface FundPeersResponse {
+  peers?: FundPeer[] | null
+  category_stats?: FundCategoryStats | null
 }
 
 export interface FundListItem {

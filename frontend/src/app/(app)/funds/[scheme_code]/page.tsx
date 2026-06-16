@@ -1,32 +1,35 @@
 /**
- * /funds/[scheme_code] — read-only mutual fund analysis page.
+ * /funds/[scheme_code] — read-only mutual fund Asset Page (tabbed).
  *
  * Server component. Pulls the composite payload from /api/v1/funds/{code}
- * via fetchFundSSR (5-min ISR), then renders:
+ * via fetchFundSSR (5-min ISR) and the same-category peers via
+ * fetchFundPeersSSR, then reorganises the surface into a premium tabbed
+ * Asset Page (FundDetailTabs — a client shell that owns the active tab,
+ * URL-hash persistence, keyboard a11y, and the animated underline):
  *
- *   1. Hero — scheme name, AMC, category badge, Riskometer chip,
- *      inception year, plan / option chips.
- *   2. NAV-vs-benchmark chart — client component (Recharts) with
- *      1Y/3Y/5Y/10Y toggle. Indexed to 100 on chart start.
- *   3. Trailing returns table — 1Y / 3Y / 5Y / 10Y / SI columns ×
- *      Scheme / Benchmark / Excess rows. Em-dash placeholders for
- *      every null field so the layout is stable while Phase 2's
- *      returns cache is empty.
- *   4. Cost panel — TER Direct + TER Regular, em-dash when null.
- *   5. YieldIQ Fund Score chip — null state when Phase 7 hasn't run.
- *   6. SEBI past-performance disclaimer footer (mandatory, verbatim).
+ *   Overview     — Hero + Fund Score chip + compact snapshot
+ *                  (latest NAV, 1Y/3Y return, TER direct, riskometer) +
+ *                  the NAV-vs-Benchmark chart. The "at a glance" tab.
+ *   Performance  — NAV-vs-Benchmark chart (full) + trailing-returns table.
+ *   Portfolio    — holdings table + allocation bars (PortfolioTab),
+ *                  honest "refreshing" empty state until SEBI holdings land.
+ *   Risk         — stdev/sharpe/sortino/drawdown/beta/alpha/capture etc.
+ *                  with per-metric explainers (RiskTab).
+ *   Peers        — descriptive same-sub-category comparison (PeersTab).
+ *   Cost         — TER panel + FeeImpactCalculator (Lump-sum / SIP).
  *
- * Intentionally NOT shipped (Phase 3-slim scope):
- *   - holdings / sector pie (Phase 4)
- *   - portfolio overlap (Phase 5)
- *   - compare / alerts (Phase 7)
- *   - AI narrative
- *   - "How to read this" modal (lesson from PR #674)
+ * The Risk / Peers / Portfolio blocks ship in a PARALLEL backend PR; the
+ * page is built to that CONTRACT (see types/api.ts) with graceful empty
+ * states so it ships independently and lights up when the backend
+ * deploys.
+ *
+ * SEBI: the past-performance disclaimer sits at the page foot under all
+ * tabs; no advisory / verdict vocabulary anywhere.
  */
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
-import { fetchFundSSR } from "@/lib/api"
+import { fetchFundPeersSSR, fetchFundSSR } from "@/lib/api"
 import type {
   FundBenchmarkPoint,
   FundDetailResponse,
@@ -37,8 +40,12 @@ import AmcAvatar from "@/components/common/AmcAvatar"
 import { RISKOMETER_TONE } from "@/lib/fund-riskometer"
 
 import FeeImpactCalculator from "./FeeImpactCalculator"
+import FundDetailTabs, { type FundTabDef } from "./FundDetailTabs"
 import FundJsonLd from "./JsonLd"
 import NavBenchmarkChart from "./NavBenchmarkChart"
+import PeersTab from "./PeersTab"
+import PortfolioTab from "./PortfolioTab"
+import RiskTab from "./RiskTab"
 
 export const revalidate = 300
 
@@ -46,23 +53,11 @@ interface Props {
   params: Promise<{ scheme_code: string }>
 }
 
-// ── Riskometer tone ───────────────────────────────────────────────────
-// SEBI publishes six levels. The Riskometer chip's bg+fg classes come
-// from the shared, token-backed `RISKOMETER_TONE` map (good → warn → bad)
-// so they follow dark mode and the design system — the same source the
-// FundCard chip consumes. (The page no longer carries its own raw-palette
-// copy; see lib/fund-riskometer.ts.)
-
 const DASH = "—"
 
 function fmtPct(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return DASH
   return `${v.toFixed(2)}%`
-}
-
-function fmtPlain(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return DASH
-  return v.toFixed(2)
 }
 
 // Scheme trailing return for display, in PERCENT. The API stores returns
@@ -374,6 +369,92 @@ function ScoreChip({ metrics }: { metrics: FundDetailResponse["metrics"] }) {
   )
 }
 
+// ── Overview snapshot ─────────────────────────────────────────────────
+// A compact "at a glance" strip: latest NAV (+ as-of date), 1Y and 3Y
+// return, Direct TER, and the Riskometer band. Every cell em-dashes
+// gracefully when its source is null.
+
+function Snapshot({
+  fund,
+  metrics,
+  navHist,
+}: {
+  fund: FundDetailResponse["fund"]
+  metrics: FundDetailResponse["metrics"]
+  navHist: FundNavPoint[]
+}) {
+  const latest = navHist.length > 0 ? navHist[navHist.length - 1] : null
+  const ret1y = schemeReturnPct(metrics?.ret_1y, 1)
+  const ret3y = schemeReturnPct(metrics?.ret_3y, 3)
+  const risk = fund.riskometer_level
+    ? RISKOMETER_TONE[fund.riskometer_level]
+    : null
+
+  function retTone(v: number | null): string {
+    if (v == null) return "text-ink"
+    return v >= 0 ? "text-success" : "text-warning"
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-raised p-4">
+      <h2 className="mb-3 text-base font-semibold text-ink">At a glance</h2>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div>
+          <dt className="text-[10px] uppercase tracking-wide text-caption">
+            Latest NAV
+          </dt>
+          <dd className="num mt-0.5 text-lg font-semibold tabular-nums text-ink">
+            {latest ? `₹${latest.nav.toFixed(2)}` : DASH}
+          </dd>
+          {latest ? (
+            <div className="text-[11px] text-caption">as of {latest.nav_date}</div>
+          ) : null}
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase tracking-wide text-caption">
+            1Y return
+          </dt>
+          <dd className={`num mt-0.5 text-lg font-semibold tabular-nums ${retTone(ret1y)}`}>
+            {fmtPct(ret1y)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase tracking-wide text-caption">
+            3Y return (CAGR)
+          </dt>
+          <dd className={`num mt-0.5 text-lg font-semibold tabular-nums ${retTone(ret3y)}`}>
+            {fmtPct(ret3y)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase tracking-wide text-caption">
+            TER (Direct)
+          </dt>
+          <dd className="num mt-0.5 text-lg font-semibold tabular-nums text-ink">
+            {fmtPct(metrics?.ter_direct)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase tracking-wide text-caption">
+            Riskometer
+          </dt>
+          <dd className="mt-1">
+            {risk ? (
+              <span
+                className={`inline-flex rounded-full ${risk.cls} px-2 py-0.5 text-[11px] font-medium`}
+              >
+                {risk.label}
+              </span>
+            ) : (
+              <span className="text-caption">{DASH}</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  )
+}
+
 function SebiFooter() {
   return (
     <footer className="mt-8 rounded-lg border border-tone-warn-bd bg-tone-warn-bg p-4 text-xs leading-relaxed text-tone-warn-fg">
@@ -387,13 +468,91 @@ function SebiFooter() {
 
 export default async function FundPage({ params }: Props) {
   const { scheme_code } = await params
-  const data = await fetchFundSSR(scheme_code)
+  const [data, peersResp] = await Promise.all([
+    fetchFundSSR(scheme_code),
+    fetchFundPeersSSR(scheme_code),
+  ])
   if (!data) {
     notFound()
   }
 
-  // metrics for fmtPlain (cagr_3y / 5y, etc.) — surfaced inside cost panel only.
-  void fmtPlain  // silence unused-import warnings; helper kept for future cards
+  // Peers + category stats: prefer the dedicated /peers endpoint, fall
+  // back to whatever the composite payload carries (both optional).
+  const peers = peersResp.peers ?? data.peers ?? null
+  const categoryStats = peersResp.category_stats ?? data.category_stats ?? null
+
+  const tabs: FundTabDef[] = [
+    {
+      key: "overview",
+      label: "Overview",
+      content: (
+        <div className="grid gap-6">
+          <ScoreChip metrics={data.metrics} />
+          <Snapshot
+            fund={data.fund}
+            metrics={data.metrics}
+            navHist={data.nav_history}
+          />
+          <NavBenchmarkChart
+            navHistory={data.nav_history}
+            benchmarkHistory={data.benchmark_history}
+          />
+        </div>
+      ),
+    },
+    {
+      key: "performance",
+      label: "Performance",
+      content: (
+        <div className="grid gap-6">
+          <NavBenchmarkChart
+            navHistory={data.nav_history}
+            benchmarkHistory={data.benchmark_history}
+          />
+          <ReturnsTable
+            metrics={data.metrics}
+            benchHist={data.benchmark_history}
+            navHist={data.nav_history}
+          />
+        </div>
+      ),
+    },
+    {
+      key: "portfolio",
+      label: "Portfolio",
+      content: <PortfolioTab portfolio={data.portfolio} />,
+    },
+    {
+      key: "risk",
+      label: "Risk",
+      content: <RiskTab risk={data.risk} />,
+    },
+    {
+      key: "peers",
+      label: "Peers",
+      content: (
+        <PeersTab
+          fund={data.fund}
+          metrics={data.metrics}
+          peers={peers}
+          categoryStats={categoryStats}
+        />
+      ),
+    },
+    {
+      key: "cost",
+      label: "Cost",
+      content: (
+        <div className="grid gap-6">
+          <CostPanel metrics={data.metrics} />
+          <FeeImpactCalculator
+            terDirect={data.metrics?.ter_direct ?? null}
+            terRegular={data.metrics?.ter_regular ?? null}
+          />
+        </div>
+      ),
+    },
+  ]
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -407,28 +566,7 @@ export default async function FundPage({ params }: Props) {
 
       <Hero fund={data.fund} />
 
-      <div className="grid gap-6">
-        <NavBenchmarkChart
-          navHistory={data.nav_history}
-          benchmarkHistory={data.benchmark_history}
-        />
-
-        <ReturnsTable
-          metrics={data.metrics}
-          benchHist={data.benchmark_history}
-          navHist={data.nav_history}
-        />
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <CostPanel metrics={data.metrics} />
-          <ScoreChip metrics={data.metrics} />
-        </div>
-
-        <FeeImpactCalculator
-          terDirect={data.metrics?.ter_direct ?? null}
-          terRegular={data.metrics?.ter_regular ?? null}
-        />
-      </div>
+      <FundDetailTabs tabs={tabs} initialKey="overview" />
 
       <SebiFooter />
 
