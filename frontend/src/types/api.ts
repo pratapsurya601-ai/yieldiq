@@ -1220,6 +1220,33 @@ export interface FundListItem {
   sub_category: string | null
   riskometer_level: FundRiskometerLevel | null
   plan: "Direct" | "Regular" | null
+  // ── Screener metric columns (additive, back-compat) ────────────────
+  // The list endpoint LEFT-JOINs per-scheme metrics so the screener table
+  // can lead with real numbers. Every field is OPTIONAL and NULLABLE: the
+  // legacy hub/card surfaces predate these and must keep type-checking,
+  // and the backend ships them as nulls until each metric is computed.
+  //
+  // UNIT CONTRACT (mirrors backend/models/fund.py FundListItem):
+  //   • yieldiq_fund_score — integer 0–100.
+  //   • ret_1y / ret_3y / ret_5y / ret_10y — CUMULATIVE decimal fractions
+  //     over the window (0.77 = +77% total over the window). The screener
+  //     ANNUALIZES the multi-year windows for display (see
+  //     lib/fund-annualize.ts). ret_10y is the newest column and may be
+  //     null/absent across the whole page (then the 10Y column is hidden).
+  //   • ter_direct — expense ratio in PERCENT (1.06 = 1.06%), NOT ×100.
+  /** YieldIQ Fund Score (0–100 integer). Null when not yet computed. */
+  yieldiq_fund_score?: number | null
+  /** Trailing 1Y return, CUMULATIVE decimal fraction. */
+  ret_1y?: number | null
+  /** Trailing 3Y return, CUMULATIVE decimal fraction (annualized for display). */
+  ret_3y?: number | null
+  /** Trailing 5Y return, CUMULATIVE decimal fraction (annualized for display). */
+  ret_5y?: number | null
+  /** Trailing 10Y return, CUMULATIVE decimal fraction (annualized for display).
+   *  Newest column — may be null/absent for every row (column then hidden). */
+  ret_10y?: number | null
+  /** Direct-plan expense ratio in PERCENT (1.06 = 1.06%). */
+  ter_direct?: number | null
 }
 
 export interface FundListResponse {
@@ -1234,6 +1261,33 @@ export interface FundCategoryCount {
 
 export interface FundCategoriesResponse {
   categories: FundCategoryCount[]
+}
+
+// ── Screener sort + AMC facet contract (additive) ────────────────────
+// Sort keys the list endpoint accepts on `?sort=`. Default is `score`
+// (YieldIQ Fund Score) descending; NULLs always sort last regardless of
+// order. Kept as a string union so the screener's column→sort mapping is
+// type-checked. If the backend has not yet shipped a given key, the
+// screener degrades to client-sorting the fetched page (see api.ts).
+export type FundListSort =
+  | "name"
+  | "score"
+  | "ret_1y"
+  | "ret_3y"
+  | "ret_5y"
+  | "ret_10y"
+  | "ter"
+
+export type FundSortOrder = "asc" | "desc"
+
+/** One fund-house facet row from GET /api/v1/funds/amcs. */
+export interface FundAmcCount {
+  amc: string
+  count: number
+}
+
+export interface FundAmcsResponse {
+  amcs: FundAmcCount[]
 }
 
 // ── Phase 1 — Fair-Value History contract (Agent B) ──────────────

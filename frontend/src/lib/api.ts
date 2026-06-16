@@ -1779,10 +1779,13 @@ export const completeOnboardingRemote = (body?: {
 // the same backend prefix.
 
 import type {
+  FundAmcsResponse,
   FundCategoriesResponse,
   FundDetailResponse,
   FundListResponse,
+  FundListSort,
   FundPeersResponse,
+  FundSortOrder,
 } from "@/types/api"
 
 export const getFund = (scheme_code: string): Promise<FundDetailResponse> =>
@@ -1794,6 +1797,38 @@ export const listFunds = (
   category?: string,
 ): Promise<FundListResponse> =>
   api.get(`/api/v1/funds`, { params: { limit, q, category } }).then((r) => r.data)
+
+// Client-side screener fetch — used by the /funds <FundScreener> client
+// component for every filter/sort/page change after the SSR first paint.
+// Mirrors fetchFundListSSR's param building but goes through the axios
+// client (cookie-aware, retry-friendly) instead of plain fetch. Undefined
+// params are dropped by axios so unknown keys never reach the backend
+// before the concurrent backend PR lights them up.
+export interface FundScreenerQuery extends FundListParams {
+  limit?: number
+  q?: string
+  category?: string
+}
+
+export const listFundsScreener = (
+  query: FundScreenerQuery = {},
+): Promise<FundListResponse> => {
+  const { limit = 25, q, category, sort, order, risk, amc, offset } = query
+  return api
+    .get(`/api/v1/funds`, {
+      params: {
+        limit,
+        q: q || undefined,
+        category: category || undefined,
+        sort: sort || undefined,
+        order: order || undefined,
+        risk: risk || undefined,
+        amc: amc || undefined,
+        offset: offset && offset > 0 ? offset : undefined,
+      },
+    })
+    .then((r) => r.data)
+}
 
 // SSR-side fetch helpers — bypass the axios client (which depends on
 // document cookies) and the BUILD_ID query param. Server components in
@@ -1813,15 +1848,44 @@ export async function fetchFundSSR(
   }
 }
 
+// Extra screener filter/sort/page params. All optional and ADDITIVE: the
+// legacy positional signature `fetchFundListSSR(limit, q, category)` still
+// works untouched, and a 4th options arg layers the screener controls on
+// top. A backend agent is concurrently adding sort/order/risk/amc/offset
+// + ret_10y to the list endpoint; until a given param is live the backend
+// ignores the unknown query key and returns its default page, so passing
+// these is safe (the screener client-sorts / hides pagination to degrade
+// gracefully — see FundScreener.tsx).
+export interface FundListParams {
+  /** `?sort=` — one of FundListSort. Backend default is `score`. */
+  sort?: FundListSort
+  /** `?order=` — asc | desc. Backend default is desc for score. */
+  order?: FundSortOrder
+  /** `?risk=` — a FundRiskometerLevel enum string (e.g. "ModeratelyHigh"). */
+  risk?: string
+  /** `?amc=` — exact AMC banner string from /funds/amcs. */
+  amc?: string
+  /** `?offset=` — pagination offset (rows to skip). */
+  offset?: number
+}
+
 export async function fetchFundListSSR(
   limit = 48,
   q?: string,
   category?: string,
+  opts: FundListParams = {},
 ): Promise<FundListResponse> {
   try {
     const params = new URLSearchParams({ limit: String(limit) })
     if (q) params.set("q", q)
     if (category) params.set("category", category)
+    if (opts.sort) params.set("sort", opts.sort)
+    if (opts.order) params.set("order", opts.order)
+    if (opts.risk) params.set("risk", opts.risk)
+    if (opts.amc) params.set("amc", opts.amc)
+    if (typeof opts.offset === "number" && opts.offset > 0) {
+      params.set("offset", String(opts.offset))
+    }
     const res = await fetch(`${API_BASE}/api/v1/funds?${params.toString()}`, {
       next: { revalidate: 300 },
     })
@@ -1841,6 +1905,22 @@ export async function fetchFundCategoriesSSR(): Promise<FundCategoriesResponse> 
     return (await res.json()) as FundCategoriesResponse
   } catch {
     return { categories: [] }
+  }
+}
+
+// Fund-house (AMC) facet for the screener's "Fund House" dropdown. Returns
+// each AMC banner string + its scheme count, biggest house first. Empty
+// shape on 404 / network failure (endpoint ships in a parallel backend
+// PR) so the dropdown simply omits the AMC filter until it lights up.
+export async function fetchFundAmcsSSR(): Promise<FundAmcsResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/funds/amcs`, {
+      next: { revalidate: 3600 },
+    })
+    if (!res.ok) return { amcs: [] }
+    return (await res.json()) as FundAmcsResponse
+  } catch {
+    return { amcs: [] }
   }
 }
 
