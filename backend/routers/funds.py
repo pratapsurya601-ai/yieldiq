@@ -365,19 +365,28 @@ def _fetch_returns_cache(
 
 
 def _fetch_category_stats(
-    db, sub_category: Optional[str]
+    db, group_key: Optional[str]
 ) -> Optional[FundCategoryStats]:
-    """Per-sub_category aggregate stats from fund_category_stats.
+    """Per-group aggregate stats from fund_category_stats.
+
+    `group_key` is the effective SEBI peer grouping key — i.e. the caller's
+    COALESCE(sub_category, category). funds.sub_category is unpopulated
+    (NULL) universe-wide, so `category` is the effective grouping key; the
+    fund_category_stats `sub_category` PK column now stores that COALESCE
+    key (recompute.py pass-3 writes it that way).
 
     Returns None when the table doesn't exist yet (migration not applied),
-    when the fund has no sub_category, or when there's no row for it. CAGR
+    when the fund has no grouping key, or when there's no row for it. CAGR
     columns are decimal fractions; category_percentile is not part of this
     block (it lives on the risk block per-scheme).
     """
-    if not sub_category:
+    if not group_key:
         return None
     from sqlalchemy import text
 
+    # The `sub_category` PK column stores the COALESCE(sub_category, category)
+    # grouping key; sub_category is unpopulated in the funds table, so we
+    # match on the category-derived key recompute pass-3 wrote.
     sql = text(
         """
         SELECT sub_category, n_funds,
@@ -385,17 +394,17 @@ def _fetch_category_stats(
                avg_cagr_1y, avg_cagr_3y, avg_cagr_5y,
                avg_ter, avg_sharpe_3y, avg_stdev_3y, avg_max_drawdown_3y
         FROM fund_category_stats
-        WHERE sub_category = :sub
+        WHERE sub_category = :key
         LIMIT 1
         """
     )
     try:
-        row = db.execute(sql, {"sub": sub_category}).fetchone()
+        row = db.execute(sql, {"key": group_key}).fetchone()
     except Exception as exc:
         logger.info(
             "funds: category_stats lookup soft-failed for %r "
             "(table may not be migrated yet): %s",
-            sub_category,
+            group_key,
             exc,
         )
         return None
@@ -437,25 +446,33 @@ def _fetch_category_stats(
 
 
 def _fetch_peers(
-    db, scheme_code: str, sub_category: Optional[str], limit: int = 3
+    db, scheme_code: str, group_key: Optional[str], limit: int = 3
 ) -> list[FundPeer]:
-    """Up to `limit` same-sub_category peer rows (excluding self) plus a
-    trailing category-average pseudo-row.
+    """Up to `limit` same-group peer rows (excluding self) plus a trailing
+    category-average pseudo-row.
+
+    `group_key` is the subject fund's effective SEBI peer grouping key —
+    COALESCE(sub_category, category). funds.sub_category is unpopulated
+    (NULL) universe-wide, so `category` is the effective grouping key and
+    we match peers on COALESCE(f.sub_category, f.category) = :key (keying
+    on raw sub_category would return zero peers for every fund).
 
     Peers are ordered by fund_score DESC (nulls last) purely as a STABLE,
     deterministic display ordering — NOT a ranking verdict. The query
     LEFT-JOINs fund_returns_cache for ret_1y / ret_3y / fund_score /
     ter_direct; a fund with no cache row still appears (with null metrics).
-    Returns an empty list when sub_category is missing. Soft-fails to the
-    peers it can build (and still appends the category-average row when
+    Returns an empty list when the grouping key is missing. Soft-fails to
+    the peers it can build (and still appends the category-average row when
     fund_category_stats is available).
     """
-    if not sub_category:
+    if not group_key:
         return []
     from sqlalchemy import text
 
     # Portable NULLS-LAST (see _fetch_index_funds): "(col IS NULL) ASC"
     # pushes nulls to the end before the DESC sort. Self is excluded.
+    # Match on COALESCE(sub_category, category): sub_category is unpopulated
+    # in the funds table, so category is the effective SEBI peer grouping.
     peers_sql = text(
         """
         SELECT f.scheme_code, f.scheme_name, f.amc, f.riskometer_level,
@@ -463,7 +480,7 @@ def _fetch_peers(
         FROM funds f
         LEFT JOIN fund_returns_cache c
           ON c.scheme_code = f.scheme_code
-        WHERE f.sub_category = :sub
+        WHERE COALESCE(f.sub_category, f.category) = :key
           AND f.scheme_code <> :sc
           AND COALESCE(f.is_active, TRUE) = TRUE
         ORDER BY (c.yieldiq_fund_score IS NULL) ASC,
@@ -492,7 +509,7 @@ def _fetch_peers(
     out: list[FundPeer] = []
     try:
         rows = db.execute(
-            peers_sql, {"sub": sub_category, "sc": scheme_code, "lim": limit}
+            peers_sql, {"key": group_key, "sc": scheme_code, "lim": limit}
         ).fetchall()
         for r in rows:
             out.append(
@@ -517,12 +534,14 @@ def _fetch_peers(
         )
 
     # Append the category-average pseudo-row when the stats table is live.
-    stats = _fetch_category_stats(db, sub_category)
+    # Keyed by the same COALESCE(sub_category, category) grouping key —
+    # sub_category is unpopulated, so category is the effective SEBI group.
+    stats = _fetch_category_stats(db, group_key)
     if stats is not None:
         out.append(
             FundPeer(
                 scheme_code=None,
-                scheme_name=f"{sub_category} category average",
+                scheme_name=f"{group_key} category average",
                 amc=None,
                 fund_score=None,
                 # category stats hold CAGR (decimal fractions); the peer
@@ -973,7 +992,10 @@ def get_fund(scheme_code: str) -> FundDetailResponse:
             db, fund.benchmark_index_code, window_start
         )
         metrics, risk = _fetch_returns_cache(db, scheme_code)
-        category_stats = _fetch_category_stats(db, fund.sub_category)
+        # sub_category is unpopulated in the funds table; category is the
+        # effective SEBI peer grouping key the stats row is keyed by.
+        group_key = fund.sub_category or fund.category
+        category_stats = _fetch_category_stats(db, group_key)
         portfolio = _fetch_portfolio(db, scheme_code)
     finally:
         _safe_close(db)
@@ -991,14 +1013,16 @@ def get_fund(scheme_code: str) -> FundDetailResponse:
 
 @router.get("/{scheme_code}/peers", response_model=FundPeersResponse)
 def get_fund_peers(scheme_code: str) -> FundPeersResponse:
-    """Same-sub_category peers + a category-average row for /funds/[code].
+    """Same-group peers + a category-average row for /funds/[code].
 
-    Returns up to 3 peer funds in the same sub_category (self excluded),
+    Returns up to 3 peer funds in the same SEBI group (self excluded),
     ordered by fund_score DESC as a STABLE display ordering only (NOT a
     ranking verdict), followed by a category-average pseudo-row. Strictly
-    comparative context — no recommendation language. 404 only when the
-    scheme_code is unknown; an empty peer list (no sub_category, or no
-    peers) returns 200 with peers=[].
+    comparative context — no recommendation language. The grouping key is
+    COALESCE(sub_category, category): sub_category is unpopulated in the
+    funds table, so category is the effective SEBI peer grouping. 404 only
+    when the scheme_code is unknown; an empty peer list (no grouping key,
+    or no peers) returns 200 with peers=[].
     """
     if not scheme_code or not scheme_code.isalnum() or len(scheme_code) > 16:
         raise HTTPException(status_code=400, detail="Invalid scheme_code.")
@@ -1013,8 +1037,14 @@ def get_fund_peers(scheme_code: str) -> FundPeersResponse:
                 status_code=404,
                 detail=f"No fund with scheme_code '{scheme_code}'.",
             )
-        peers = _fetch_peers(db, scheme_code, fund.sub_category, limit=3)
+        # sub_category is unpopulated in the funds table; category is the
+        # effective SEBI peer grouping key. Group peers + the category-stats
+        # row by COALESCE(sub_category, category) so peers actually resolve.
+        group_key = fund.sub_category or fund.category
+        peers = _fetch_peers(db, scheme_code, group_key, limit=3)
     finally:
         _safe_close(db)
 
-    return FundPeersResponse(sub_category=fund.sub_category, peers=peers)
+    # Surface the effective grouping key so the UI caption reads the real
+    # SEBI group (e.g. "Equity Scheme - Flexi Cap Fund").
+    return FundPeersResponse(sub_category=group_key, peers=peers)

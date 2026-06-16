@@ -236,9 +236,15 @@ def recompute_category_stats(
     *,
     cache_version: str = ACTIVE_CACHE_VERSION,
 ) -> dict:
-    """Pass-3: aggregate the already-computed per-scheme metrics by
-    funds.sub_category and UPSERT one row per sub_category into
-    fund_category_stats.
+    """Pass-3: aggregate the already-computed per-scheme metrics by the
+    effective SEBI peer grouping key COALESCE(sub_category, category) and
+    UPSERT one row per group into fund_category_stats (the table's
+    `sub_category` PK column stores this COALESCE key).
+
+    funds.sub_category is unpopulated (NULL) universe-wide, so `category`
+    is the effective grouping key. Grouping on raw sub_category here would
+    produce zero category_stats rows (and the router's peers/stats lookups
+    keyed by COALESCE would then find nothing) — so we COALESCE to category.
 
     Groups the in-memory pass-1/2 results (no extra NAV reads), computes
     median/avg via numpy for cagr_1y (== ret_1y) / cagr_3y / cagr_5y and
@@ -252,7 +258,7 @@ def recompute_category_stats(
     """
     import numpy as np
 
-    # Bucket per-scheme metric lists by sub_category.
+    # Bucket per-scheme metric lists by the effective grouping key.
     buckets: dict[str, dict[str, list]] = defaultdict(
         lambda: {
             "cagr_1y": [], "cagr_3y": [], "cagr_5y": [],
@@ -263,7 +269,10 @@ def recompute_category_stats(
     for sc, rec in per_scheme.items():
         if rec.get("skip"):
             continue
-        sub = rec.get("sub_category")
+        # sub_category is unpopulated in the funds table; category is the
+        # effective SEBI peer grouping. Group on COALESCE(sub_category,
+        # category) so the per-group stats row keys off category.
+        sub = rec.get("sub_category") or rec.get("category")
         if not sub:
             continue
         ret = rec["returns"]
@@ -298,6 +307,9 @@ def recompute_category_stats(
             if n_funds == 0:
                 continue
             params = {
+                # `sub` is the COALESCE(sub_category, category) grouping key;
+                # sub_category is unpopulated, so this PK column holds the
+                # category-derived effective SEBI peer grouping key.
                 "sub_category": sub,
                 # Bound (not SQL now()) so the same statement runs on
                 # Postgres (prod) and SQLite (tests). UTC, tz-aware.

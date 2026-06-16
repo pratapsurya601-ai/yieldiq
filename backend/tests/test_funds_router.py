@@ -383,6 +383,97 @@ def test_peers_endpoint_with_seeded_peer_and_category_average(
     assert avg[0]["ret_1y"] == pytest.approx(0.12)
 
 
+def test_peers_coalesce_to_category_when_sub_category_null(
+    client: TestClient,
+) -> None:
+    """Prod reality: funds.sub_category is NULL universe-wide while category
+    is populated. The subject fund (118989, sub_category='Large Cap' here)
+    must still find a peer whose sub_category is NULL but whose category
+    matches, via COALESCE(sub_category, category). The category-stats row is
+    keyed by that same COALESCE key (category)."""
+    sess = funds_router._open_session()
+    assert sess is not None
+    # Make the SUBJECT fund mirror prod: NULL sub_category, category set.
+    sess.execute(text(
+        "UPDATE funds SET sub_category = NULL, "
+        "category = 'Equity Scheme - Large Cap Fund' WHERE scheme_code = '118989'"
+    ))
+    # A peer with NULL sub_category but the SAME category → must be matched.
+    # A second fund with NULL sub_category and a DIFFERENT category → excluded.
+    sess.execute(text(
+        """
+        INSERT INTO funds (scheme_code, scheme_name, amc, plan, option,
+                           category, sub_category, riskometer_level, is_active)
+        VALUES
+          ('200002', 'ICICI Pru Bluechip - Direct - Growth', 'ICICI', 'Direct',
+           'Growth', 'Equity Scheme - Large Cap Fund', NULL, 'VeryHigh', 1),
+          ('300002', 'SBI Small Cap - Direct - Growth', 'SBI', 'Direct',
+           'Growth', 'Equity Scheme - Small Cap Fund', NULL, 'VeryHigh', 1)
+        """
+    ))
+    sess.execute(text(
+        """
+        CREATE TABLE fund_returns_cache (
+            scheme_code TEXT PRIMARY KEY,
+            nav_as_of DATE,
+            ret_1y REAL, ret_3y REAL, ret_5y REAL, ret_10y REAL, ret_si REAL,
+            cagr_3y REAL, cagr_5y REAL,
+            ter_direct REAL, ter_regular REAL,
+            yieldiq_fund_score INTEGER,
+            stdev_3y REAL, sharpe_3y REAL, sortino_3y REAL,
+            max_dd_3y REAL, max_dd_5y REAL,
+            beta_3y REAL, alpha_3y REAL, info_ratio_3y REAL, tracking_error_3y REAL,
+            upside_capture_3y REAL, downside_capture_3y REAL, benchmark_excess_3y REAL,
+            category_percentile_3y REAL
+        )
+        """
+    ))
+    sess.execute(text(
+        "INSERT INTO fund_returns_cache (scheme_code, ret_1y, ret_3y, "
+        "ter_direct, yieldiq_fund_score) VALUES "
+        "('200002', 11.0, 13.0, 0.8, 64)"
+    ))
+    # Category-stats row keyed by the COALESCE key (== category).
+    sess.execute(text(
+        """
+        CREATE TABLE fund_category_stats (
+            sub_category TEXT PRIMARY KEY,
+            updated_at TEXT, cache_version TEXT,
+            median_cagr_1y REAL, median_cagr_3y REAL, median_cagr_5y REAL,
+            avg_cagr_1y REAL, avg_cagr_3y REAL, avg_cagr_5y REAL,
+            avg_ter REAL, avg_sharpe_3y REAL, avg_stdev_3y REAL,
+            avg_max_drawdown_3y REAL, n_funds INTEGER
+        )
+        """
+    ))
+    sess.execute(text(
+        "INSERT INTO fund_category_stats (sub_category, median_cagr_3y, "
+        "avg_cagr_1y, avg_cagr_3y, n_funds) VALUES "
+        "('Equity Scheme - Large Cap Fund', 0.13, 0.11, 0.125, 9)"
+    ))
+    sess.commit()
+    sess.close()
+
+    res = client.get("/api/v1/funds/118989/peers")
+    assert res.status_code == 200
+    body = res.json()
+    # Response carries the effective grouping key (category), not NULL.
+    assert body["sub_category"] == "Equity Scheme - Large Cap Fund"
+    rows = body["peers"]
+    real = [r for r in rows if not r["is_category_average"]]
+    avg = [r for r in rows if r["is_category_average"]]
+    # The NULL-sub_category, same-category peer is found; the different-
+    # category fund is excluded.
+    assert len(real) == 1
+    assert real[0]["scheme_code"] == "200002"
+    assert real[0]["fund_score"] == 64
+    # Category-average pseudo-row resolved by the COALESCE (category) key.
+    assert len(avg) == 1
+    assert avg[0]["scheme_code"] is None
+    assert avg[0]["ret_1y"] == pytest.approx(0.11)
+    assert avg[0]["scheme_name"] == "Equity Scheme - Large Cap Fund category average"
+
+
 def test_category_stats_block_in_detail(client: TestClient) -> None:
     """The detail response surfaces a category_stats block when the table
     has a row for the fund's sub_category."""
@@ -417,3 +508,44 @@ def test_category_stats_block_in_detail(client: TestClient) -> None:
     assert cs["median_cagr_3y"] == pytest.approx(0.131)
     # avg_ter stays null — never fabricated.
     assert cs["avg_ter"] is None
+
+
+def test_category_stats_block_in_detail_coalesces_to_category(
+    client: TestClient,
+) -> None:
+    """Prod reality: with sub_category NULL, the detail-page category_stats
+    block must still resolve, keyed by COALESCE(sub_category, category)."""
+    sess = funds_router._open_session()
+    assert sess is not None
+    sess.execute(text(
+        "UPDATE funds SET sub_category = NULL, "
+        "category = 'Equity Scheme - Large Cap Fund' WHERE scheme_code = '118989'"
+    ))
+    sess.execute(text(
+        """
+        CREATE TABLE fund_category_stats (
+            sub_category TEXT PRIMARY KEY,
+            updated_at TEXT, cache_version TEXT,
+            median_cagr_1y REAL, median_cagr_3y REAL, median_cagr_5y REAL,
+            avg_cagr_1y REAL, avg_cagr_3y REAL, avg_cagr_5y REAL,
+            avg_ter REAL, avg_sharpe_3y REAL, avg_stdev_3y REAL,
+            avg_max_drawdown_3y REAL, n_funds INTEGER
+        )
+        """
+    ))
+    sess.execute(text(
+        "INSERT INTO fund_category_stats (sub_category, median_cagr_3y, "
+        "avg_cagr_3y, n_funds) VALUES "
+        "('Equity Scheme - Large Cap Fund', 0.14, 0.135, 9)"
+    ))
+    sess.commit()
+    sess.close()
+
+    res = client.get("/api/v1/funds/118989")
+    assert res.status_code == 200
+    cs = res.json()["category_stats"]
+    assert cs is not None
+    # The stats row is keyed by the category-derived COALESCE key.
+    assert cs["sub_category"] == "Equity Scheme - Large Cap Fund"
+    assert cs["n_funds"] == 9
+    assert cs["median_cagr_3y"] == pytest.approx(0.14)
