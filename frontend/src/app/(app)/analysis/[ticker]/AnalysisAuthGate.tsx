@@ -34,7 +34,9 @@
 
 import { useSyncExternalStore } from "react"
 import { useAuthStore } from "@/store/authStore"
+import { useFeatureFlag } from "@/lib/useFeatureFlag"
 import AnalysisBody from "./AnalysisBody"
+import AnalysisBodyV2 from "./AnalysisBodyV2"
 import PublicAnalysis from "./PublicAnalysis"
 
 interface Props {
@@ -66,10 +68,19 @@ function useStoreHasToken(): boolean {
 export default function AnalysisAuthGate({ ticker, ssrAuthenticated }: Props) {
   const storeHasToken = useStoreHasToken()
   const showAuthed = ssrAuthenticated || storeHasToken
+  // `analysis_v2` is the flag-gated shadow body (the v3-redesign page
+  // ported onto live data). It defaults FALSE for everyone — only
+  // flag-holders see <AnalysisBodyV2/>; every other authed user gets
+  // the unchanged live <AnalysisBody/>. SEO / meta / JSON-LD live in
+  // the server shell above this swap and are untouched.
+  const useV2 = useFeatureFlag("analysis_v2")
 
-  return showAuthed ? (
-    <AnalysisBody ticker={ticker} prism={null} />
+  if (!showAuthed) {
+    return <PublicAnalysis ticker={ticker} />
+  }
+  return useV2 ? (
+    <AnalysisBodyV2 ticker={ticker} />
   ) : (
-    <PublicAnalysis ticker={ticker} />
+    <AnalysisBody ticker={ticker} prism={null} />
   )
 }
