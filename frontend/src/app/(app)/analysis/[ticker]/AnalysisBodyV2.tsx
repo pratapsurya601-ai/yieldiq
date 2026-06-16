@@ -41,6 +41,9 @@ import ChromeHeaderV2 from "./v2/ChromeHeaderV2"
 import DecisionBoxV2 from "./v2/DecisionBoxV2"
 import JumpNavV2, { type JumpNavItem } from "./v2/JumpNavV2"
 import type { SpectrumAxisReal } from "./v2/SpectrumV2"
+import SectionValuationV2 from "./v2/SectionValuationV2"
+import SectionForecastV2 from "./v2/SectionForecastV2"
+import SectionAnalystsV2 from "./v2/SectionAnalystsV2"
 
 /* ------------------------------------------------------------------ */
 /*  Axis derivation — mirrors backend/services/analysis/hex_axes.py    */
@@ -154,16 +157,24 @@ function StubSection({ id, num, title }: { id: string; num: string; title: strin
   )
 }
 
-/** The not-yet-built sections, in scroll order. Each is a JumpNav anchor. */
-const STUB_SECTIONS: { id: string; num: string; title: string }[] = [
+/**
+ * Stub sections still awaiting their own build, split around the real v2
+ * sections that DO exist. Valuation / Forecast / Analysts are now live
+ * components (this build); the rest remain titled placeholders so the
+ * single-scroll narrative + JumpNav keep working end-to-end.
+ */
+const STUBS_BEFORE_VALUATION: { id: string; num: string; title: string }[] = [
   { id: "sec-thesis", num: "02", title: "Thesis" },
   { id: "sec-business", num: "03", title: "Business" },
   { id: "sec-financials", num: "04", title: "Financials" },
-  { id: "sec-valuation", num: "05", title: "Valuation" },
-  { id: "sec-risk", num: "06", title: "Risk" },
-  { id: "sec-ownership", num: "07", title: "Ownership" },
-  { id: "sec-peers", num: "08", title: "Peers" },
-  { id: "sec-news", num: "09", title: "News" },
+]
+const STUBS_AFTER_VALUATION: { id: string; num: string; title: string }[] = [
+  { id: "sec-risk", num: "07", title: "Risk" },
+  { id: "sec-ownership", num: "08", title: "Ownership" },
+  { id: "sec-peers", num: "09", title: "Peers" },
+]
+const STUBS_AFTER_ANALYSTS: { id: string; num: string; title: string }[] = [
+  { id: "sec-news", num: "11", title: "News" },
 ]
 
 export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
@@ -220,11 +231,16 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
     signals.redFlags,
   )
 
-  // JumpNav anchors — only sections that actually exist in v2 so far:
-  // the spine "Answer" (the Decision Box) + the titled stubs below.
+  // JumpNav anchors — the spine "Answer" (Decision Box), then sections in
+  // scroll order: the stubs + the three real v2 sections built here.
   const jumpItems: JumpNavItem[] = [
     { id: "sec-answer", label: "Answer" },
-    ...STUB_SECTIONS.map((s) => ({ id: s.id, label: s.title })),
+    ...STUBS_BEFORE_VALUATION.map((s) => ({ id: s.id, label: s.title })),
+    { id: "sec-valuation", label: "Valuation" },
+    { id: "sec-forecast", label: "Forecast" },
+    ...STUBS_AFTER_VALUATION.map((s) => ({ id: s.id, label: s.title })),
+    { id: "sec-analysts", label: "Analysts" },
+    ...STUBS_AFTER_ANALYSTS.map((s) => ({ id: s.id, label: s.title })),
   ]
 
   return (
@@ -233,8 +249,9 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
 
       {/* Phase-0 build banner — honest about what is real vs stubbed. */}
       <div className="mb-3 mt-1 rounded-xl border border-tone-info-bd bg-tone-info-bg px-3.5 py-2 text-[12.5px] text-tone-info-fg">
-        New analysis layout (preview) — the answer spine is live on real
-        data; the sections below arrive in upcoming builds.
+        New analysis layout (preview) — the answer spine plus valuation,
+        forecast and analyst coverage are live on real data; the remaining
+        sections arrive in upcoming builds.
       </div>
 
       <ChromeHeaderV2 data={data} />
@@ -247,7 +264,20 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
         verdictLayerOn={verdictLayerOn}
       />
 
-      {STUB_SECTIONS.map((s) => (
+      {STUBS_BEFORE_VALUATION.map((s) => (
+        <StubSection key={s.id} id={s.id} num={s.num} title={s.title} />
+      ))}
+
+      <SectionValuationV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+      <SectionForecastV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+
+      {STUBS_AFTER_VALUATION.map((s) => (
+        <StubSection key={s.id} id={s.id} num={s.num} title={s.title} />
+      ))}
+
+      <SectionAnalystsV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+
+      {STUBS_AFTER_ANALYSTS.map((s) => (
         <StubSection key={s.id} id={s.id} num={s.num} title={s.title} />
       ))}
     </div>
