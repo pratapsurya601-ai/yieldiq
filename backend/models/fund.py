@@ -370,3 +370,23 @@ class FundAmcCount(BaseModel):
 
 class FundAmcsResponse(BaseModel):
     amcs: list[FundAmcCount] = Field(default_factory=list)
+
+
+class FundRiskLevelCount(BaseModel):
+    """An official SEBI Riskometer level + how many active (plan-deduped)
+    schemes carry it.
+
+    Powers the screener's Risk filter dropdown DATA-DRIVEN-LY: the
+    dropdown only offers levels that actually have schemes, so it can
+    never zero out the grid. `funds.riskometer_level` is unpopulated
+    (NULL) for much of the universe, so this list is short / empty until
+    the AMFI Riskometer ingest lands — and the dropdown self-hides while
+    it is empty rather than offering a filter that returns nothing.
+    """
+
+    risk: str
+    count: int
+
+
+class FundRiskLevelsResponse(BaseModel):
+    risk_levels: list[FundRiskLevelCount] = Field(default_factory=list)

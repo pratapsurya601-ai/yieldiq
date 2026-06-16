@@ -1290,6 +1290,20 @@ export interface FundAmcsResponse {
   amcs: FundAmcCount[]
 }
 
+/** One Riskometer-level facet row from GET /api/v1/funds/risk-levels.
+ * Data-driven: the backend only returns levels that actually carry
+ * schemes, so the Risk dropdown can never zero out the grid. The list is
+ * empty while `funds.riskometer_level` is unpopulated (the dropdown then
+ * self-hides). `risk` is the canonical casing (e.g. "VeryHigh"). */
+export interface FundRiskLevelCount {
+  risk: string
+  count: number
+}
+
+export interface FundRiskLevelsResponse {
+  risk_levels: FundRiskLevelCount[]
+}
+
 // ── Phase 1 — Fair-Value History contract (Agent B) ──────────────
 // Mirrors backend/models/fair_value_history.py exactly. Treat the
 // shapes as locked: Agent A wires the data layer, Agent C builds the
