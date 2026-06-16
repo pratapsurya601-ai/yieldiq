@@ -42,6 +42,12 @@ import DecisionBoxV2 from "./v2/DecisionBoxV2"
 import JumpNavV2, { type JumpNavItem } from "./v2/JumpNavV2"
 import SectionAnswerV2 from "./v2/SectionAnswerV2"
 import SectionThesisV2 from "./v2/SectionThesisV2"
+import SectionValuationV2 from "./v2/SectionValuationV2"
+import SectionAnalystsV2 from "./v2/SectionAnalystsV2"
+import SectionForecastV2 from "./v2/SectionForecastV2"
+import SectionReturnsV2 from "./v2/SectionReturnsV2"
+import SectionRiskV2 from "./v2/SectionRiskV2"
+import SectionPeersV2 from "./v2/SectionPeersV2"
 import type { SpectrumAxisReal } from "./v2/SpectrumV2"
 
 /* ------------------------------------------------------------------ */
@@ -156,16 +162,18 @@ function StubSection({ id, num, title }: { id: string; num: string; title: strin
   )
 }
 
-/** The not-yet-built sections, in scroll order. Each is a JumpNav anchor.
- *  §01 Answer (DecisionBoxV2 spine + SectionAnswerV2 detail) and §02
- *  Thesis (SectionThesisV2) are now REAL sections — removed from here. */
+/**
+ * The four sections still awaiting their own build. Each is a titled
+ * placeholder + JumpNav anchor. Everything else in the scroll is now a
+ * REAL v2 section: §01 Answer (DecisionBoxV2 spine + SectionAnswerV2
+ * detail), §02 Thesis (SectionThesisV2), Valuation / Analysts / Forecast
+ * (valuation cluster), and Returns / Risk / Peers (peers cluster).
+ * Looked up by id so each can be rendered at its exact scroll position.
+ */
 const STUB_SECTIONS: { id: string; num: string; title: string }[] = [
   { id: "sec-business", num: "03", title: "Business" },
   { id: "sec-financials", num: "04", title: "Financials" },
-  { id: "sec-valuation", num: "05", title: "Valuation" },
-  { id: "sec-risk", num: "06", title: "Risk" },
   { id: "sec-ownership", num: "07", title: "Ownership" },
-  { id: "sec-peers", num: "08", title: "Peers" },
   { id: "sec-news", num: "09", title: "News" },
 ]
 
@@ -223,24 +231,43 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
     signals.redFlags,
   )
 
-  // JumpNav anchors — only sections that actually exist in v2 so far:
-  // the spine "Answer" (the Decision Box), the deeper "Where price sits"
-  // (SectionAnswerV2), the "Thesis" (SectionThesisV2), then the stubs.
+  // JumpNav anchors in scroll order — one ordered nav, no duplicate ids.
+  // The spine "Answer" (Decision Box) + "Where price sits" detail, then
+  // every section in the order it renders below: the two remaining early
+  // stubs, the valuation cluster (Valuation / Analysts / Forecast), the
+  // peers cluster (Returns / Risk), then Ownership (stub) / Peers / News
+  // (stub). Mirrors the locked demo's section order.
   const jumpItems: JumpNavItem[] = [
     { id: "sec-answer", label: "Answer" },
     { id: "sec-answer-detail", label: "Where price sits" },
     { id: "sec-thesis", label: "Thesis" },
-    ...STUB_SECTIONS.map((s) => ({ id: s.id, label: s.title })),
+    { id: "sec-business", label: "Business" },
+    { id: "sec-financials", label: "Financials" },
+    { id: "sec-valuation", label: "Valuation" },
+    { id: "sec-analysts", label: "Analysts" },
+    { id: "sec-forecast", label: "Forecast" },
+    { id: "sec-returns", label: "Returns" },
+    { id: "sec-risk", label: "Risk" },
+    { id: "sec-ownership", label: "Ownership" },
+    { id: "sec-peers", label: "Peers" },
+    { id: "sec-news", label: "News" },
   ]
+
+  /** Render one stub by id (returns null if no stub owns that id). */
+  const stub = (id: string) => {
+    const s = STUB_SECTIONS.find((x) => x.id === id)
+    return s ? <StubSection key={s.id} id={s.id} num={s.num} title={s.title} /> : null
+  }
 
   return (
     <div className="mx-auto max-w-[1060px] px-3 pb-16 pt-3 md:px-5">
       <V2Styles />
 
-      {/* Phase-0 build banner — honest about what is real vs stubbed. */}
+      {/* Build banner — honest about what is real vs stubbed. */}
       <div className="mb-3 mt-1 rounded-xl border border-tone-info-bd bg-tone-info-bg px-3.5 py-2 text-[12.5px] text-tone-info-fg">
-        New analysis layout (preview) — the answer spine is live on real
-        data; the sections below arrive in upcoming builds.
+        New analysis layout (preview) — the answer spine plus thesis,
+        valuation, analyst coverage, forecast, returns, risk and peers are
+        live on real data; the remaining sections arrive in upcoming builds.
       </div>
 
       <ChromeHeaderV2 data={data} />
@@ -253,12 +280,23 @@ export default function AnalysisBodyV2({ ticker }: { ticker: string }) {
         verdictLayerOn={verdictLayerOn}
       />
 
+      {/* Single-scroll narrative in the locked demo's section order:
+          Answer → Thesis → Business → Financials → Valuation → Analysts
+          → Forecast → Returns → Risk → Ownership → Peers → News. Real v2
+          sections render their own data; the four titled placeholders
+          (Business / Financials / Ownership / News) await their builds. */}
       <SectionAnswerV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
       <SectionThesisV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
-
-      {STUB_SECTIONS.map((s) => (
-        <StubSection key={s.id} id={s.id} num={s.num} title={s.title} />
-      ))}
+      {stub("sec-business")}
+      {stub("sec-financials")}
+      <SectionValuationV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+      <SectionAnalystsV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+      <SectionForecastV2 data={data} signals={signals} verdictLayerOn={verdictLayerOn} />
+      <SectionReturnsV2 ticker={ticker} />
+      <SectionRiskV2 data={data} />
+      {stub("sec-ownership")}
+      <SectionPeersV2 ticker={ticker} />
+      {stub("sec-news")}
     </div>
   )
 }
