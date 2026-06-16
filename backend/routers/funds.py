@@ -55,6 +55,8 @@ from backend.models.fund import (
     FundPortfolioHolding,
     FundReturnsCache,
     FundRiskBlock,
+    FundRiskLevelCount,
+    FundRiskLevelsResponse,
 )
 
 logger = logging.getLogger("yieldiq.funds.router")
@@ -1002,6 +1004,51 @@ def _fetch_amcs(db) -> list[FundAmcCount]:
     return out
 
 
+def _fetch_risk_levels(db) -> list[FundRiskLevelCount]:
+    """Distinct official Riskometer levels + active, plan-deduped scheme
+    counts, ordered by count desc (then level asc for a stable tiebreak).
+
+    Powers the screener's Risk filter dropdown DATA-DRIVEN-LY: only levels
+    that actually carry schemes are returned, so selecting one can never
+    zero out the grid. `funds.riskometer_level` is unpopulated (NULL) for
+    much of the universe — until the AMFI Riskometer ingest lands this
+    list is short or EMPTY, and the dropdown self-hides on an empty list
+    rather than offering a filter that returns nothing (the bug this
+    endpoint fixes). NULL / blank levels are excluded.
+
+    Plan-deduped via the same `_index_where(dedupe_plans=True)` predicate
+    the list endpoint uses, so the counts line up with what the screener
+    shows when a Risk filter is applied. Empty list on any failure — the
+    surface degrades gracefully (the dropdown just hides itself).
+    """
+    from sqlalchemy import text
+
+    where, params = _index_where(None, None, dedupe_plans=True)
+    sql = text(
+        f"""
+        SELECT riskometer_level, COUNT(*) AS n
+        FROM funds
+        WHERE {where}
+          AND riskometer_level IS NOT NULL
+          AND riskometer_level <> ''
+        GROUP BY riskometer_level
+        ORDER BY n DESC, riskometer_level ASC
+        """
+    )
+    try:
+        rows = db.execute(sql, params).fetchall()
+    except Exception as exc:
+        logger.warning("funds: risk-levels query failed: %s", exc)
+        return []
+    out: list[FundRiskLevelCount] = []
+    for r in rows:
+        try:
+            out.append(FundRiskLevelCount(risk=r[0], count=int(r[1])))
+        except Exception:
+            continue
+    return out
+
+
 def _fetch_categories(db) -> list[FundCategoryCount]:
     """Distinct categories + active-scheme counts, for the hub filter
     chips. Empty list on any failure — the surface degrades gracefully."""
@@ -1145,6 +1192,27 @@ def list_fund_amcs() -> FundAmcsResponse:
     finally:
         _safe_close(db)
     return FundAmcsResponse(amcs=amcs)
+
+
+# NOTE: registered BEFORE the /{scheme_code} route below so "risk-levels"
+# is not captured as a scheme_code path param.
+@router.get("/risk-levels", response_model=FundRiskLevelsResponse)
+def list_fund_risk_levels() -> FundRiskLevelsResponse:
+    """Distinct official Riskometer levels + active, plan-deduped scheme
+    counts (count desc), for the screener's Risk filter dropdown.
+
+    Returns ONLY levels that actually carry schemes, so the dropdown is
+    data-driven and can never zero out the grid. Currently empty for most
+    of the universe because `funds.riskometer_level` is unpopulated; the
+    dropdown self-hides while this list is empty."""
+    db = _open_session()
+    if db is None:
+        return FundRiskLevelsResponse(risk_levels=[])
+    try:
+        risk_levels = _fetch_risk_levels(db)
+    finally:
+        _safe_close(db)
+    return FundRiskLevelsResponse(risk_levels=risk_levels)
 
 
 @router.get("/{scheme_code}", response_model=FundDetailResponse)

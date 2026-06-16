@@ -40,6 +40,7 @@ import type {
   FundCategoryCount,
   FundListItem,
   FundListSort,
+  FundRiskLevelCount,
   FundRiskometerLevel,
   FundSortOrder,
 } from "@/types/api"
@@ -89,6 +90,10 @@ export interface FundScreenerProps {
   initialOrder: FundSortOrder
   categories: FundCategoryCount[]
   amcs: FundAmcCount[]
+  /** Riskometer-level facets that actually carry schemes (data-driven).
+   * Empty while `funds.riskometer_level` is unpopulated — the Risk
+   * dropdown then self-hides so it can never zero out the grid. */
+  riskLevels: FundRiskLevelCount[]
 }
 
 // ── Client-side sort safety net ──────────────────────────────────────
@@ -185,13 +190,32 @@ export default function FundScreener({
   initialOrder,
   categories,
   amcs,
+  riskLevels,
 }: FundScreenerProps) {
   const router = useRouter()
+
+  // The Risk filter is DATA-DRIVEN: it only exists when some scheme
+  // actually carries a Riskometer level. `funds.riskometer_level` is
+  // unpopulated for most of the universe, so this is usually false and
+  // the Risk dropdown is hidden entirely (it would otherwise zero out the
+  // grid for every selection — the bug this fixes). The set of selectable
+  // levels is rendered in the natural Low→VeryHigh order, restricted to
+  // those present, each with its scheme count.
+  const presentRiskLevels = useMemo(() => {
+    const present = new Map(riskLevels.map((r) => [r.risk, r.count]))
+    return RISKOMETER_ORDER.filter((lvl) => present.has(lvl)).map((lvl) => ({
+      level: lvl,
+      count: present.get(lvl) ?? 0,
+    }))
+  }, [riskLevels])
+  const riskFacetAvailable = presentRiskLevels.length > 0
 
   // ── Filter / sort / page state ─────────────────────────────────────
   const [query, setQuery] = useState(initialQuery)
   const [category, setCategory] = useState(initialCategory)
-  const [risk, setRisk] = useState(initialRisk)
+  // Ignore an incoming `?risk=` when no Riskometer data exists, so a stale
+  // bookmarked link can't silently zero out the grid via a hidden control.
+  const [risk, setRisk] = useState(riskFacetAvailable ? initialRisk : "")
   const [amc, setAmc] = useState(initialAmc)
   const [sort, setSort] = useState<FundListSort>(initialSort)
   const [order, setOrder] = useState<FundSortOrder>(initialOrder)
@@ -379,6 +403,16 @@ export default function FundScreener({
     [visible],
   )
 
+  // Risk column only when some loaded row actually carries a Riskometer
+  // level — `funds.riskometer_level` is unpopulated for most of the
+  // universe, so this is usually false and the column is omitted rather
+  // than shown as a wall of em-dashes (matches the data-driven Risk
+  // filter dropdown above).
+  const showRisk = useMemo(
+    () => visible.some((f) => typeof f.riskometer_level === "string" && !!f.riskometer_level),
+    [visible],
+  )
+
   const canLoadMore = !paginationExhausted && funds.length < total
 
   return (
@@ -417,14 +451,18 @@ export default function FundScreener({
             ))}
           </FilterSelect>
 
-          <FilterSelect label="Risk" value={risk} onChange={setRisk}>
-            <option value="">All risk levels</option>
-            {RISKOMETER_ORDER.map((level) => (
-              <option key={level} value={level}>
-                {RISK_LABELS[level]}
-              </option>
-            ))}
-          </FilterSelect>
+          {/* Data-driven: only rendered when some scheme carries a
+              Riskometer level, so a selection can never empty the grid. */}
+          {riskFacetAvailable ? (
+            <FilterSelect label="Risk" value={risk} onChange={setRisk}>
+              <option value="">All risk levels</option>
+              {presentRiskLevels.map(({ level, count }) => (
+                <option key={level} value={level}>
+                  {RISK_LABELS[level]} ({count.toLocaleString("en-IN")})
+                </option>
+              ))}
+            </FilterSelect>
+          ) : null}
 
           {amcs.length > 0 ? (
             <FilterSelect label="Fund House" value={amc} onChange={setAmc}>
@@ -494,6 +532,7 @@ export default function FundScreener({
               order={order}
               onSort={onSort}
               showTenYear={showTenYear}
+              showRisk={showRisk}
             />
           </div>
 

@@ -64,6 +64,11 @@ export interface FundScreenerTableProps {
   onSort: (key: FundListSort) => void
   /** Show the 10Y column only when at least one row carries ret_10y. */
   showTenYear: boolean
+  /** Show the Risk column only when at least one row carries a Riskometer
+   *  level. `funds.riskometer_level` is unpopulated for most of the
+   *  universe, so this is usually false and the column is omitted rather
+   *  than rendered as a wall of em-dashes. */
+  showRisk: boolean
 }
 
 // aria-sort value for a header cell given the active sort state.
@@ -171,7 +176,7 @@ function RiskChip({ fund }: { fund: FundListItem }) {
 }
 
 // ── Desktop table ────────────────────────────────────────────────────
-function DesktopTable({ funds, sort, order, onSort, showTenYear }: FundScreenerTableProps) {
+function DesktopTable({ funds, sort, order, onSort, showTenYear, showRisk }: FundScreenerTableProps) {
   const cols = showTenYear ? RETURN_COLS : RETURN_COLS.filter((c) => c.key !== "ret_10y")
   return (
     <div className="hidden overflow-x-auto rounded-lg border border-border sm:block">
@@ -246,12 +251,14 @@ function DesktopTable({ funds, sort, order, onSort, showTenYear }: FundScreenerT
                 onSort={onSort}
               />
             </th>
-            <th
-              scope="col"
-              className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-caption"
-            >
-              Risk
-            </th>
+            {showRisk ? (
+              <th
+                scope="col"
+                className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-caption"
+              >
+                Risk
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -310,9 +317,11 @@ function DesktopTable({ funds, sort, order, onSort, showTenYear }: FundScreenerT
                 <td className="num px-3 py-2.5 text-right font-medium text-body">
                   {terLabel ?? <span className="text-caption">—</span>}
                 </td>
-                <td className="px-3 py-2.5 text-left">
-                  <RiskChip fund={fund} />
-                </td>
+                {showRisk ? (
+                  <td className="px-3 py-2.5 text-left">
+                    <RiskChip fund={fund} />
+                  </td>
+                ) : null}
               </tr>
             )
           })}
@@ -323,7 +332,15 @@ function DesktopTable({ funds, sort, order, onSort, showTenYear }: FundScreenerT
 }
 
 // ── Mobile stacked cards ─────────────────────────────────────────────
-function MobileCards({ funds, showTenYear }: { funds: FundListItem[]; showTenYear: boolean }) {
+function MobileCards({
+  funds,
+  showTenYear,
+  showRisk,
+}: {
+  funds: FundListItem[]
+  showTenYear: boolean
+  showRisk: boolean
+}) {
   const cols = showTenYear ? RETURN_COLS : RETURN_COLS.filter((c) => c.key !== "ret_10y")
   return (
     <ul className="space-y-2 sm:hidden" aria-label="Fund results">
@@ -363,7 +380,7 @@ function MobileCards({ funds, showTenYear }: { funds: FundListItem[]; showTenYea
                     {category}
                   </span>
                 ) : null}
-                <RiskChip fund={fund} />
+                {showRisk ? <RiskChip fund={fund} /> : null}
               </div>
               <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-2">
                 {cols.map((c) => (
@@ -389,7 +406,11 @@ export default function FundScreenerTable(props: FundScreenerTableProps) {
   return (
     <>
       <DesktopTable {...props} />
-      <MobileCards funds={props.funds} showTenYear={props.showTenYear} />
+      <MobileCards
+        funds={props.funds}
+        showTenYear={props.showTenYear}
+        showRisk={props.showRisk}
+      />
     </>
   )
 }

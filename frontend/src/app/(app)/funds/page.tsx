@@ -28,6 +28,7 @@ import {
   fetchFundAmcsSSR,
   fetchFundCategoriesSSR,
   fetchFundListSSR,
+  fetchFundRiskLevelsSSR,
 } from "@/lib/api"
 import type { FundListItem, FundListSort, FundSortOrder } from "@/types/api"
 import FundScreener from "./FundScreener"
@@ -91,19 +92,25 @@ export default async function FundsScreenerPage({ searchParams }: Props) {
   const order: FundSortOrder = sp.order === "asc" ? "asc" : "desc"
 
   // First page only — the client screener fetches every subsequent page
-  // and re-fetches on filter/sort changes. Categories + AMCs power the
-  // filter-bar dropdowns. All three degrade to empty on backend miss.
-  const [{ funds, total }, { categories }, { amcs }] = await Promise.all([
-    fetchFundListSSR(PAGE_SIZE, q || undefined, category || undefined, {
-      sort,
-      order,
-      risk: risk || undefined,
-      amc: amc || undefined,
-      offset: 0,
-    }),
-    fetchFundCategoriesSSR(),
-    fetchFundAmcsSSR(),
-  ])
+  // and re-fetches on filter/sort changes. Categories + AMCs + risk levels
+  // power the filter-bar dropdowns. All degrade to empty on backend miss.
+  // Risk levels are DATA-DRIVEN: the dropdown only offers (and the screener
+  // only honours) levels that actually carry schemes, so the Risk filter
+  // can never zero out the grid. It is empty while riskometer data is
+  // unpopulated, in which case the screener hides the Risk dropdown.
+  const [{ funds, total }, { categories }, { amcs }, { risk_levels }] =
+    await Promise.all([
+      fetchFundListSSR(PAGE_SIZE, q || undefined, category || undefined, {
+        sort,
+        order,
+        risk: risk || undefined,
+        amc: amc || undefined,
+        offset: 0,
+      }),
+      fetchFundCategoriesSSR(),
+      fetchFundAmcsSSR(),
+      fetchFundRiskLevelsSSR(),
+    ])
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -118,6 +125,7 @@ export default async function FundsScreenerPage({ searchParams }: Props) {
         initialOrder={order}
         categories={categories}
         amcs={amcs}
+        riskLevels={risk_levels}
       />
 
       <footer className="rounded-lg border border-tone-warn-bd bg-tone-warn-bg p-4 text-xs leading-relaxed text-tone-warn-fg">

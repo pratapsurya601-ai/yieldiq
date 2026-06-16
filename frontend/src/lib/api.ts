@@ -1785,6 +1785,7 @@ import type {
   FundListResponse,
   FundListSort,
   FundPeersResponse,
+  FundRiskLevelsResponse,
   FundSortOrder,
 } from "@/types/api"
 
@@ -1921,6 +1922,25 @@ export async function fetchFundAmcsSSR(): Promise<FundAmcsResponse> {
     return (await res.json()) as FundAmcsResponse
   } catch {
     return { amcs: [] }
+  }
+}
+
+// Riskometer-level facet for the screener's "Risk" dropdown. Returns ONLY
+// the levels that actually carry schemes (data-driven), biggest first, so
+// the dropdown can never zero out the grid. `funds.riskometer_level` is
+// unpopulated for most of the universe today, so this is usually EMPTY —
+// the screener hides the Risk dropdown entirely while it is, and the
+// filter auto-reappears once the AMFI Riskometer ingest lands. Empty
+// shape on 404 / network failure.
+export async function fetchFundRiskLevelsSSR(): Promise<FundRiskLevelsResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/funds/risk-levels`, {
+      next: { revalidate: 3600 },
+    })
+    if (!res.ok) return { risk_levels: [] }
+    return (await res.json()) as FundRiskLevelsResponse
+  } catch {
+    return { risk_levels: [] }
   }
 }
 
