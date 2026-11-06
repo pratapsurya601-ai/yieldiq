@@ -3,24 +3,15 @@ import Script from "next/script";
 import { Inter, Inter_Tight, JetBrains_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Analytics } from "@vercel/analytics/next";
-// NOTE: @vercel/speed-insights intentionally removed — the Speed Insights
-// ingestion endpoint (/_vercel/speed-insights/vitals, served via the
-// hashed /<id>/vitals path) was returning a consistent 503 on every
-// page load because Speed Insights isn't enabled on the Vercel project.
-// That polluted Sentry / network-error monitoring with a fixed-rate
-// failure. To re-enable, enable "Speed Insights" on the Vercel dashboard,
-// re-add `@vercel/speed-insights` to package.json, and mount
-// `<SpeedInsights />` next to `<Analytics />` below.
 import BetaBanner from "@/components/marketing/BetaBanner";
 import IncidentBanner from "@/components/IncidentBanner";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import WebVitalsBeacon from "@/components/WebVitalsBeacon";
 
-// ── Typography (next/font, self-hosted, no FOUT) ──
+// �"?�"? Typography (next/font, self-hosted, no FOUT) �"?�"?
 // Inter Tight serves as our "display" face (used for headings via
 // the `font-display` utility). Inter is the body/sans face. JetBrains
-// Mono renders numeric displays (prices, scores, percentages) — pairs
+// Mono renders numeric displays (prices, scores, percentages) �?" pairs
 // perfectly with tabular-nums since it already has distinctive digits.
 const fontSans = Inter({
   subsets: ["latin"],
@@ -40,13 +31,13 @@ const fontMono = JetBrains_Mono({
   display: "swap",
 });
 
-// Editorial serif — Fraunces with the optical-size axis enabled so large
+// Editorial serif �?" Fraunces with the optical-size axis enabled so large
 // hero headlines render with the display-optimized glyph shapes while
 // smaller usages stay readable. Used via `font-editorial` utility.
 // NOTE: Fraunces is a variable font; we request the `opsz` optical-size axis
 // in addition to the default `wght`. next/font requires `weight` to be unset
-// (or "variable") when `axes` is provided, so we omit weight here — the
-// browser can still access the full 100–900 range via font-weight CSS.
+// (or "variable") when `axes` is provided, so we omit weight here �?" the
+// browser can still access the full 100�?"900 range via font-weight CSS.
 const fontEditorial = Fraunces({
   subsets: ["latin"],
   variable: "--font-editorial",
@@ -55,7 +46,7 @@ const fontEditorial = Fraunces({
   adjustFontFallback: true,
 });
 
-// ── Analytics IDs (set in Vercel env vars for production) ──
+// �"?�"? Analytics IDs (set in Vercel env vars for production) �"?�"?
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 // TODO: re-enable once Clarity tag ID is regenerated
 // const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
@@ -66,7 +57,7 @@ const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 //
 // Migration (2026-06): dark is now the premium-fintech default
 // (Bloomberg / Koyfin / TradingView / AlphaSpread). Anything other
-// than "light" — missing key, garbage, legacy "system" sentinel —
+// than "light" �?" missing key, garbage, legacy "system" sentinel �?"
 // resolves to dark, and non-canonical values are rewritten to "dark"
 // so the migration only runs once per browser. An explicit "light"
 // preference from a returning user is preserved as-is.
@@ -84,7 +75,7 @@ export const metadata: Metadata = {
   // this so a user with five tabs open sees five distinct titles
   // instead of one generic string (audit 2026-05-26 P1).
   title: {
-    default: "YieldIQ — DCF Stock Analysis for Indian Markets",
+    default: "YieldIQ �?" DCF Stock Analysis for Indian Markets",
     template: "%s",
   },
   description:
@@ -109,7 +100,7 @@ export const metadata: Metadata = {
     title: "YieldIQ",
   },
   openGraph: {
-    title: "YieldIQ — Fair-value estimates for Indian stocks",
+    title: "YieldIQ �?" Fair-value estimates for Indian stocks",
     description: "Free DCF valuation for 2,300+ NSE & BSE stocks. Instant fair value, margin of safety, and quality scores.",
     url: "https://yieldiq.in",
     siteName: "YieldIQ",
@@ -120,20 +111,20 @@ export const metadata: Metadata = {
         url: "https://yieldiq.in/icon-512.png",
         width: 512,
         height: 512,
-        alt: "YieldIQ — Stock Valuation Tool",
+        alt: "YieldIQ �?" Stock Valuation Tool",
       },
     ],
   },
   twitter: {
     card: "summary",
-    title: "YieldIQ — Stock Valuation for Indian Investors",
+    title: "YieldIQ �?" Stock Valuation for Indian Investors",
     description: "Free DCF analysis for NSE/BSE stocks. Know the fair value before you invest.",
     images: ["https://yieldiq.in/icon-512.png"],
   },
 };
 
 export const viewport: Viewport = {
-  // Accessibility: do NOT set maximumScale or userScalable=false — that
+  // Accessibility: do NOT set maximumScale or userScalable=false �?" that
   // blocks pinch-to-zoom and trips a Lighthouse a11y audit violation.
   // Keep the viewport minimal: device-width + initial-scale=1.
   //
@@ -161,9 +152,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Anti-FOUC theme init — must run before body paint. */}
+        {/* Anti-FOUC theme init �?" must run before body paint. */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        {/* Motion-off init — same pattern, drives [data-yq-motion-off]. */}
+        {/* Motion-off init �?" same pattern, drives [data-yq-motion-off]. */}
         <script dangerouslySetInnerHTML={{ __html: motionInitScript }} />
 
         {/* Google Analytics 4 */}
@@ -187,7 +178,7 @@ export default function RootLayout({
           </>
         )}
 
-        {/* Microsoft Clarity — heatmaps and session recordings */}
+        {/* Microsoft Clarity �?" heatmaps and session recordings */}
         {/* TODO: re-enable once Clarity tag ID is regenerated */}
         {/* Disabled 2026-04-27: tag returned HTTP 400 on every page load
             (DevTools audit on yieldiq.in). Re-enable by uncommenting once
@@ -213,8 +204,7 @@ export default function RootLayout({
         <BetaBanner />
         <Providers>{children}</Providers>
         <ServiceWorkerRegister />
-        <Analytics />
-        {/* Real-user Core Web Vitals → /api/v1/telemetry/web-vital (RUM). */}
+        {/* Real-user Core Web Vitals �+' /api/v1/telemetry/web-vital (RUM). */}
         <WebVitalsBeacon />
       </body>
     </html>
