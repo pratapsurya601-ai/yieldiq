@@ -44,26 +44,31 @@ streamlit run dashboard/app.py
 ## Project Structure
 ```
 yieldiq_v7/
-├── dashboard/
-│   ├── app.py               Main Streamlit entry point
-│   ├── auth.py              Authentication + session management
-│   ├── tier_gate.py         Free/Starter/Pro tier gating
-│   ├── tabs/                Individual page modules (11 tabs)
-│   ├── ui/                  Styles, sidebar, helpers
-│   └── utils/               Formatting, scoring, chart layouts
-├── screener/                14 valuation engine modules
-├── models/                  ML forecaster + industry WACC tables
-├── data/                    Data collector (Finnhub + yfinance)
-├── utils/                   Config + logger
-└── tests/                   Test suite
+�"o�"?�"? dashboard/
+�",   �"o�"?�"? app.py               Main Streamlit entry point
+�",   �"o�"?�"? auth.py              Authentication + session management
+�",   �"o�"?�"? tier_gate.py         Free/Starter/Pro tier gating
+�",   �"o�"?�"? tabs/                Individual page modules (11 tabs)
+�",   �"o�"?�"? ui/                  Styles, sidebar, helpers
+�",   �""�"?�"? utils/               Formatting, scoring, chart layouts
+�"o�"?�"? screener/                14 valuation engine modules
+�"o�"?�"? models/                  ML forecaster + industry WACC tables
+�"o�"?�"? data/                    Data collector (Finnhub + yfinance)
+�"o�"?�"? utils/                   Config + logger
+�""�"?�"? tests/                   Test suite
 ```
 
 ## Environment Variables
 See `.env.example` for all required and optional API keys.
 
 ## Deployment
-Deploys to Streamlit Cloud from GitHub.
-Add environment variables in App Settings > Secrets.
+The Next.js frontend in `frontend/` deploys to Cloudflare Workers through the
+manual `Deploy frontend to Cloudflare` GitHub Actions workflow. See
+[`frontend/README.md`](frontend/README.md) for the required GitHub variables
+and secrets.
+
+The FastAPI backend remains on Railway at `api.yieldiq.in` and is configured
+by [`railway.toml`](railway.toml). The legacy Streamlit deployment is separate.
 
 ## Disclaimer
 This tool is for educational and research purposes only and does not

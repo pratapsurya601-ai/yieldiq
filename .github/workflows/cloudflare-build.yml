@@ -1,0 +1,32 @@
+name: Cloudflare frontend build
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/cloudflare-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_API_URL: https://api.yieldiq.in
+      NEXT_PUBLIC_BUILD_ID: ${{ github.sha }}
+      SENTRY_ORG: yieldiq
+      SENTRY_PROJECT: yieldiq-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build:cloudflare
+      - run: npx wrangler deploy --dry-run

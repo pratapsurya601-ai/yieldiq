@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YieldIQ frontend
 
-## Getting Started
+## Local development
 
-First, run the development server:
+Install dependencies and start Next.js:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The frontend uses `NEXT_PUBLIC_API_URL` to reach the FastAPI backend. See
+`.env.local.example` for local configuration.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cloudflare Workers deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app uses the OpenNext Cloudflare adapter. Preview the Cloudflare runtime
+locally with:
 
-## Learn More
+```bash
+npm run preview:cloudflare
+```
 
-To learn more about Next.js, take a look at the following resources:
+Production deployment is a manual GitHub Actions workflow. Before running it,
+configure these repository Actions variables and secrets:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Variables: `NEXT_PUBLIC_API_URL` (defaults to `https://api.yieldiq.in`),
+  `NEXT_PUBLIC_GA4_ID`, and `NEXT_PUBLIC_SENTRY_DSN`.
+- Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and optionally
+  `SENTRY_AUTH_TOKEN` for source-map uploads.
+- Create the R2 bucket `yieldiq-next-cache` before deploying; it stores the
+  Next.js incremental cache. R2 has monthly free allowances, with charges if
+  usage exceeds them.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The Cloudflare token needs permission to deploy Workers. The workflow deploys
+to a `workers.dev` address; attach the production domain only after checking
+the deployment. The FastAPI service remains on Railway. Image optimization is
+disabled to avoid requiring a paid Cloudflare Images binding.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Keep the Vercel deployment available during the migration. Switch the DNS for
+`yieldiq.in` only after the Cloudflare deployment passes the production smoke
+checks.
